@@ -1,0 +1,17 @@
+#!/bin/sh -e
+
+export CFLAGS="$CFLAGS -static -Wno-error -Wno-int-conversion -Wno-implicit-function-declaration"
+
+./configure \
+    --prefix=/usr \
+    --disable-nls
+
+# Fix gnulib compat: replace all K&R-style zero-arg prototypes that
+# conflict with musl's strict POSIX declarations.
+find . \( -name '*.c' -o -name '*.h' \) -exec sed -i \
+    -e 's/extern char \*getenv ();/\/* getenv *\//' \
+    -e 's/^extern int getopt ();/\/* getopt *\//' \
+    {} +
+
+make
+make install

@@ -1,0 +1,3 @@
+/home/kiss/sources/binutils/binutils-2.37.tar.xz
+patches/fix-fd-issue.patch
+patches/fix-empty-man.patch
