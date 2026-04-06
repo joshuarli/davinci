@@ -53,3 +53,7 @@ WORKDIR /home/kiss
 # Copy in the build/verify helper script.
 COPY tests/build_core.sh /home/kiss/build_core.sh
 RUN chmod +x /home/kiss/build_core.sh
+
+# Use tini as PID 1 to reap zombie processes.
+RUN apk add --no-cache tini
+ENTRYPOINT ["/sbin/tini", "--"]

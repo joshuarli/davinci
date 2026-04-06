@@ -1,0 +1,61 @@
+FROM alpine:latest
+
+# Minimal seed: only what's needed to compile C and run pm.
+#
+# busybox (Alpine base): sh, tar, sed, awk, grep, find, diff,
+#   sha256sum, cp, mv, ln, mkdir, rm, cat, head, tail, sort, od, etc.
+# gcc + binutils: C compiler, assembler, linker, strip, readelf
+# musl-dev: libc headers + crt startup files
+# linux-headers: kernel headers (needed by musl and busybox builds)
+# make: build system (11 of 16 packages use it)
+# patch: busybox build script applies patches (Alpine busybox lacks it)
+# perl: openssl Configure requires it (only external scripting dep)
+# bzip2, xz: decompression for source tarballs (.tar.bz2, .tar.xz)
+#   (gzip is already in Alpine busybox)
+RUN apk add --no-cache \
+    gcc binutils musl-dev linux-headers \
+    make patch \
+    perl \
+    bzip2 xz
+
+# Install pm.
+COPY pm /usr/bin/kiss
+RUN chmod +x /usr/bin/kiss
+
+# Copy in the vendored repo and sources.
+COPY tests/fixtures/repo /home/kiss/repo
+COPY tests/fixtures/sources /home/kiss/sources
+
+# Ensure build/post-install scripts are executable.
+RUN find /home/kiss/repo -name build -exec chmod +x {} +
+RUN find /home/kiss/repo -name post-install -exec chmod +x {} +
+
+# Create the chroot target.
+RUN mkdir -p /kiss-root/var/db/kiss/installed /kiss-root/var/db/kiss/choices
+
+# Add /kiss-root/usr/bin to PATH so that packages built earlier in the
+# bootstrap (e.g. m4, make) are available to later builds (e.g. bison).
+ENV PATH=/kiss-root/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    KISS_PATH=/home/kiss/repo \
+    KISS_ROOT=/kiss-root \
+    KISS_COMPRESS=gz \
+    KISS_COLOR=0 \
+    KISS_PROMPT=0 \
+    KISS_STRIP=0 \
+    KISS_FORCE=1 \
+    LOGNAME=root \
+    HOME=/root \
+    CC=gcc \
+    PKG_CONFIG_PATH=/kiss-root/usr/lib/pkgconfig \
+    CPPFLAGS="-I/kiss-root/usr/include" \
+    LDFLAGS="-L/kiss-root/usr/lib"
+
+WORKDIR /home/kiss
+
+COPY tests/build_core.sh /home/kiss/build_core.sh
+COPY tests/bootstrap.sh /home/kiss/bootstrap.sh
+RUN chmod +x /home/kiss/build_core.sh /home/kiss/bootstrap.sh
+
+# Use tini as PID 1 to reap zombie processes.
+RUN apk add --no-cache tini
+ENTRYPOINT ["/sbin/tini", "--"]

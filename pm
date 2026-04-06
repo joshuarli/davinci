@@ -179,7 +179,7 @@ run_hook_pkg() {
     # Run a hook from the package's database files.
     if [ -x "$sys_db/$2/$1" ]; then
         log "$2" "Running $1 hook"
-        "$sys_db/$2/$1"
+        "$sys_db/$2/$1" || war "$2" "$1 hook failed (exit=$?)"
 
     elif [ -f "$sys_db/$2/$1" ]; then
         war "$2" "skipping $1 hook: not executable"
