@@ -323,3 +323,12 @@ Things that work in POSIX/bash but break in YSH (`ysh:all` mode):
   Without parens, the `:|` is not recognized as a typed expression.
 - **`$1`, `$2` etc. are gone.** Positional params in scripts use `ARGV`:
   `var dest = ARGV[0]` instead of `var dest = $1`.  `@ARGV` splices all args.
+- **`IFS=x read` leaks.** In POSIX shell, `while IFS=/ read -r a b` scopes
+  `IFS` to the `read` command.  In YSH, the assignment persists after the loop,
+  corrupting later `read` calls.  Use `read --raw-line` + `=> split('/')`.
+- **Backslashes in single-quoted strings (OILS-ERR-20).** `'\n'` and `'\('`
+  are ambiguous.  Use `r'\('` (raw string) for literal backslashes, or
+  `u'\n'` (J8/unicode string) for escape sequences.
+- **`\\$(...)` in double quotes is still a command sub.** `\\` produces a
+  literal `\`, then `$(cmd)` runs.  To get a literal `$(`, use a raw
+  single-quoted prefix: `var s = r'\($(' ++ var ++ ')'`.

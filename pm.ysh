@@ -619,7 +619,9 @@ proc pkg_source_tar (file) {
     try { tar tf $_tmp_file_pre | sort -ut / -k1,1 > $_tmp_file }
     if failed { die $repo_name "Failed to extract manifest" }
 
-    while IFS=/ read -r dir _rest {
+    while read --raw-line {
+        var _parts = _reply => split('/')
+        var dir = _parts[0]
         var dir_stripped = ${dir#.}
         case (dir_stripped) {
             ?* {

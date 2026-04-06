@@ -9,7 +9,8 @@ for patch in @[glob('patch/*.patch')] {
 
 # Remove forced gcc/g++ usage so builds work on gcc-less systems.
 var sed1 = "s#= g[c+][c+]#= ${CC}#g"
-var sed2 = "s#\\(\\$(CROSS_COMPILE)\\)gcc#\\1${CC}#g"
+var _pre2 = r's#\(\$(CROSS_COMPILE)\)gcc#\1'
+var sed2 = "${_pre2}${CC}#g"
 sed -e $sed1 -e $sed2 Makefile > _
 mv -f _ Makefile
 
@@ -19,7 +20,8 @@ if (cc_ver => contains('clang')) {
     # clang and become null pointer dereferences.
     patch -p1 < patch-clang/fix-UB.patch
 
-    var sed3 = "s&\\(\\$(CC),\\)clang&\\1${CC}&g"
+    var _pre3 = r's&\(\$(CC),\)clang&\1'
+    var sed3 = "${_pre3}${CC}&g"
     sed $sed3 Makefile.flags > _
     mv -f _ Makefile.flags
 }
