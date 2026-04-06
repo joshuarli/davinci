@@ -10,13 +10,15 @@
 #   --enable-debug
 
 make
-make install
+make DESTDIR="$1" install
+
+ARCH=$(uname -m)
 
 mkdir -p "$1/usr/bin"
-ln -s  /usr/lib/ld-musl-x86_64.so.1 "$1/usr/bin/ldd"
+ln -s  /usr/lib/ld-musl-$ARCH.so.1 "$1/usr/bin/ldd"
 
 # Fix incorrect symlink to libc.so.
-ln -sf libc.so "$1/usr/lib/ld-musl-x86_64.so.1"
+ln -sf libc.so "$1/usr/lib/ld-musl-$ARCH.so.1"
 
 # Install BSD compatibility headers.
 cp -f cdefs.h queue.h tree.h \

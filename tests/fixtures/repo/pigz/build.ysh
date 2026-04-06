@@ -1,0 +1,23 @@
+#!/usr/local/bin/ysh
+
+var CC = ENV => get("CC", "cc")
+var CFLAGS = ENV => get("CFLAGS", "") => split(' ')
+var CPPFLAGS = ENV => get("CPPFLAGS", "") => split(' ')
+var LDFLAGS = ENV => get("LDFLAGS", "") => split(' ')
+var DESTDIR = ENV => get("DESTDIR", "")
+
+var objs = :| pigz.o yarn.o try.o |
+
+for f in (objs) {
+    $CC -c -o $f "${f%%.o}.c" @CPPFLAGS -DNOZOPFLI @CFLAGS
+}
+$CC -static -o pigz @objs @CPPFLAGS @CFLAGS -lz @LDFLAGS
+
+mkdir -p \
+    "${DESTDIR}/usr/bin" \
+    "${DESTDIR}/usr/share/man/man1"
+
+cp  -f pigz   "${DESTDIR}/usr/bin"
+ln -sf pigz   "${DESTDIR}/usr/bin/gzip"
+cp  -f pigz.1 "${DESTDIR}/usr/share/man/man1"
+ln -sf pigz.1 "${DESTDIR}/usr/share/man/man1/gzip.1"

@@ -1,0 +1,64 @@
+#!/usr/local/bin/ysh
+
+var dest = ARGV[0]
+var CC = ENV => get("CC", "cc")
+
+for patch in @[glob('patch/*.patch')] {
+    patch -p1 < $patch
+}
+
+# Remove forced gcc/g++ usage so builds work on gcc-less systems.
+var sed1 = "s#= g[c+][c+]#= ${CC}#g"
+var sed2 = "s#\\(\\$(CROSS_COMPILE)\\)gcc#\\1${CC}#g"
+sed -e $sed1 -e $sed2 Makefile > _
+mv -f _ Makefile
+
+var cc_ver = $($CC --version)
+if (cc_ver => contains('clang')) {
+    # Disable UB based optimizations which are optimized out by
+    # clang and become null pointer dereferences.
+    patch -p1 < patch-clang/fix-UB.patch
+
+    var sed3 = "s&\\(\\$(CC),\\)clang&\\1${CC}&g"
+    sed $sed3 Makefile.flags > _
+    mv -f _ Makefile.flags
+}
+
+# Build and install regular busybox.
+make HOSTCC=$CC
+make CONFIG_PREFIX="${dest}/usr" install
+
+# Rename the binary temporarily.
+mv "${dest}/usr/bin/busybox" "${dest}/usr/bin/busybox-nosuid"
+
+# Build and install suid busybox.
+cp -f .config-suid .config
+make HOSTCC=$CC
+make CONFIG_PREFIX="${dest}/usr" install
+
+# Aptly name the busybox binaries.
+mv -f "${dest}/usr/bin/busybox"        "${dest}/usr/bin/busybox-suid"
+mv -f "${dest}/usr/bin/busybox-nosuid" "${dest}/usr/bin/busybox"
+
+# Install the non-suid symlinks.
+"${dest}/usr/bin/busybox" --list | while read -r bin {
+    ln -s busybox "${dest}/usr/bin/${bin}"
+}
+
+# Install the suid symlinks.
+"${dest}/usr/bin/busybox-suid" --list | while read -r bin {
+    ln -s busybox-suid "${dest}/usr/bin/${bin}"
+}
+
+chmod u+s "${dest}/usr/bin/busybox-suid"
+
+mkdir -p "${dest}/etc/acpi"
+
+# Install runit services.
+for s in (:| acpid crond syslogd mdev ntpd |) {
+    mkdir -p "${dest}/etc/sv/${s}"
+    cp -f "${s}.run" "${dest}/etc/sv/${s}/run"
+    ln -sf "/run/runit/supervise.${s}" "${dest}/etc/sv/${s}/supervise"
+}
+
+cp -f mdev.conf "${dest}/etc/mdev.conf"

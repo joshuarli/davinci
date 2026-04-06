@@ -1,0 +1,11 @@
+#!/usr/local/bin/ysh
+
+var dest = ARGV[0]
+
+./configure \
+    --prefix=/usr \
+    --disable-doc \
+    --disable-nls
+
+make
+make DESTDIR=$dest install

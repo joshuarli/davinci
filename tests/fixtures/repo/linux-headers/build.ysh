@@ -1,0 +1,13 @@
+#!/usr/local/bin/ysh
+
+var dest = ARGV[0]
+var CC = ENV => get("CC", "cc")
+
+make HOSTCC=$CC headers
+
+# The headers require rsync for installation. This does the equivalent
+# using find, mkdir and cp.
+find usr/include -name '*.h' -type f | while read -r file {
+    mkdir -p "${dest}/${file%/*}"
+    cp -f $file "${dest}/${file}"
+}

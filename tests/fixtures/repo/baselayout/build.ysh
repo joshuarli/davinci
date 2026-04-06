@@ -1,0 +1,66 @@
+#!/usr/local/bin/ysh
+
+var dest = ARGV[0]
+
+mkdir -m 755 \
+    "${dest}/boot" \
+    "${dest}/dev" \
+    "${dest}/etc" \
+    "${dest}/home" \
+    "${dest}/mnt" \
+    "${dest}/opt" \
+    "${dest}/run" \
+    "${dest}/usr" \
+    "${dest}/usr/bin" \
+    "${dest}/usr/include" \
+    "${dest}/usr/lib" \
+    "${dest}/usr/share" \
+    "${dest}/usr/share/man" \
+    "${dest}/usr/share/man/man1" \
+    "${dest}/usr/share/man/man2" \
+    "${dest}/usr/share/man/man3" \
+    "${dest}/usr/share/man/man4" \
+    "${dest}/usr/share/man/man5" \
+    "${dest}/usr/share/man/man6" \
+    "${dest}/usr/share/man/man7" \
+    "${dest}/usr/share/man/man8" \
+    "${dest}/var/cache" \
+    "${dest}/var/local" \
+    "${dest}/var/opt" \
+    "${dest}/var/log" \
+    "${dest}/var/log/old" \
+    "${dest}/var/lib" \
+    "${dest}/var/lib/misc" \
+    "${dest}/var/empty" \
+    "${dest}/var/service" \
+    "${dest}/var/spool"
+
+mkdir -m 555 \
+    "${dest}/proc" \
+    "${dest}/sys"
+
+mkdir -m 0750 \
+    "${dest}/root"
+
+mkdir -m 1777 \
+    "${dest}/tmp" \
+    "${dest}/var/tmp" \
+    "${dest}/var/spool/mail"
+
+ln -sf usr/bin "${dest}/bin"
+ln -sf usr/bin "${dest}/sbin"
+ln -sf bin     "${dest}/usr/sbin"
+ln -sf usr/lib "${dest}/lib"
+ln -sf usr/lib "${dest}/lib64"
+
+ln -sf lib               "${dest}/usr/lib64"
+ln -sf spool/mail        "${dest}/var/mail"
+ln -sf ../run            "${dest}/var/run"
+ln -sf ../run/lock       "${dest}/var/lock"
+ln -sf /proc/self/mounts "${dest}/etc/mtab"
+
+cp -f ./* "${dest}/etc"
+
+chmod 600 \
+    "${dest}/etc/crypttab" \
+    "${dest}/etc/shadow"

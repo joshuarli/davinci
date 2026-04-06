@@ -1,0 +1,65 @@
+FROM alpine:latest AS ysh-builder
+
+RUN apk add --no-cache build-base readline-dev curl tar
+
+RUN curl -fLo /tmp/oils.tar.gz \
+        https://oils.pub/download/oils-for-unix-0.37.0.tar.gz && \
+    cd /tmp && tar xzf oils.tar.gz && \
+    cd oils-for-unix-* && \
+    ./configure && \
+    _build/oils.sh && \
+    ./install
+
+FROM alpine:latest
+
+COPY --from=ysh-builder /usr/local/bin/oils-for-unix /usr/local/bin/oils-for-unix
+RUN ln -s oils-for-unix /usr/local/bin/osh && \
+    ln -s oils-for-unix /usr/local/bin/ysh
+
+# pm runtime dependencies.
+RUN apk add --no-cache \
+    coreutils findutils grep sed gawk diffutils \
+    curl git \
+    openssl \
+    build-base gcc g++ musl-dev linux-headers \
+    make patch bison flex m4 texinfo \
+    perl gzip bzip2 xz zlib-dev zstd \
+    automake autoconf python3 \
+    gmp-dev mpfr-dev mpc1-dev \
+    tar
+
+# Install pm.ysh as kiss.
+COPY pm.ysh /usr/bin/kiss
+RUN chmod +x /usr/bin/kiss
+
+# Copy in the vendored repo and sources.
+COPY tests/fixtures/repo /home/kiss/repo
+COPY tests/fixtures/sources /home/kiss/sources
+
+RUN find /home/kiss/repo -name build -exec chmod +x {} +
+RUN find /home/kiss/repo -name post-install -exec chmod +x {} +
+
+RUN mkdir -p /kiss-root/var/db/kiss/installed /kiss-root/var/db/kiss/choices
+
+ENV KISS_PATH=/home/kiss/repo \
+    KISS_ROOT=/kiss-root \
+    KISS_COMPRESS=gz \
+    KISS_COLOR=0 \
+    KISS_PROMPT=0 \
+    KISS_STRIP=0 \
+    KISS_FORCE=1 \
+    LOGNAME=root \
+    HOME=/root \
+    CC=gcc \
+    CXX=g++ \
+    PKG_CONFIG_PATH=/kiss-root/usr/lib/pkgconfig \
+    CPPFLAGS="-I/kiss-root/usr/include" \
+    LDFLAGS="-L/kiss-root/usr/lib"
+
+WORKDIR /home/kiss
+
+COPY tests/build_core.sh /home/kiss/build_core.sh
+RUN chmod +x /home/kiss/build_core.sh
+
+RUN apk add --no-cache tini
+ENTRYPOINT ["/sbin/tini", "--"]
