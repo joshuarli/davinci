@@ -1,23 +1,29 @@
 # davinci
 
 A project to build a complete Linux distribution using the KISS package manager
-(`pm`), with the eventual goal of porting the package manager to osh and
-building an installer ISO.
+(`pm`), with the eventual goal of porting the package manager to YSH and
+building an installer ISO. The YSH port (`pm.ysh`) is in progress.
 
 ## Repository Structure
 
 ```
 pm                          # The package manager (KISS 5.5.28, pure POSIX shell)
+pm.ysh                      # YSH port of pm (prefers build.ysh over build)
+YSH.md                      # YSH language reference and gotchas
 tests/
   test_pm.py                # Unit-level integration tests (run on macOS/Linux, no Docker)
-  test_docker_build.py      # Full build tests (builds real packages in Alpine Docker)
-  Dockerfile                # Alpine-based image with build toolchain
+  test_pm_cheap.py          # Fast tests (search, list, deps, checksum) — no Docker, no builds
+  test_docker_build.py      # Full build tests using POSIX pm in Alpine Docker
+  test_docker_build_ysh.py  # Full build tests using pm.ysh in Alpine Docker (with ysh)
+  Dockerfile                # Alpine-based image with build toolchain (POSIX pm)
+  Dockerfile.ysh            # Alpine-based image with ysh + build toolchain (pm.ysh)
   download_sources.sh       # Downloads upstream source tarballs to fixtures/sources/
   localize_sources.sh       # Rewrites sources files to use local paths
   fixtures/
     repo/                   # Vendored KISS package definitions (20 packages from kisslinux/repo core)
       <package>/
-        build               # Build script (executable)
+        build               # Build script (POSIX shell, executable)
+        build.ysh           # YSH build script (optional, preferred by pm.ysh)
         version             # "VERSION RELEASE" format
         sources             # Source URLs/paths (localized to /home/kiss/sources/...)
         checksums           # SHA256 checksums, one per source line
@@ -104,6 +110,24 @@ script. It handles the full package lifecycle:
 - `file_rwx` parses `ls -ld` output to convert permissions to octal (fragile but portable).
 - `/etc` files use 3-way checksum merge (old/installed/new) like Arch's pacman.
 
+## YSH Port
+
+`pm.ysh` is a line-by-line port of `pm` from POSIX shell to YSH (`ysh:all`
+mode). Key differences from the POSIX version:
+
+- **build.ysh preference**: `pm.ysh` checks for `build.ysh` before `build`.
+  If a package has `build.ysh`, it runs `ysh build.ysh` instead of `./build`.
+- **No word splitting**: Empty env vars like `$CFLAGS` pass `""` as an
+  argument. Build scripts split flags into lists and splice with `@list`.
+- **Explicit globbing**: `@[glob('pattern')]` instead of bare `*.ext`.
+- **ARGV**: `ARGV[0]` replaces `$1`. `@ARGV` splices all args.
+- **ENV access**: `ENV => get("VAR", "default")` instead of `$VAR`.
+- **Error handling**: `try { proc }; if failed { die }` instead of
+  `proc || die` (OILS-ERR-301 forbids procs on left of `||`).
+
+16 of 20 vendored packages have `build.ysh` ports. See `YSH.md` for the
+full language reference and gotchas discovered during porting.
+
 ## Vendored Packages
 
 All 20 packages from `kisslinux/repo` core are vendored:
@@ -119,6 +143,16 @@ Sources files have been rewritten to point to local tarballs in
 `/home/kiss/sources/` (the path inside the Docker container).
 
 ## Running Tests
+
+### Cheap Tests (fast, no Docker, no builds)
+
+Exercise search, list, dependency resolution, checksum, and argument
+validation. Every test class is duplicated for pm.ysh via subclassing
+(YSH tests skipped if `ysh` is not installed):
+
+```sh
+python3 -m pytest tests/test_pm_cheap.py -v
+```
 
 ### Unit Tests (fast, no Docker)
 
@@ -136,22 +170,23 @@ These build actual KISS core packages inside Alpine Docker:
 # 1. Download source tarballs (once, ~263MB).
 cd tests && ./download_sources.sh
 
-# 2. Run the full build suite.
-python3 -m unittest tests.test_docker_build -v
+# 2. Run the POSIX pm build suite.
+python3 -m pytest tests/test_docker_build.py -v
 
-# Or build all 16 packages via the helper script directly:
-docker build -t pm-test -f tests/Dockerfile .
-docker run --rm pm-test ./build_core.sh
+# 3. Run the YSH pm.ysh build suite.
+python3 -m pytest tests/test_docker_build_ysh.py -v
 ```
 
 ### Manual Docker Testing
 
 ```sh
-# Build the image.
+# POSIX pm:
 docker build -t pm-test -f tests/Dockerfile .
-
-# Start a container.
 docker run -it pm-test sh
+
+# YSH pm.ysh:
+docker build -t pm-ysh-test -f tests/Dockerfile.ysh .
+docker run -it pm-ysh-test sh
 
 # Inside the container:
 mkdir -p /kiss-root/var/db/kiss/installed /kiss-root/var/db/kiss/choices
