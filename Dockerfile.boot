@@ -87,6 +87,8 @@ COPY --from=ysh-builder /usr/lib/libncursesw.so.6 /ysh-libs/libncursesw.so.6
 
 # Rootfs changes when packages or pm.ysh change.
 COPY --from=pkg-builder /kominka-root /rootfs
+COPY --from=pkg-builder /packages /packages
+COPY --from=pkg-builder /usr/bin/pm /pm.ysh
 
 # build_image.sh changes most often during dev.
 COPY build_image.sh /build_image.sh

@@ -75,6 +75,9 @@ if [ -x /usr/bin/pm-install ]; then
     echo ""
 fi
 
+export KOMINKA_PATH=/packages
+export LOGNAME=root
+export HOME=/root
 exec /usr/bin/ysh
 INIT
 chmod 755 /rootfs/usr/bin/init

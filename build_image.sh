@@ -75,6 +75,11 @@ ln -sf oils-for-unix "$ROOTFS/usr/bin/osh"
 # /bin/sh -> ysh so the interactive shell is ysh
 ln -sf oils-for-unix "$ROOTFS/usr/bin/sh"
 
+# Install pm and the package repo so packages can be managed in the VM.
+cp /pm.ysh "$ROOTFS/usr/bin/pm"
+chmod +x "$ROOTFS/usr/bin/pm"
+cp -a /packages "$ROOTFS/packages"
+
 echo "==> Configuring system"
 
 cat > "$ROOTFS/etc/fstab" <<'EOF'
@@ -107,6 +112,9 @@ if [ -x /usr/bin/pm-install ]; then
     echo ""
 fi
 
+export KOMINKA_PATH=/packages
+export LOGNAME=root
+export HOME=/root
 exec /usr/bin/ysh
 INIT
 chmod 755 "$ROOTFS/usr/bin/init"
