@@ -3,45 +3,112 @@
 Prerequisites: Docker, [vfkit](https://github.com/crc-org/vfkit) (`brew install vfkit`).
 
 ```sh
-# Build the custom kernel (ext4, virtio, EFI stub built-in — no initramfs).
-make kernel
-
-# Build the rootfs disk image (KISS Linux built with pm.ysh inside Docker).
-make build
-
-# Boot the VM (drops you into a ysh shell on the KISS rootfs).
-make boot
+make boot   # builds everything, boots VM — drops you into ysh on KISS Linux
 ```
 
-### Make Targets
+That's it. `make boot` auto-triggers `make kernel` and `make build` if the
+artifacts are missing.
 
-| Target | Description |
-|--------|-------------|
-| `make kernel` | Build custom minimal Linux kernel via Docker (outputs `Image`) |
-| `make build` | Build KISS rootfs and disk image via Docker (outputs `disk.img`) |
-| `make iso` | Build installer disk image (outputs `kiss-installer.img`) |
-| `make boot` | Boot the VM with vfkit (needs `Image` + `disk.img`) |
-| `make boot-installer` | Boot installer in VM with a 12G virtual target disk |
-| `make boot-log` | Boot the VM in background, serial output to `/tmp/kiss-serial.log` |
-| `make stop` | Stop the running VM |
-| `make test` | `kernel` + `build` + `boot` |
-| `make clean` | Remove build artifacts |
+## Build Pipeline
+
+Three Docker builds produce the system. Each caches independently.
+
+```
+ Dockerfile.linux              Dockerfile.boot
+ ┌──────────────────┐          ┌──────────────────────────────────┐
+ │ kernel source     │          │ Stage 1: build ysh from source   │
+ │ + kernel.config   │          │ Stage 2: pm.ysh builds KISS pkgs │
+ │ (tinyconfig base) │          │   baselayout, musl, busybox      │
+ └────────┬─────────┘          │ Stage 3: disk image tools        │
+          │                     └──────────────┬───────────────────┘
+     make kernel                          make build
+          │                                    │
+          ▼                                    ▼
+       Image                         disk.img + initramfs.img
+    (ARM64 kernel,                 (12G sparse GPT, ~200M actual)
+     ~20M, all drivers             (EFI + swap + ext4 root with
+     built-in)                      KISS rootfs + ysh)
+          │                                    │
+          └──────────┐    ┌────────────────────┘
+                     ▼    ▼
+                    make boot
+                        │
+                        ▼
+                    vfkit VM ──► ysh shell on KISS Linux
+```
+
+The installer adds a third layer:
+
+```
+                  kiss-boot + kiss-kernel
+                    (Docker images)
+                           │
+                      make iso ──────► Dockerfile.iso
+                           │
+                           ▼
+                  kiss-installer.img
+                (rightsized GPT: EFI + ext4 root
+                 with rootfs + kernel + install script)
+                           │
+              ┌────────────┴────────────┐
+              ▼                         ▼
+      make boot-installer          dd to USB
+     (vfkit with /dev/vdb          + UEFI boot
+      as virtual target)           on real hardware
+```
+
+## Make Targets
+
+| Target | Produces | Description |
+|--------|----------|-------------|
+| `make kernel` | `Image` | Custom ARM64 kernel (tinyconfig + `kernel.config`). Ext4, virtio, NVMe, AHCI, USB, EFI stub all built-in. No modules. |
+| `make build` | `disk.img`, `initramfs.img` | KISS rootfs built by pm.ysh inside Docker. 12G sparse GPT (256M EFI + 8G swap + ext4 root). The rootfs has baselayout + musl + busybox + ysh. |
+| `make iso` | `kiss-installer.img` | Installer disk image, rightsized to content. Includes rootfs + kernel + `kiss-install` script + mkfs tools. |
+| `make boot` | | Boot `disk.img` in vfkit. Auto-builds `Image` and `disk.img` if missing. |
+| `make boot-installer` | | Boot installer in vfkit with a 12G virtual target at `/dev/vdb`. Auto-builds `Image` and `kiss-installer.img` if missing. |
+| `make boot-log` | | Like `boot` but serial goes to `/tmp/kiss-serial.log`. |
+| `make stop` | | Kill running vfkit. |
+| `make test` | | `boot` (which auto-builds everything). |
+| `make clean` | | Remove all build artifacts. |
+
+### Artifacts
+
+| File | Size | Sparse | Description |
+|------|------|--------|-------------|
+| `Image` | ~20M | no | Uncompressed ARM64 kernel. vfkit loads this directly. |
+| `disk.img` | 12G apparent, ~200M actual | yes | VM system disk. Room to install packages inside the VM. |
+| `initramfs.img` | ~50 bytes | no | Empty dummy — vfkit requires `--initrd` but our kernel doesn't need one. |
+| `kiss-installer.img` | ~50-80M | no | Installer image, rightsized. `dd` this to a USB drive. |
+| `target.img` | 12G apparent, ~0 actual | yes | Virtual target disk for testing the installer. Created by `make boot-installer`. |
+| `kernel-config` | ~5K | no | Resolved `.config` from kernel build (for debugging). |
+
+### Dev Loop
+
+```sh
+make kernel          # once (rebuilds only when kernel.config changes)
+make build && make boot   # iterate on rootfs (edit build_image.sh, pm.ysh, etc.)
+```
+
+To rebuild the kernel after editing `kernel.config`:
+```sh
+make kernel && make boot
+```
 
 ### Installer
 
-Build the installer and test it in a VM:
-
 ```sh
-make iso             # builds kiss-installer.img
-make boot-installer  # boots installer with a virtual target disk (/dev/vdb)
-# Inside the VM: run 'kiss-install', select /dev/vdb
+make iso                # build installer image
+make boot-installer     # test in VM — pick /dev/vdb as target
 ```
 
 To flash to a real USB drive:
-
 ```sh
 dd if=kiss-installer.img of=/dev/sdX bs=4M status=progress
 ```
+
+Boot the target machine from USB via UEFI. The kernel has a built-in
+`CONFIG_CMDLINE` (`root=LABEL=KISS_ROOT`) for EFISTUB boot — no
+bootloader needed. After install, remove the USB and reboot.
 
 ### Running Tests
 
@@ -104,4 +171,3 @@ which is not needed for a system shell.
 
 I've already shown such a split is possible - a noninteractive core
 shell `epsh` and a rich (fish-like) interactive layer built on top - `ish`.
-

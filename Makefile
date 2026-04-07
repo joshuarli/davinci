@@ -1,17 +1,24 @@
-BUILDER_IMAGE  := kiss-boot
-KERNEL_IMAGE   := kiss-kernel
+BUILDER_IMAGE   := kiss-boot
+KERNEL_IMAGE    := kiss-kernel
 INSTALLER_IMAGE := kiss-iso
-DISK_IMG       := disk.img
-INSTALLER_IMG  := kiss-installer.img
-TARGET_IMG     := target.img
-KERNEL         := Image
-INITRAMFS      := initramfs.img
+DISK_IMG        := disk.img
+INSTALLER_IMG   := kiss-installer.img
+TARGET_IMG      := target.img
+KERNEL          := Image
+INITRAMFS       := initramfs.img
 
 VFKIT_CMDLINE := root=/dev/vda3 rw console=hvc0 loglevel=4
 
-.PHONY: build kernel iso boot boot-installer boot-log test stop clean
+.PHONY: kernel build iso boot boot-installer boot-log test stop clean
 
-test: kernel build boot
+test: boot
+
+# Docker builds (always re-run when invoked directly; Docker layer cache
+# makes rebuilds fast when nothing changed).
+kernel:
+	@command -v docker >/dev/null || { echo "error: docker required"; exit 1; }
+	docker build -t $(KERNEL_IMAGE) -f Dockerfile.linux .
+	docker run --rm -v "$(CURDIR)":/out $(KERNEL_IMAGE)
 
 build:
 	@command -v docker >/dev/null || { echo "error: docker required"; exit 1; }
@@ -21,22 +28,27 @@ build:
 		$(BUILDER_IMAGE) \
 		sh /build_image.sh
 
-kernel:
-	@command -v docker >/dev/null || { echo "error: docker required"; exit 1; }
-	docker build -t $(KERNEL_IMAGE) -f Dockerfile.linux .
-	docker run --rm -v "$(CURDIR)":/out $(KERNEL_IMAGE)
-
-iso: kernel build
+iso:
 	@command -v docker >/dev/null || { echo "error: docker required"; exit 1; }
 	docker build -t $(INSTALLER_IMAGE) -f Dockerfile.iso .
 	docker run --rm --privileged \
 		-v "$(CURDIR)":/out \
 		$(INSTALLER_IMAGE)
 
-boot:
+# Auto-build missing or stale artifacts.
+# Make rebuilds when source files are newer than the output.
+$(KERNEL): kernel.config Dockerfile.linux
+	$(MAKE) kernel
+
+$(DISK_IMG): Dockerfile.boot build_image.sh pm.ysh
+	$(MAKE) build
+
+$(INSTALLER_IMG): Dockerfile.iso build_iso.sh install.sh $(KERNEL) $(DISK_IMG)
+	$(MAKE) iso
+
+# Boot targets — file dependencies trigger builds when artifacts are missing.
+boot: $(KERNEL) $(DISK_IMG)
 	@command -v vfkit >/dev/null || { echo "error: vfkit required — brew install vfkit"; exit 1; }
-	@test -f $(KERNEL) || { echo "error: Image not found — run 'make kernel' first"; exit 1; }
-	@test -f $(DISK_IMG) || { echo "error: disk.img not found — run 'make build' first"; exit 1; }
 	-@pkill vfkit 2>/dev/null; sleep 0.5
 	vfkit \
 		--kernel $(KERNEL) \
@@ -47,10 +59,8 @@ boot:
 		--device virtio-net,nat \
 		--device virtio-serial,stdio
 
-boot-installer:
+boot-installer: $(KERNEL) $(INSTALLER_IMG)
 	@command -v vfkit >/dev/null || { echo "error: vfkit required — brew install vfkit"; exit 1; }
-	@test -f $(KERNEL) || { echo "error: Image not found — run 'make kernel' first"; exit 1; }
-	@test -f $(INSTALLER_IMG) || { echo "error: kiss-installer.img not found — run 'make iso' first"; exit 1; }
 	@test -f $(TARGET_IMG) || truncate -s 12G $(TARGET_IMG)
 	-@pkill vfkit 2>/dev/null; sleep 0.5
 	vfkit \
@@ -63,9 +73,8 @@ boot-installer:
 		--device virtio-net,nat \
 		--device virtio-serial,stdio
 
-boot-log:
+boot-log: $(KERNEL) $(DISK_IMG)
 	@command -v vfkit >/dev/null || { echo "error: vfkit required — brew install vfkit"; exit 1; }
-	@test -f $(KERNEL) || { echo "error: Image not found — run 'make kernel' first"; exit 1; }
 	-@pkill vfkit 2>/dev/null; sleep 0.5
 	vfkit \
 		--kernel $(KERNEL) \

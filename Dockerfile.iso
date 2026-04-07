@@ -17,12 +17,17 @@ RUN apk add --no-cache \
     e2fsprogs dosfstools sgdisk util-linux \
     cpio gzip
 
-COPY --from=boot-image /rootfs /rootfs
+# Stable layers first: ysh binary + libs (pinned oils version).
 COPY --from=boot-image /ysh-bin/oils-for-unix /ysh-bin/oils-for-unix
 COPY --from=boot-image /ysh-libs/ /ysh-libs/
 
+# Kernel changes when kernel.config changes.
 COPY --from=kernel-image /Image /boot/Image
 
+# Rootfs changes when packages or pm.ysh change.
+COPY --from=boot-image /rootfs /rootfs
+
+# Scripts change most often during dev.
 COPY install.sh /install.sh
 COPY build_iso.sh /build_iso.sh
 

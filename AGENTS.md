@@ -156,19 +156,24 @@ The project builds a bootable KISS Linux disk image and can boot it in a VM:
 - **`Dockerfile.iso`**: Builds the installer disk image. References kiss-boot
   (rootfs + ysh) and kiss-kernel (Image). Adds mkfs.ext4/mkfs.vfat from Alpine
   and the install script. Outputs `kiss-installer.img`.
-- **`build_iso.sh`**: Creates a 512MB GPT image (128MB EFI + ext4 root) with
-  the KISS rootfs, ysh, installer tools, and kernel on the EFI partition.
-- **`install.sh`**: Interactive installer. Lists block devices, lets user pick
-  a target, partitions (busybox fdisk GPT), formats, copies rootfs, installs
-  kernel to EFI. Runs from the live rootfs in the installer image.
-- **`Makefile`**: `make kernel` (Image), `make build` (disk.img), `make iso`
-  (kiss-installer.img), `make boot` (VM), `make boot-installer` (test installer
-  with virtual target disk), `make test` (kernel+build+boot).
+- **`build_iso.sh`**: Creates a rightsized image (EFI + ext4 root, sized to
+  content) with the KISS rootfs, ysh, mkfs.ext4/mkfs.vfat, and kernel.
+- **`install.sh`**: Interactive installer. Lists block devices, shows
+  partition layout with sizes, partitions with busybox fdisk (MBR: 256M EFI
+  type 0xEF + 8G swap + ext4 root), formats, copies live rootfs to target,
+  installs kernel to EFI as BOOTAA64.EFI.
+- **`Makefile`**: File-based dependencies trigger rebuilds when sources change
+  (e.g. editing `kernel.config` makes `Image` stale, which cascades to
+  `kiss-installer.img`). Phony targets (`make kernel`, etc.) always run when
+  invoked directly. `make boot` / `make boot-installer` auto-build missing
+  or stale artifacts.
 - The rootfs `/usr/bin/init` mounts pseudofs and execs ysh. Auto-detects
   installer mode if `kiss-install` is present.
 - vfkit boots the uncompressed ARM64 `Image` directly (not vmlinuz).
 - `CONFIG_CMDLINE` provides a default `root=LABEL=KISS_ROOT` for real hardware
   EFISTUB boot; vfkit overrides this via `--kernel-cmdline`.
+- Dockerfiles ordered for layer caching: stable layers (ysh, Alpine packages,
+  kernel source) first, frequently-changed layers (pm.ysh, scripts) last.
 
 ## Vendored Packages
 

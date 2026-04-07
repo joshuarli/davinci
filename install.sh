@@ -2,10 +2,10 @@
 # KISS Linux installer.
 # Partitions a disk, formats filesystems, and copies the live rootfs into place.
 #
-# Partition layout (GPT via busybox fdisk):
-#   1: EFI System (256M, FAT32)  -> /boot
-#   2: Linux swap  (8G)
-#   3: Linux root  (rest, ext4)  -> /
+# Partition layout (MBR via busybox fdisk):
+#   1: EFI System (256M, FAT32, type 0xEF)  -> /boot
+#   2: Linux swap  (8G, type 0x82)
+#   3: Linux root  (rest, ext4, type 0x83)
 
 set -eu
 
@@ -45,8 +45,18 @@ if [ ! -b "$DISK" ]; then
     exit 1
 fi
 
+size=$(/usr/bin/busybox cat "/sys/block/$(/usr/bin/busybox basename "$DISK")/size" 2>/dev/null) || size=0
+size_mb=$((size / 2048))
+root_mb=$((size_mb - 256 - 8192))
+
 echo ""
 echo "WARNING: all data on $DISK will be destroyed."
+echo ""
+echo "  Partition layout (MBR):"
+echo "    ${DISK}1   256M   EFI System (FAT32)   /boot"
+echo "    ${DISK}2     8G   Linux swap"
+/usr/bin/busybox printf "    ${DISK}3  %4dM   Linux (ext4)          /\n" "$root_mb"
+echo ""
 /usr/bin/busybox printf "Continue? [y/N] "
 read -r ans
 case "$ans" in
@@ -55,27 +65,28 @@ case "$ans" in
 esac
 
 echo ""
-echo "==> Partitioning $DISK (GPT)"
-# Wipe first 1M to clear any existing partition table.
+echo "==> Partitioning $DISK (MBR)"
 /usr/bin/busybox dd if=/dev/zero of="$DISK" bs=1M count=1 2>/dev/null
 
-# GPT: 256M EFI (type 1) + 8G swap (type 19) + rest root (type 20, default).
 /usr/bin/busybox fdisk "$DISK" <<'FDISK'
-g
+o
 n
+p
 1
 
 +256M
 t
-1
+ef
 n
+p
 2
 
 +8G
 t
 2
-19
+82
 n
+p
 3
 
 
@@ -114,10 +125,11 @@ done
 
 # Remove installer-only files from target.
 /usr/bin/busybox rm -f "$MNT/usr/bin/kiss-install"
+/usr/bin/busybox rm -rf "$MNT/usr/share/kiss"
 
 echo "==> Installing kernel"
 /usr/bin/busybox mkdir -p "$MNT/boot/EFI/BOOT"
-/usr/bin/busybox cp /boot/Image "$MNT/boot/EFI/BOOT/BOOTAA64.EFI"
+/usr/bin/busybox cp /usr/share/kiss/Image "$MNT/boot/EFI/BOOT/BOOTAA64.EFI"
 
 echo "==> Writing fstab"
 /usr/bin/busybox cat > "$MNT/etc/fstab" <<'EOF'

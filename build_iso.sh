@@ -17,7 +17,6 @@ set -eu
 OUT=/out
 IMG="$OUT/kiss-installer.img"
 ROOTFS=/mnt
-IMG_SIZE_MB=512
 
 cleanup() {
     set +e
@@ -41,19 +40,20 @@ ln -sf oils-for-unix /rootfs/usr/bin/sh
 
 # Add mkfs.ext4 + mkfs.vfat and their shared lib dependencies.
 # The rootfs already has Alpine's musl (for ysh), so Alpine binaries work.
-cp /usr/sbin/mke2fs /rootfs/usr/sbin/mkfs.ext4
-cp /usr/sbin/mkfs.fat /rootfs/usr/sbin/mkfs.vfat
-for bin in /usr/sbin/mke2fs /usr/sbin/mkfs.fat; do
+cp /sbin/mke2fs /rootfs/usr/sbin/mkfs.ext4
+cp /sbin/mkfs.fat /rootfs/usr/sbin/mkfs.vfat
+for bin in /sbin/mke2fs /sbin/mkfs.fat; do
     ldd "$bin" 2>/dev/null | awk '/=>/{print $3}' | while read -r lib; do
         cp -n "$lib" /rootfs/usr/lib/ 2>/dev/null || true
     done
 done
 
-# Add installer script and kernel.
+# Add installer script and kernel (on the rootfs, not the ESP, so
+# install.sh can access it without mounting the installer's ESP).
 cp /install.sh /rootfs/usr/bin/kiss-install
 chmod +x /rootfs/usr/bin/kiss-install
-mkdir -p /rootfs/boot
-cp /boot/Image /rootfs/boot/Image
+mkdir -p /rootfs/usr/share/kiss
+cp /boot/Image /rootfs/usr/share/kiss/Image
 
 # Write init (same as build_image.sh but already has kiss-install detection).
 rm -f /rootfs/usr/bin/init
@@ -79,14 +79,26 @@ exec /usr/bin/ysh
 INIT
 chmod 755 /rootfs/usr/bin/init
 
-echo "==> Creating ${IMG_SIZE_MB}M installer image"
-rm -f "$IMG"
-truncate -s "${IMG_SIZE_MB}M" "$IMG"
+# Size partitions to fit contents.
+# ESP: kernel Image + FAT32 overhead. FAT32 needs ~34M minimum to avoid
+#   cluster warnings, so we use max(kernel + 4M, 34M).
+# Root: rootfs + ext4 overhead (~20% for journal, inodes, superblocks).
+# GPT: 1M alignment at start, 1M backup table at end.
+kernel_mb=$(( $(stat -c%s /boot/Image) / 1048576 + 1 ))
+efi_min=$(( kernel_mb + 4 ))
+efi_mb=$(( efi_min > 34 ? efi_min : 34 ))
+rootfs_mb=$(du -sm /rootfs | awk '{print $1}')
+root_mb=$(( rootfs_mb * 120 / 100 + 4 ))
+img_mb=$(( 1 + efi_mb + root_mb + 1 ))
 
-# GPT: EFI (128M) + root (rest)
+echo "==> Sizing: EFI=${efi_mb}M  root=${root_mb}M (${rootfs_mb}M content)  total=${img_mb}M"
+
+rm -f "$IMG"
+truncate -s "${img_mb}M" "$IMG"
+
 sgdisk \
-    -n 1:2048:+128M  -t 1:ef00 \
-    -n 2:0:0         -t 2:8300 \
+    -n 1:2048:+${efi_mb}M  -t 1:ef00 \
+    -n 2:0:0               -t 2:8300 \
     "$IMG"
 
 eval "$(sgdisk -p "$IMG" | awk '/^ *[12] /{
@@ -103,7 +115,7 @@ LOOP_ROOT=$(losetup --find --show --offset "$root_off" --sizelimit "$root_size" 
 
 echo "==> Formatting partitions"
 mkfs.vfat -F32 -n KISS_EFI "$LOOP_EFI"
-mkfs.ext4 -q -L KISS_ROOT "$LOOP_ROOT"
+mkfs.ext4 -q -m 0 -L KISS_ROOT "$LOOP_ROOT"
 
 echo "==> Mounting"
 mount "$LOOP_ROOT" "$ROOTFS"

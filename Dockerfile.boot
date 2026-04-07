@@ -38,11 +38,9 @@ RUN apk add --no-cache \
     gmp-dev mpfr-dev mpc1-dev \
     tar
 
-COPY pm.ysh /usr/bin/kiss
-RUN chmod +x /usr/bin/kiss
-
-COPY tests/fixtures/repo /home/kiss/repo
+# Sources (~263MB tarballs, rarely change) before repo and pm.ysh.
 COPY tests/fixtures/sources /home/kiss/sources
+COPY tests/fixtures/repo /home/kiss/repo
 
 RUN find /home/kiss/repo -name build -exec chmod +x {} + && \
     find /home/kiss/repo -name post-install -exec chmod +x {} +
@@ -66,6 +64,10 @@ ENV KISS_PATH=/home/kiss/repo \
 
 WORKDIR /home/kiss
 
+# pm.ysh last — changes most often, only invalidates the build step.
+COPY pm.ysh /usr/bin/kiss
+RUN chmod +x /usr/bin/kiss
+
 # Build minimal bootable system: baselayout + musl + busybox
 # (linux-headers and make are build-time deps for busybox)
 RUN ysh /usr/bin/kiss b baselayout musl linux-headers make busybox
@@ -75,14 +77,16 @@ FROM alpine:latest
 RUN apk add --no-cache \
     e2fsprogs dosfstools sgdisk util-linux
 
-COPY --from=pkg-builder /kiss-root /rootfs
+# ysh binary + libs are stable (pinned oils version) — copy first.
 COPY --from=ysh-builder /usr/local/bin/oils-for-unix /ysh-bin/oils-for-unix
-
-# ysh needs these Alpine shared libs at runtime.
 COPY --from=ysh-builder /lib/ld-musl-aarch64.so.1 /ysh-libs/ld-musl-aarch64.so.1
 COPY --from=ysh-builder /usr/lib/libstdc++.so.6 /ysh-libs/libstdc++.so.6
 COPY --from=ysh-builder /usr/lib/libgcc_s.so.1 /ysh-libs/libgcc_s.so.1
 COPY --from=ysh-builder /usr/lib/libreadline.so.8 /ysh-libs/libreadline.so.8
 COPY --from=ysh-builder /usr/lib/libncursesw.so.6 /ysh-libs/libncursesw.so.6
 
+# Rootfs changes when packages or pm.ysh change.
+COPY --from=pkg-builder /kiss-root /rootfs
+
+# build_image.sh changes most often during dev.
 COPY build_image.sh /build_image.sh

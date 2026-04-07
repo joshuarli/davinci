@@ -23,11 +23,12 @@ RUN curl -fLo /tmp/linux.tar.xz "$KERNEL_URL" && \
 
 WORKDIR /linux
 
-COPY kernel.config /tmp/kernel.config
+# tinyconfig only depends on kernel source — cached across config edits.
+RUN make tinyconfig
 
-# Start from tinyconfig, then merge our fragment.
-RUN make tinyconfig && \
-    scripts/kconfig/merge_config.sh -m .config /tmp/kernel.config && \
+# kernel.config changes during development; only invalidates merge + build.
+COPY kernel.config /tmp/kernel.config
+RUN scripts/kconfig/merge_config.sh -m .config /tmp/kernel.config && \
     make olddefconfig
 
 RUN make -j"$(nproc)" Image
