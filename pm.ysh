@@ -1862,12 +1862,13 @@ proc args (action='', ...pkgs) {
         U | upgrade      { pkg_upgrade }
         v | version      { write -- '5.5.28' }
 
-        '' {
-            log 'pm [a|b|c|d|i|l|r|s|u|U|v] [pkg]...'
+        h | help | '' {
+            log 'pm [a|b|c|d|h|i|l|r|s|u|U|v] [pkg]...'
             log 'alternatives List and swap alternatives'
             log 'build        Build packages'
             log 'checksum     Generate checksums'
             log 'download     Download sources'
+            log 'help         Show this message'
             log 'install      Install packages'
             log 'list         List installed packages'
             log 'remove       Remove packages'
