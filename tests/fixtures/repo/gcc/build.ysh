@@ -4,7 +4,7 @@ var dest = ARGV[0]
 var ver = ARGV[1]
 
 # Detect the build triplet.
-var triplet = $(cc -dumpmachine 2>/dev/null) or "$(uname -m)-pc-linux-musl"
+var triplet = $(cc -dumpmachine 2>/dev/null) or "$(uname -m)-pc-linux-gnu"
 
 # Make sure gmp is built with generic options.
 cp gcc/gmp/configfsf.guess gcc/gmp/config.guess

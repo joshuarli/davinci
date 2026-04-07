@@ -1,4 +1,4 @@
-/home/kominka/sources/musl/musl-1.2.2.tar.gz
+/home/kominka/sources/glibc/glibc-2.38.tar.xz
 files/cdefs.h
 files/queue.h
 files/tree.h

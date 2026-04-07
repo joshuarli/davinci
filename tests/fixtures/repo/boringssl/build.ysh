@@ -2,7 +2,7 @@
 
 var dest = ARGV[0]
 
-cmake -GNinja -B build -DCMAKE_BUILD_TYPE=Release
+cmake -GNinja -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
 ninja -C build
 
 mkdir -p "${dest}/usr/lib/pkgconfig" "${dest}/usr/include" "${dest}/usr/bin" "${dest}/etc/ssl"

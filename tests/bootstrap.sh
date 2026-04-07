@@ -1,7 +1,7 @@
 #!/bin/sh
 # Bootstrap a self-hosting Kominka rootfs.
 #
-# Phase 1: Build all 16 core packages using the Alpine host toolchain,
+# Phase 1: Build all core packages using the Debian host toolchain,
 #           installing into /kominka-root.
 # Phase 2: Chroot into /kominka-root with host gcc bind-mounted, verify
 #           the package manager works from inside the chroot.
@@ -89,7 +89,7 @@ phase2() {
 
         echo ""
         echo "--- chroot: searching for packages ---"
-        pm s musl
+        pm s glibc
         pm s busybox
 
         echo ""
@@ -126,8 +126,8 @@ echo "============================================"
 echo "  Bootstrap complete"
 echo "============================================"
 echo ""
-echo "Seed packages from Alpine:"
-echo "  gcc, g++, binutils, musl-dev, linux-headers, make, perl, bzip2, xz"
+echo "Seed packages from Debian:"
+echo "  gcc, g++, binutils, libc6-dev, linux-libc-dev, make, perl, bzip2, xz-utils"
 echo ""
 echo "Kominka packages built and installed into $ROOT:"
 pm l

@@ -62,14 +62,14 @@ mount "$LOOP_EFI" "$ROOTFS/boot"
 echo "==> Installing rootfs"
 cp -a /rootfs/. "$ROOTFS/"
 
-# Install ysh and its Alpine shared lib dependencies.
-# Our Kominka musl is older; use Alpine's musl as the dynamic linker for ysh.
+# Install ysh and its Debian shared lib dependencies.
+# Copy the glibc dynamic linker and libs that ysh was built against.
 cp /ysh-bin/oils-for-unix "$ROOTFS/usr/bin/oils-for-unix"
 cp /ysh-libs/libstdc++.so.6 /ysh-libs/libgcc_s.so.1 \
-   /ysh-libs/libreadline.so.8 /ysh-libs/libncursesw.so.6 \
+   /ysh-libs/libreadline.so.8 /ysh-libs/libtinfo.so.6 \
+   /ysh-libs/libc.so.6 /ysh-libs/libm.so.6 \
    "$ROOTFS/usr/lib/"
-# Replace Kominka musl with Alpine's musl (ysh was built against it).
-cp /ysh-libs/ld-musl-aarch64.so.1 "$ROOTFS/usr/lib/ld-musl-aarch64.so.1"
+cp /ysh-libs/ld-linux-aarch64.so.1 "$ROOTFS/usr/lib/ld-linux-aarch64.so.1"
 ln -sf oils-for-unix "$ROOTFS/usr/bin/ysh"
 ln -sf oils-for-unix "$ROOTFS/usr/bin/osh"
 # /bin/sh -> ysh so the interactive shell is ysh

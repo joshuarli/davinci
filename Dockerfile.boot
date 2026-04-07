@@ -10,9 +10,11 @@
 #   docker build -t kominka-boot -f Dockerfile.boot .
 #   docker run --rm --privileged -v "$(pwd)":/out kominka-boot sh /build_image.sh
 
-FROM alpine:latest AS ysh-builder
+FROM debian:bookworm-slim AS ysh-builder
 
-RUN apk add --no-cache build-base readline-dev curl tar
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential libreadline-dev curl ca-certificates tar && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN curl -fLo /tmp/oils.tar.gz \
         https://oils.pub/download/oils-for-unix-0.37.0.tar.gz && \
@@ -22,22 +24,23 @@ RUN curl -fLo /tmp/oils.tar.gz \
     _build/oils.sh && \
     ./install
 
-FROM alpine:latest AS pkg-builder
+FROM debian:bookworm-slim AS pkg-builder
 
 COPY --from=ysh-builder /usr/local/bin/oils-for-unix /usr/local/bin/oils-for-unix
 RUN ln -s oils-for-unix /usr/local/bin/osh && \
     ln -s oils-for-unix /usr/local/bin/ysh
 
-RUN apk add --no-cache \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     coreutils findutils grep sed gawk diffutils \
-    curl git openssl \
-    build-base gcc g++ musl-dev linux-headers \
+    curl git ca-certificates openssl \
+    build-essential gcc g++ libc6-dev linux-libc-dev \
     make patch bison flex m4 texinfo \
-    cmake samurai go \
-    perl gzip bzip2 xz zlib-dev zstd \
+    cmake ninja-build golang pkg-config \
+    perl gzip bzip2 xz-utils zlib1g-dev libzstd-dev \
     automake autoconf python3 \
-    gmp-dev mpfr-dev mpc1-dev \
-    tar
+    libgmp-dev libmpfr-dev libmpc-dev \
+    tar && \
+    rm -rf /var/lib/apt/lists/*
 
 # Sources (~263MB tarballs, rarely change) before repo and pm.ysh.
 COPY tests/fixtures/sources /home/kominka/sources
@@ -50,7 +53,7 @@ RUN mkdir -p /kominka-root/var/db/kominka/installed /kominka-root/var/db/kominka
 
 # Register host-provided build tools so pm's dependency resolution
 # finds them as already installed.
-RUN for pkg in cmake go samurai; do \
+RUN for pkg in cmake go ninja glibc perl; do \
       mkdir -p "/kominka-root/var/db/kominka/installed/$pkg" && \
       echo "0 0" > "/kominka-root/var/db/kominka/installed/$pkg/version"; \
     done
@@ -81,23 +84,23 @@ RUN chmod +x /usr/bin/pm
 
 # Build all core packages in dependency order.
 COPY tests/build_core.sh /home/kominka/build_core.sh
-RUN chmod +x /home/kominka/build_core.sh && sh /home/kominka/build_core.sh && \
-    rm -rf /kominka-root/var/db/kominka/installed/cmake \
-           /kominka-root/var/db/kominka/installed/go \
-           /kominka-root/var/db/kominka/installed/samurai
+RUN chmod +x /home/kominka/build_core.sh && sh /home/kominka/build_core.sh
 
-FROM alpine:latest
+FROM debian:bookworm-slim
 
-RUN apk add --no-cache \
-    e2fsprogs dosfstools sgdisk util-linux
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    e2fsprogs dosfstools gdisk util-linux cpio gzip && \
+    rm -rf /var/lib/apt/lists/*
 
 # ysh binary + libs are stable (pinned oils version) — copy first.
 COPY --from=ysh-builder /usr/local/bin/oils-for-unix /ysh-bin/oils-for-unix
-COPY --from=ysh-builder /lib/ld-musl-aarch64.so.1 /ysh-libs/ld-musl-aarch64.so.1
-COPY --from=ysh-builder /usr/lib/libstdc++.so.6 /ysh-libs/libstdc++.so.6
-COPY --from=ysh-builder /usr/lib/libgcc_s.so.1 /ysh-libs/libgcc_s.so.1
-COPY --from=ysh-builder /usr/lib/libreadline.so.8 /ysh-libs/libreadline.so.8
-COPY --from=ysh-builder /usr/lib/libncursesw.so.6 /ysh-libs/libncursesw.so.6
+COPY --from=ysh-builder /lib/aarch64-linux-gnu/ld-linux-aarch64.so.1 /ysh-libs/ld-linux-aarch64.so.1
+COPY --from=ysh-builder /lib/aarch64-linux-gnu/libc.so.6 /ysh-libs/libc.so.6
+COPY --from=ysh-builder /lib/aarch64-linux-gnu/libm.so.6 /ysh-libs/libm.so.6
+COPY --from=ysh-builder /usr/lib/aarch64-linux-gnu/libstdc++.so.6 /ysh-libs/libstdc++.so.6
+COPY --from=ysh-builder /lib/aarch64-linux-gnu/libgcc_s.so.1 /ysh-libs/libgcc_s.so.1
+COPY --from=ysh-builder /lib/aarch64-linux-gnu/libreadline.so.8 /ysh-libs/libreadline.so.8
+COPY --from=ysh-builder /lib/aarch64-linux-gnu/libtinfo.so.6 /ysh-libs/libtinfo.so.6
 
 # Rootfs, package repo, pm, and pre-built tarballs.
 COPY --from=pkg-builder /kominka-root /rootfs

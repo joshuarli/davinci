@@ -122,7 +122,7 @@ class TestSearch(PMTestCase):
 
     def test_search_finds_all_matches(self):
         # Both boringssl and curl should be findable.
-        for pkg in ["boringssl", "curl", "musl", "samurai", "busybox"]:
+        for pkg in ["boringssl", "curl", "glibc", "samurai", "busybox"]:
             r = self.pm("s", pkg)
             self.assertIn(pkg, r.stdout)
 
@@ -181,11 +181,11 @@ class TestBuild(PMTestCase):
         self.assertTrue(tarballs)
 
     def test_build_with_dependencies(self):
-        """Building curl should also build its deps (boringssl, zlib, musl)."""
+        """Building curl should also build its deps (boringssl, zlib, glibc)."""
         self.pm("b", "curl")
         bin_dir = self.kominka_cache / "kominka" / "bin"
         # curl and its deps should all have tarballs.
-        for pkg in ["curl", "boringssl", "zlib", "musl"]:
+        for pkg in ["curl", "boringssl", "zlib", "glibc"]:
             tarballs = list(bin_dir.glob(f"{pkg}@*.tar.*"))
             self.assertTrue(tarballs, f"No tarball for dependency {pkg}")
 
@@ -282,19 +282,19 @@ class TestRemove(PMTestCase):
 
     def test_remove_with_dependents_fails(self):
         """Removing a package that others depend on should fail."""
-        self.install_pkg("musl")
+        self.install_pkg("glibc")
         self.install_pkg("boringssl")
-        r = self.pm("r", "musl", check=False)
+        r = self.pm("r", "glibc", check=False)
         self.assertNotEqual(r.returncode, 0)
-        # musl should still be installed.
-        self.assertTrue(self.installed_db("musl").is_dir())
+        # glibc should still be installed.
+        self.assertTrue(self.installed_db("glibc").is_dir())
 
     def test_force_remove_with_dependents(self):
         """KOMINKA_FORCE=1 should allow removing even with dependents."""
-        self.install_pkg("musl")
+        self.install_pkg("glibc")
         self.install_pkg("boringssl")
-        self.pm("r", "musl", env_override={"KOMINKA_FORCE": "1"})
-        self.assertFalse(self.installed_db("musl").exists())
+        self.pm("r", "glibc", env_override={"KOMINKA_FORCE": "1"})
+        self.assertFalse(self.installed_db("glibc").exists())
 
 
 class TestAlternatives(PMTestCase):
@@ -444,11 +444,11 @@ class TestDependencyResolution(PMTestCase):
     """Test dependency ordering and resolution."""
 
     def test_deps_built_in_order(self):
-        """curl depends on boringssl and zlib; boringssl depends on musl.
+        """curl depends on boringssl and zlib; boringssl depends on glibc.
         All should be built."""
         self.pm("b", "curl")
         bin_dir = self.kominka_cache / "kominka" / "bin"
-        for pkg in ["musl", "zlib", "boringssl", "curl"]:
+        for pkg in ["glibc", "zlib", "boringssl", "curl"]:
             self.assertTrue(
                 list(bin_dir.glob(f"{pkg}@*.tar.*")),
                 f"{pkg} tarball not found after building curl",

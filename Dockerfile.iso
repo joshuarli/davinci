@@ -11,11 +11,12 @@
 FROM kominka-boot AS boot-image
 FROM kominka-kernel AS kernel-image
 
-FROM alpine:latest
+FROM debian:bookworm-slim
 
-RUN apk add --no-cache \
-    e2fsprogs dosfstools sgdisk util-linux \
-    cpio gzip
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    e2fsprogs dosfstools gdisk util-linux \
+    cpio gzip && \
+    rm -rf /var/lib/apt/lists/*
 
 # Stable layers first: ysh binary + libs (pinned oils version).
 COPY --from=boot-image /ysh-bin/oils-for-unix /ysh-bin/oils-for-unix

@@ -6,13 +6,14 @@
 #   docker build -t kominka-kernel -f Dockerfile.linux .
 #   docker run --rm -v "$(pwd)":/out kominka-kernel
 
-FROM alpine:latest AS builder
+FROM debian:bookworm-slim AS builder
 
-RUN apk add --no-cache \
-    build-base bc flex bison perl \
-    elfutils-dev openssl-dev \
-    linux-headers \
-    curl xz
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential bc flex bison perl \
+    libelf-dev libssl-dev \
+    linux-libc-dev \
+    curl xz-utils ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
 
 ARG KERNEL_VERSION=6.19.11
 ARG KERNEL_URL=https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${KERNEL_VERSION}.tar.xz
@@ -33,7 +34,7 @@ RUN scripts/kconfig/merge_config.sh -m .config /tmp/kernel.config && \
 
 RUN make -j"$(nproc)" Image
 
-FROM alpine:latest
+FROM debian:bookworm-slim
 
 COPY --from=builder /linux/arch/arm64/boot/Image /Image
 COPY --from=builder /linux/.config /kernel-config

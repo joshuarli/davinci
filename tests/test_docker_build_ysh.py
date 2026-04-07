@@ -118,8 +118,8 @@ class TestChecksumVerification(DockerYSHPMTestCase):
     """Test that pm.ysh correctly verifies checksums for real packages."""
 
     def test_checksum_valid_package(self):
-        """Checksums for musl sources should verify successfully."""
-        r = self.pm("d", "musl")
+        """Checksums for glibc sources should verify successfully."""
+        r = self.pm("d", "glibc")
         self.assertEqual(r.returncode, 0)
 
     def test_checksum_mismatch_detected(self):
@@ -144,7 +144,7 @@ class TestBuildBaseSystem(DockerYSHPMTestCase):
     ALL_PACKAGES = [
         "baseinit", "baselayout", "bison", "busybox", "bzip2",
         "curl", "flex", "kominka", "linux-headers", "m4", "make",
-        "musl", "boringssl", "pigz", "xz", "zlib",
+        "glibc", "boringssl", "pigz", "xz", "zlib",
     ]
 
     def test_00_search_all_packages(self):
@@ -162,11 +162,11 @@ class TestBuildBaseSystem(DockerYSHPMTestCase):
         self.assertFileInRoot("/etc/group")
         self.assertFileInRoot("/usr/bin")
 
-    def test_02_build_musl(self):
-        """musl is the C library — foundation of everything."""
-        self.pm_build("musl")
+    def test_02_build_glibc(self):
+        """glibc is the C library — foundation of everything."""
+        self.pm_build("glibc")
         r = self.pm("l")
-        self.assertIn("musl", r.stdout)
+        self.assertIn("glibc", r.stdout)
         self.assertFileInRoot("/usr/lib/libc.so")
         self.assertFileInRoot("/usr/include/stdio.h")
 

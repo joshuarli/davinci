@@ -1,0 +1,45 @@
+#!/usr/local/bin/ysh
+
+var dest = ARGV[0]
+var ARCH = $(uname -m)
+var CC = ENV => get("CC", "cc")
+var srcdir = $(pwd)
+
+# glibc must be built outside of its source tree.
+mkdir -p glibc-build
+cd glibc-build
+
+../configure \
+    --prefix=/usr \
+    --libdir=/usr/lib \
+    --libexecdir=/usr/lib \
+    --enable-bind-now \
+    --enable-kernel=5.10 \
+    --enable-stack-protector=strong \
+    --disable-nscd \
+    --disable-profile \
+    --disable-werror \
+    libc_cv_slibdir=/usr/lib
+
+make
+make DESTDIR=$dest install
+
+# Dynamic linker: glibc installs it to /usr/lib but the kernel expects
+# it at /lib/ld-linux-*.  Our baselayout has /lib -> /usr/lib so the
+# symlink chain works.  Create /usr/bin/ldd pointing at the linker.
+var ldso = ''
+case (ARCH) {
+    aarch64 { setvar ldso = 'ld-linux-aarch64.so.1' }
+    x86_64  { setvar ldso = 'ld-linux-x86-64.so.2' }
+}
+
+mkdir -p "${dest}/usr/bin"
+ln -sf "/usr/lib/${ldso}" "${dest}/usr/bin/ldd"
+
+# Install BSD compatibility headers (from source directory).
+cp -f "${srcdir}/cdefs.h" "${srcdir}/queue.h" "${srcdir}/tree.h" \
+    "${dest}/usr/include/sys"
+
+# Install getconf and getent.
+$CC "${srcdir}/getconf.c" -o "${dest}/usr/bin/getconf"
+$CC "${srcdir}/getent.c"  -o "${dest}/usr/bin/getent"

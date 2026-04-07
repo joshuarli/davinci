@@ -31,15 +31,16 @@ echo "==> Preparing rootfs"
 # Install ysh (same as build_image.sh).
 cp /ysh-bin/oils-for-unix /rootfs/usr/bin/oils-for-unix
 cp /ysh-libs/libstdc++.so.6 /ysh-libs/libgcc_s.so.1 \
-   /ysh-libs/libreadline.so.8 /ysh-libs/libncursesw.so.6 \
+   /ysh-libs/libreadline.so.8 /ysh-libs/libtinfo.so.6 \
+   /ysh-libs/libc.so.6 /ysh-libs/libm.so.6 \
    /rootfs/usr/lib/
-cp /ysh-libs/ld-musl-aarch64.so.1 /rootfs/usr/lib/ld-musl-aarch64.so.1
+cp /ysh-libs/ld-linux-aarch64.so.1 /rootfs/usr/lib/ld-linux-aarch64.so.1
 ln -sf oils-for-unix /rootfs/usr/bin/ysh
 ln -sf oils-for-unix /rootfs/usr/bin/osh
 ln -sf oils-for-unix /rootfs/usr/bin/sh
 
 # Add mkfs.ext4 + mkfs.vfat and their shared lib dependencies.
-# The rootfs already has Alpine's musl (for ysh), so Alpine binaries work.
+# The rootfs already has Debian's glibc (for ysh), so Debian binaries work.
 cp /sbin/mke2fs /rootfs/usr/sbin/mkfs.ext4
 cp /sbin/mkfs.fat /rootfs/usr/sbin/mkfs.vfat
 for bin in /sbin/mke2fs /sbin/mkfs.fat; do

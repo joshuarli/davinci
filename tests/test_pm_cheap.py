@@ -148,7 +148,7 @@ class SearchTests:
         self.assertIn("zlib", r.stdout)
 
     def test_search_finds_multiple(self):
-        for pkg in ["boringssl", "curl", "musl", "busybox"]:
+        for pkg in ["boringssl", "curl", "glibc", "busybox"]:
             r = self.pm("s", pkg)
             self.assertIn(pkg, r.stdout)
 

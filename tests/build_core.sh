@@ -11,7 +11,6 @@ SUMS=/kominka-root/artifact-checksums
 
 all_pkgs="
     baselayout
-    musl
     linux-headers
     zlib
     bzip2
@@ -25,14 +24,12 @@ all_pkgs="
     pigz
     bison
     flex
-    binutils
-    gcc
-    pm
 "
 
-# Heavy packages excluded from default build:
-#   git, grub — require complex cross-compilation fixes and/or
-#   take too long. Pass them explicitly to build.
+# Excluded from default build:
+#   glibc — host Debian provides it; building from source is slow.
+#   binutils, gcc — require long compile times. Pass explicitly.
+#   kominka, git, grub — need upstream sources not in the container.
 
 if [ $# -gt 0 ]; then
     pkgs="$*"
@@ -57,6 +54,11 @@ for pkg in $pkgs; do
         echo "$hash  ${tarball##*/}" >> "$SUMS"
         echo "  artifact: ${tarball##*/} sha256=$hash"
     fi
+done
+
+# Remove fake host-provided entries before listing.
+for fake in cmake go ninja glibc perl; do
+    rm -rf "$KOMINKA_ROOT/var/db/kominka/installed/$fake"
 done
 
 echo ""

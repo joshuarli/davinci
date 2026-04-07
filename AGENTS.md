@@ -21,8 +21,8 @@ TODO.md                     # Pending work items
 tests/
   test_pm.py                # Unit-level integration tests (run on macOS/Linux, no Docker)
   test_pm_cheap.py          # Fast tests (search, list, deps, checksum) — no Docker, no builds
-  test_docker_build_ysh.py  # Full build tests using pm.ysh in Alpine Docker (with ysh)
-  Dockerfile.ysh            # Alpine-based image with ysh + build toolchain (pm.ysh)
+  test_docker_build_ysh.py  # Full build tests using pm.ysh in Debian Docker (with ysh)
+  Dockerfile.ysh            # Debian-based image with ysh + build toolchain (pm.ysh)
   download_sources.sh       # Downloads upstream source tarballs to fixtures/sources/
   localize_sources.sh       # Rewrites sources files to use local paths
   fixtures/
@@ -145,13 +145,13 @@ The project builds a bootable Kominka Linux disk image and can boot it in a VM:
   Includes built-in ext4, virtio (PCI/BLK/NET/console), NVMe, AHCI, USB,
   EFI stub, devtmpfs auto-mount, framebuffer console.
 - **`Dockerfile.boot`**: Multi-stage Docker build. Stage 1 builds ysh from
-  source. Stage 2 uses `pm.ysh` to build the Kominka rootfs (baselayout, musl,
+  source. Stage 2 uses `pm.ysh` to build the Kominka rootfs (baselayout, glibc,
   busybox). Stage 3 assembles the disk image (no kernel — that's separate).
 - **`build_image.sh`**: Runs inside Docker with `--privileged`. Creates a 12GB
   GPT disk image (256MB EFI + 8GB swap + ext4 root) via sgdisk + loopback
-  mounts. Installs the Kominka rootfs and ysh + Alpine shared libs.
+  mounts. Installs the Kominka rootfs and ysh + Debian shared libs.
 - **`Dockerfile.iso`**: Builds the installer disk image. References kominka-boot
-  (rootfs + ysh) and kominka-kernel (Image). Adds mkfs.ext4/mkfs.vfat from Alpine
+  (rootfs + ysh) and kominka-kernel (Image). Adds mkfs.ext4/mkfs.vfat from Debian
   and the install script. Outputs `kominka-installer.img`.
 - **`build_iso.sh`**: Creates a rightsized image (EFI + ext4 root, sized to
   content) with the Kominka rootfs, ysh, mkfs.ext4/mkfs.vfat, and kernel.
@@ -169,7 +169,7 @@ The project builds a bootable Kominka Linux disk image and can boot it in a VM:
 - vfkit boots the uncompressed ARM64 `Image` directly (not vmlinuz).
 - `CONFIG_CMDLINE` provides a default `root=LABEL=KOMINKA_ROOT` for real hardware
   EFISTUB boot; vfkit overrides this via `--kernel-cmdline`.
-- Dockerfiles ordered for layer caching: stable layers (ysh, Alpine packages,
+- Dockerfiles ordered for layer caching: stable layers (ysh, Debian packages,
   kernel source) first, frequently-changed layers (pm.ysh, scripts) last.
 
 ## Vendored Packages
@@ -177,10 +177,10 @@ The project builds a bootable Kominka Linux disk image and can boot it in a VM:
 All 20 packages from the upstream repo core are vendored:
 
 **Built and tested (16 packages)**:
-baselayout, baseinit, busybox, musl, linux-headers, bzip2, xz, zlib,
-pigz, bison, flex, m4, make, curl, openssl, pm
+baselayout, baseinit, busybox, glibc, linux-headers, bzip2, xz, zlib,
+pigz, bison, flex, m4, make, curl, boringssl, pm
 
-**Vendored but not built** (too complex for the Alpine cross-build env):
+**Vendored but not built** (too complex for the Debian cross-build env):
 binutils, gcc, git, grub
 
 Sources files have been rewritten to point to local tarballs in
@@ -208,7 +208,7 @@ python3 -m unittest tests.test_pm -v
 
 ### Docker Build Tests (slow, builds real packages)
 
-These build actual Kominka core packages inside Alpine Docker:
+These build actual Kominka core packages inside Debian Docker:
 
 ```sh
 # 1. Download source tarballs (once, ~263MB).
@@ -232,20 +232,20 @@ KOMINKA_ROOT=/kominka-root pm l
 
 ## Known Issues and Build Fixes
 
-Build fixes applied to vendored packages for Alpine compatibility:
+Build fixes applied to vendored packages for Debian compatibility:
 
 - **busybox**: CONFIG_TC disabled in `.config` (TC_CBQ_MAXPRIO removed in newer headers).
   Source URL changed from git.busybox.net snapshot to busybox.net/downloads/.
 - **m4**: gnulib's `_GL_ATTRIBUTE_NODISCARD` redefined to empty (GCC compat).
-- **make**: gnulib K&R prototypes (`extern char *getenv ()`) conflict with musl;
-  sed'd out at build time. Added `-Wno-error -Wno-int-conversion`.
-- **openssl**: Changed target from `linux-x86_64` to `linux-generic64` (Alpine
-  GCC doesn't support -m64). Removed `perl` from depends (Alpine provides it).
+- **make**: gnulib K&R prototypes (`extern char *getenv ()`) conflict with strict
+  libc headers; sed'd out at build time. Added `-Wno-error -Wno-int-conversion`.
+- **openssl**: Changed target from `linux-x86_64` to `linux-generic64`.
+  Removed `perl` from depends (Debian provides it).
 - **pigz**: Upstream URL dead; uses GitHub archive. Checksums updated.
 - **zlib**: Old version removed from zlib.net; uses fossils mirror.
 - **kominka**: Removed `git` dependency (not needed for the simple file-copy build).
-- **git, binutils, gcc, grub**: Not built — too complex for Alpine cross-build
-  (musl basename conflict, missing REG_STARTEND, long compile times).
+- **git, binutils, gcc, grub**: Not built — too complex for cross-build
+  (long compile times, complex dependencies).
 - **pm alternatives bug**: When exactly one other package is installed,
   `grep` doesn't prefix filenames in output, breaking `IFS=: read` parsing
   in `pkg_conflicts`. Tests work around this by ensuring multiple packages

@@ -1,4 +1,4 @@
 cmake make
 go make
-musl
-samurai make
+glibc
+ninja make

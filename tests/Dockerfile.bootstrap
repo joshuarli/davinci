@@ -1,22 +1,22 @@
-FROM alpine:latest
+FROM debian:bookworm-slim
 
 # Minimal seed: only what's needed to compile C and run pm.
 #
-# busybox (Alpine base): sh, tar, sed, awk, grep, find, diff,
+# Debian base: sh, tar, sed, awk, grep, find, diff,
 #   sha256sum, cp, mv, ln, mkdir, rm, cat, head, tail, sort, od, etc.
 # gcc + binutils: C compiler, assembler, linker, strip, readelf
-# musl-dev: libc headers + crt startup files
-# linux-headers: kernel headers (needed by musl and busybox builds)
+# libc6-dev: libc headers + crt startup files
+# linux-libc-dev: kernel headers (needed by glibc and busybox builds)
 # make: build system (11 of 16 packages use it)
-# patch: busybox build script applies patches (Alpine busybox lacks it)
-# cmake, samurai, go: boringssl build system
-# bzip2, xz: decompression for source tarballs (.tar.bz2, .tar.xz)
-#   (gzip is already in Alpine busybox)
-RUN apk add --no-cache \
-    gcc binutils musl-dev linux-headers \
+# patch: busybox build script applies patches
+# cmake, ninja-build, golang: boringssl build system
+# bzip2, xz-utils: decompression for source tarballs (.tar.bz2, .tar.xz)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc binutils libc6-dev linux-libc-dev \
     make patch \
-    cmake samurai go \
-    bzip2 xz
+    cmake ninja-build golang pkg-config \
+    bzip2 xz-utils && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install pm.
 COPY pm.ysh /usr/bin/pm
@@ -35,7 +35,7 @@ RUN mkdir -p /kominka-root/var/db/kominka/installed /kominka-root/var/db/kominka
 
 # Register host-provided build tools so the package manager's dependency
 # resolution finds them as already installed.
-RUN for pkg in cmake go samurai; do \
+RUN for pkg in cmake go ninja glibc; do \
       mkdir -p "/kominka-root/var/db/kominka/installed/$pkg" && \
       echo "0 0" > "/kominka-root/var/db/kominka/installed/$pkg/version"; \
     done
@@ -64,5 +64,6 @@ COPY tests/bootstrap.sh /home/kominka/bootstrap.sh
 RUN chmod +x /home/kominka/build_core.sh /home/kominka/bootstrap.sh
 
 # Use tini as PID 1 to reap zombie processes.
-RUN apk add --no-cache tini
-ENTRYPOINT ["/sbin/tini", "--"]
+RUN apt-get update && apt-get install -y --no-install-recommends tini && \
+    rm -rf /var/lib/apt/lists/*
+ENTRYPOINT ["/usr/bin/tini", "--"]

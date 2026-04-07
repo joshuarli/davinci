@@ -1,0 +1,41 @@
+#!/bin/sh -e
+
+# glibc must be built outside of its source tree.
+mkdir -p glibc-build
+cd glibc-build
+
+../configure \
+    --prefix=/usr \
+    --libdir=/usr/lib \
+    --libexecdir=/usr/lib \
+    --enable-bind-now \
+    --enable-kernel=5.10 \
+    --enable-stack-protector=strong \
+    --disable-nscd \
+    --disable-profile \
+    --disable-werror \
+    libc_cv_slibdir=/usr/lib
+
+make
+make DESTDIR="$1" install
+
+ARCH=$(uname -m)
+
+# Dynamic linker: glibc installs it to /usr/lib but the kernel expects
+# it at /lib/ld-linux-*.  Our baselayout has /lib -> /usr/lib so the
+# symlink chain works.  Create /usr/bin/ldd pointing at the linker.
+case $ARCH in
+    aarch64) LDSO=ld-linux-aarch64.so.1 ;;
+    x86_64)  LDSO=ld-linux-x86-64.so.2 ;;
+esac
+
+mkdir -p "$1/usr/bin"
+ln -sf "/usr/lib/$LDSO" "$1/usr/bin/ldd"
+
+# Install BSD compatibility headers.
+cp -f ../cdefs.h ../queue.h ../tree.h \
+    "$1/usr/include/sys"
+
+# Install getconf and getent.
+cc ../getconf.c -o "$1/usr/bin/getconf"
+cc ../getent.c  -o "$1/usr/bin/getent"
