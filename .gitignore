@@ -1,2 +1,6 @@
 __pycache__
 tests/fixtures/sources
+disk.img
+vmlinuz
+Image
+initramfs.img
