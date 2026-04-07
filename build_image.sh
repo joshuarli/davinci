@@ -102,6 +102,10 @@ cat > "$ROOTFS/usr/bin/init" <<'INIT'
 echo "KISS Linux (built with pm.ysh)"
 echo "Kernel: $(/usr/bin/busybox uname -sr)"
 echo ""
+if [ -x /usr/bin/kiss-install ]; then
+    echo "Run 'kiss-install' to install to disk."
+    echo ""
+fi
 
 exec /usr/bin/ysh
 INIT

@@ -13,7 +13,10 @@ YSH.md                      # YSH language reference and gotchas
 Makefile                    # Build/boot/test orchestration
 Dockerfile.boot             # Multi-stage: ysh + KISS rootfs + disk image
 Dockerfile.linux            # Custom kernel build (tinyconfig + kernel.config)
+Dockerfile.iso              # Installer disk image (references kiss-boot + kiss-kernel)
 build_image.sh              # Disk image assembly (runs inside Docker)
+build_iso.sh                # Installer image assembly (runs inside Docker)
+install.sh                  # Interactive installer script (runs on live rootfs)
 kernel.config               # Kernel config fragment (ext4, virtio, EFI stub built-in)
 TODO.md                     # Pending work items
 tests/
@@ -150,10 +153,22 @@ The project builds a bootable KISS Linux disk image and can boot it in a VM:
 - **`build_image.sh`**: Runs inside Docker with `--privileged`. Creates a 12GB
   GPT disk image (256MB EFI + 8GB swap + ext4 root) via sgdisk + loopback
   mounts. Installs the KISS rootfs and ysh + Alpine shared libs.
-- **`Makefile`**: `make kernel` (custom kernel → `Image`), `make build`
-  (rootfs → `disk.img`), `make boot` (vfkit VM), `make test` (all three).
-- The rootfs `/usr/bin/init` mounts pseudofs and execs ysh as the shell.
+- **`Dockerfile.iso`**: Builds the installer disk image. References kiss-boot
+  (rootfs + ysh) and kiss-kernel (Image). Adds mkfs.ext4/mkfs.vfat from Alpine
+  and the install script. Outputs `kiss-installer.img`.
+- **`build_iso.sh`**: Creates a 512MB GPT image (128MB EFI + ext4 root) with
+  the KISS rootfs, ysh, installer tools, and kernel on the EFI partition.
+- **`install.sh`**: Interactive installer. Lists block devices, lets user pick
+  a target, partitions (busybox fdisk GPT), formats, copies rootfs, installs
+  kernel to EFI. Runs from the live rootfs in the installer image.
+- **`Makefile`**: `make kernel` (Image), `make build` (disk.img), `make iso`
+  (kiss-installer.img), `make boot` (VM), `make boot-installer` (test installer
+  with virtual target disk), `make test` (kernel+build+boot).
+- The rootfs `/usr/bin/init` mounts pseudofs and execs ysh. Auto-detects
+  installer mode if `kiss-install` is present.
 - vfkit boots the uncompressed ARM64 `Image` directly (not vmlinuz).
+- `CONFIG_CMDLINE` provides a default `root=LABEL=KISS_ROOT` for real hardware
+  EFISTUB boot; vfkit overrides this via `--kernel-cmdline`.
 
 ## Vendored Packages
 

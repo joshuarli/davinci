@@ -1,12 +1,15 @@
-BUILDER_IMAGE := kiss-boot
-KERNEL_IMAGE  := kiss-kernel
-DISK_IMG      := disk.img
-KERNEL        := Image
-INITRAMFS     := initramfs.img
+BUILDER_IMAGE  := kiss-boot
+KERNEL_IMAGE   := kiss-kernel
+INSTALLER_IMAGE := kiss-iso
+DISK_IMG       := disk.img
+INSTALLER_IMG  := kiss-installer.img
+TARGET_IMG     := target.img
+KERNEL         := Image
+INITRAMFS      := initramfs.img
 
 VFKIT_CMDLINE := root=/dev/vda3 rw console=hvc0 loglevel=4
 
-.PHONY: build kernel boot boot-log test stop clean
+.PHONY: build kernel iso boot boot-installer boot-log test stop clean
 
 test: kernel build boot
 
@@ -23,6 +26,13 @@ kernel:
 	docker build -t $(KERNEL_IMAGE) -f Dockerfile.linux .
 	docker run --rm -v "$(CURDIR)":/out $(KERNEL_IMAGE)
 
+iso: kernel build
+	@command -v docker >/dev/null || { echo "error: docker required"; exit 1; }
+	docker build -t $(INSTALLER_IMAGE) -f Dockerfile.iso .
+	docker run --rm --privileged \
+		-v "$(CURDIR)":/out \
+		$(INSTALLER_IMAGE)
+
 boot:
 	@command -v vfkit >/dev/null || { echo "error: vfkit required — brew install vfkit"; exit 1; }
 	@test -f $(KERNEL) || { echo "error: Image not found — run 'make kernel' first"; exit 1; }
@@ -34,6 +44,22 @@ boot:
 		--kernel-cmdline "$(VFKIT_CMDLINE)" \
 		--cpus 4 --memory 4096 \
 		--device virtio-blk,path=$(DISK_IMG) \
+		--device virtio-net,nat \
+		--device virtio-serial,stdio
+
+boot-installer:
+	@command -v vfkit >/dev/null || { echo "error: vfkit required — brew install vfkit"; exit 1; }
+	@test -f $(KERNEL) || { echo "error: Image not found — run 'make kernel' first"; exit 1; }
+	@test -f $(INSTALLER_IMG) || { echo "error: kiss-installer.img not found — run 'make iso' first"; exit 1; }
+	@test -f $(TARGET_IMG) || truncate -s 12G $(TARGET_IMG)
+	-@pkill vfkit 2>/dev/null; sleep 0.5
+	vfkit \
+		--kernel $(KERNEL) \
+		--initrd $(INITRAMFS) \
+		--kernel-cmdline "root=/dev/vda2 rw console=hvc0 loglevel=4" \
+		--cpus 4 --memory 4096 \
+		--device virtio-blk,path=$(INSTALLER_IMG) \
+		--device virtio-blk,path=$(TARGET_IMG) \
 		--device virtio-net,nat \
 		--device virtio-serial,stdio
 
@@ -55,4 +81,4 @@ stop:
 	-@pkill vfkit 2>/dev/null && echo "VM stopped" || echo "No VM running"
 
 clean:
-	rm -f disk.img Image initramfs.img kernel-config
+	rm -f disk.img Image initramfs.img kernel-config kiss-installer.img target.img

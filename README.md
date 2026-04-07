@@ -19,11 +19,29 @@ make boot
 |--------|-------------|
 | `make kernel` | Build custom minimal Linux kernel via Docker (outputs `Image`) |
 | `make build` | Build KISS rootfs and disk image via Docker (outputs `disk.img`) |
+| `make iso` | Build installer disk image (outputs `kiss-installer.img`) |
 | `make boot` | Boot the VM with vfkit (needs `Image` + `disk.img`) |
+| `make boot-installer` | Boot installer in VM with a 12G virtual target disk |
 | `make boot-log` | Boot the VM in background, serial output to `/tmp/kiss-serial.log` |
 | `make stop` | Stop the running VM |
 | `make test` | `kernel` + `build` + `boot` |
 | `make clean` | Remove build artifacts |
+
+### Installer
+
+Build the installer and test it in a VM:
+
+```sh
+make iso             # builds kiss-installer.img
+make boot-installer  # boots installer with a virtual target disk (/dev/vdb)
+# Inside the VM: run 'kiss-install', select /dev/vdb
+```
+
+To flash to a real USB drive:
+
+```sh
+dd if=kiss-installer.img of=/dev/sdX bs=4M status=progress
+```
 
 ### Running Tests
 

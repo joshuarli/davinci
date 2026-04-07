@@ -5,3 +5,5 @@ Image
 kernel-config
 vmlinuz
 initramfs.img
+kiss-installer.img
+target.img
