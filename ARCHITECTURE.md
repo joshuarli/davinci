@@ -11,7 +11,7 @@ disk image that runs under vfkit (or on real ARM64 hardware via EFISTUB).
 
 ## Base System
 
-The installed rootfs contains 15 packages built from source:
+The installed rootfs contains 23 packages built from source:
 
 | Package | Role |
 |---------|------|
@@ -29,7 +29,16 @@ The installed rootfs contains 15 packages built from source:
 | curl | HTTP client |
 | pigz | Parallel gzip |
 | bison, flex | Parser generators (needed to build GCC) |
+| e2fsprogs | ext4 filesystem tools (fsck.ext4, mkfs.ext4, etc.) |
+| dosfstools | FAT filesystem tools (mkfs.vfat, fsck.fat) |
+| opendoas | Privilege escalation (sudo alternative) |
+| pkgconf | Compiler/linker flag configuration (pkg-config) |
+| strace | System call tracer for debugging |
+| perl | Scripting language (build dependency for many packages) |
+| sqlite | Embedded SQL database |
+| libudev-zero | Minimal libudev implementation (no systemd) |
 
+A `core` metapackage depends on the essential system packages.
 Additional packages (binutils, gcc, git, grub) are vendored but not built
 during the default bootstrap.
 
@@ -200,7 +209,7 @@ Stage 2: pkg-builder
   -> Install ysh from stage 1
   -> Copy package repo + source tarballs
   -> Register host-provided packages (cmake, go, ninja, glibc, perl)
-  -> Run build_core.sh: build 15 packages with pm.ysh
+  -> Run build_core.sh: build 23 packages with pm.ysh
   -> Output: /kominka-root (installed rootfs), /packages, tarballs
 
 Stage 3: disk image builder

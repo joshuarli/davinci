@@ -1,0 +1,21 @@
+#!/usr/local/bin/ysh
+
+var dest = ARGV[0]
+
+var uid = $(id -u)
+var gid = $(id -g)
+
+env BINOWN=$uid BINGRP=$gid \
+./configure \
+    --prefix=/usr \
+    --enable-static \
+    --with-shadow \
+    --with-timestamp \
+    --without-pam
+
+make
+make install
+
+mkdir -p "${dest}/etc"
+cp -f doas.conf "${dest}/etc"
+chmod 600 "${dest}/etc/doas.conf"

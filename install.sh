@@ -138,6 +138,47 @@ LABEL=KOMINKA_EFI   /boot  vfat  defaults  0 2
 LABEL=KOMINKA_SWAP  none   swap  defaults  0 0
 EOF
 
+echo "==> Setting up user account"
+echo ""
+/usr/bin/busybox printf "Username: "
+read -r NEW_USER
+
+if [ -n "$NEW_USER" ]; then
+    # Create wheel group if missing.
+    /usr/bin/busybox grep -q '^wheel:' "$MNT/etc/group" || \
+        echo "wheel:x:10:" >> "$MNT/etc/group"
+
+    # Add user with home directory, default shell, and wheel group.
+    echo "${NEW_USER}:x:1000:1000:${NEW_USER}:/home/${NEW_USER}:/bin/sh" >> "$MNT/etc/passwd"
+    echo "${NEW_USER}:!:14871::::::" >> "$MNT/etc/shadow"
+
+    # Add user to wheel group.
+    if /usr/bin/busybox grep -q "^wheel:.*:$" "$MNT/etc/group"; then
+        /usr/bin/busybox sed -i "s/^wheel:\(.*\):$/wheel:\1:${NEW_USER}/" "$MNT/etc/group"
+    else
+        /usr/bin/busybox sed -i "s/^wheel:\(.*\)/wheel:\1,${NEW_USER}/" "$MNT/etc/group"
+    fi
+
+    # Create user's primary group.
+    echo "${NEW_USER}:x:1000:" >> "$MNT/etc/group"
+
+    # Create home directory.
+    /usr/bin/busybox mkdir -p "$MNT/home/${NEW_USER}"
+    /usr/bin/busybox chown 1000:1000 "$MNT/home/${NEW_USER}"
+
+    # Set password.
+    echo ""
+    echo "Set password for ${NEW_USER}:"
+    # chroot into the target to use busybox passwd.
+    /usr/bin/busybox chroot "$MNT" /usr/bin/busybox passwd "$NEW_USER"
+
+    echo ""
+    echo "  User '${NEW_USER}' created (wheel group, doas access)."
+else
+    echo "  Skipped — root-only system."
+fi
+
+echo ""
 echo "==> Unmounting"
 /usr/bin/busybox umount "$MNT/boot"
 /usr/bin/busybox umount "$MNT"

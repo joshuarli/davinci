@@ -1,0 +1,10 @@
+#!/usr/local/bin/ysh
+
+var dest = ARGV[0]
+
+./configure \
+    --prefix=/usr \
+    --disable-mpers
+
+make
+make install

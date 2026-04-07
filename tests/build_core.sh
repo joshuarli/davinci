@@ -31,6 +31,10 @@ all_pkgs="
 #   glibc — host Debian provides it; building from source is slow.
 #   binutils, gcc — require long compile times. Pass explicitly.
 #   kominka, git, grub — need upstream sources not in the container.
+#   core — metapackage; dependencies are built individually above.
+#   e2fsprogs, dosfstools, opendoas, pkgconf, strace, perl, sqlite,
+#   libudev-zero — packaged but not yet building (SIGTERM in Docker).
+#   Pass explicitly to test: sh build_core.sh e2fsprogs
 
 if [ $# -gt 0 ]; then
     pkgs="$*"

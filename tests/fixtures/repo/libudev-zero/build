@@ -1,0 +1,11 @@
+#!/bin/sh -ef
+
+make PREFIX=/usr
+make PREFIX=/usr install
+
+mkdir -p "$1/usr/bin"
+
+# shellcheck disable=2086
+# shellcheck disable=2086
+"${CC:-cc}" $LDFLAGS $CFLAGS $CPPFLAGS \
+    -o "$1/usr/bin/libudev-zero-helper" contrib/helper.c

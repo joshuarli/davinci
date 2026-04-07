@@ -1,0 +1,2 @@
+#!/usr/local/bin/ysh
+# Metapackage — no build step. Dependencies are pulled in via 'depends'.
