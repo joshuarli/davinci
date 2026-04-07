@@ -1,0 +1,41 @@
+# Build a custom minimal Linux kernel for KISS Linux.
+# Starts from tinyconfig + kernel.config fragment.
+# Produces an uncompressed Image (ARM64) suitable for vfkit direct boot.
+#
+# Usage:
+#   docker build -t kiss-kernel -f Dockerfile.linux .
+#   docker run --rm -v "$(pwd)":/out kiss-kernel
+
+FROM alpine:latest AS builder
+
+RUN apk add --no-cache \
+    build-base bc flex bison perl \
+    elfutils-dev openssl-dev \
+    linux-headers \
+    curl xz
+
+ARG KERNEL_VERSION=6.19.11
+ARG KERNEL_URL=https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${KERNEL_VERSION}.tar.xz
+
+RUN curl -fLo /tmp/linux.tar.xz "$KERNEL_URL" && \
+    cd /tmp && tar xf linux.tar.xz && \
+    mv linux-${KERNEL_VERSION} /linux
+
+WORKDIR /linux
+
+COPY kernel.config /tmp/kernel.config
+
+# Start from tinyconfig, then merge our fragment.
+RUN make tinyconfig && \
+    scripts/kconfig/merge_config.sh -m .config /tmp/kernel.config && \
+    make olddefconfig
+
+RUN make -j"$(nproc)" Image
+
+FROM alpine:latest
+
+COPY --from=builder /linux/arch/arm64/boot/Image /Image
+COPY --from=builder /linux/.config /kernel-config
+
+CMD cp /Image /out/Image && cp /kernel-config /out/kernel-config && \
+    echo "Kernel Image: $(du -h /Image | cut -f1)"

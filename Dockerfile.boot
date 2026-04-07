@@ -2,7 +2,9 @@
 #
 # Stage 1: Build ysh from source
 # Stage 2: Build minimal KISS rootfs with pm.ysh
-# Stage 3: Image with rootfs + kernel + disk creation tools
+# Stage 3: Assemble GPT disk image (rootfs only, no kernel)
+#
+# Kernel is built separately via Dockerfile.linux.
 #
 # Usage:
 #   docker build -t kiss-boot -f Dockerfile.boot .
@@ -71,10 +73,7 @@ RUN ysh /usr/bin/kiss b baselayout musl linux-headers make busybox
 FROM alpine:latest
 
 RUN apk add --no-cache \
-    e2fsprogs dosfstools sgdisk util-linux \
-    kmod cpio gzip \
-    busybox-static \
-    linux-virt
+    e2fsprogs dosfstools sgdisk util-linux
 
 COPY --from=pkg-builder /kiss-root /rootfs
 COPY --from=ysh-builder /usr/local/bin/oils-for-unix /ysh-bin/oils-for-unix

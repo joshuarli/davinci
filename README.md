@@ -1,3 +1,43 @@
+## Quick Start
+
+Prerequisites: Docker, [vfkit](https://github.com/crc-org/vfkit) (`brew install vfkit`).
+
+```sh
+# Build the custom kernel (ext4, virtio, EFI stub built-in — no initramfs).
+make kernel
+
+# Build the rootfs disk image (KISS Linux built with pm.ysh inside Docker).
+make build
+
+# Boot the VM (drops you into a ysh shell on the KISS rootfs).
+make boot
+```
+
+### Make Targets
+
+| Target | Description |
+|--------|-------------|
+| `make kernel` | Build custom minimal Linux kernel via Docker (outputs `Image`) |
+| `make build` | Build KISS rootfs and disk image via Docker (outputs `disk.img`) |
+| `make boot` | Boot the VM with vfkit (needs `Image` + `disk.img`) |
+| `make boot-log` | Boot the VM in background, serial output to `/tmp/kiss-serial.log` |
+| `make stop` | Stop the running VM |
+| `make test` | `kernel` + `build` + `boot` |
+| `make clean` | Remove build artifacts |
+
+### Running Tests
+
+```sh
+# Fast tests (no Docker)
+python3 -m pytest tests/test_pm_cheap.py -v
+
+# Full Docker build tests (download sources first)
+cd tests && ./download_sources.sh && cd ..
+python3 -m pytest tests/test_docker_build_ysh.py -v
+```
+
+## Vision
+
 1. build kiss linux core with kiss (pm)
 2. clean port to osh
 3. build installer iso

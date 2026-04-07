@@ -4,8 +4,6 @@
 #
 # Outputs (written to /out):
 #   disk.img        - Bootable disk image (GPT: EFI + swap + ext4 root)
-#   vmlinuz         - Kernel (Alpine linux-virt, for vfkit --kernel)
-#   initramfs.img   - Initramfs (busybox-static + virtio modules)
 
 set -eu
 
@@ -13,8 +11,6 @@ OUT=/out
 DISK="$OUT/disk.img"
 DISK_SIZE_MB=12288
 ROOTFS=/mnt
-
-KVER=$(ls /lib/modules/ | head -1)
 
 cleanup() {
     set +e
@@ -111,74 +107,23 @@ exec /usr/bin/ysh
 INIT
 chmod 755 "$ROOTFS/usr/bin/init"
 
-# Install kernel to EFI partition (for future EFISTUB boot).
+# Install kernel to EFI partition for EFISTUB boot on real hardware.
 # On real hardware: EFI firmware finds /EFI/BOOT/BOOTAA64.EFI
-mkdir -p "$ROOTFS/boot/EFI/BOOT"
-cp "/boot/vmlinuz-virt" "$ROOTFS/boot/EFI/BOOT/BOOTAA64.EFI"
-
-# Install kernel modules to rootfs.
-mkdir -p "$ROOTFS/usr/lib/modules"
-cp -a "/lib/modules/$KVER" "$ROOTFS/usr/lib/modules/$KVER"
-depmod -b "$ROOTFS" "$KVER" 2>/dev/null || true
-
-echo "==> Building initramfs"
-INITRD_DIR=$(mktemp -d)
-
-mkdir -p "$INITRD_DIR/bin" "$INITRD_DIR/proc" \
-    "$INITRD_DIR/sys" "$INITRD_DIR/dev" "$INITRD_DIR/mnt/root"
-
-cat > "$INITRD_DIR/init" <<'INITEOF'
-#!/bin/sh
-mount -t proc     none /proc
-mount -t sysfs    none /sys
-mount -t devtmpfs none /dev
-
-modprobe virtio_pci     2>/dev/null
-modprobe virtio_mmio    2>/dev/null
-modprobe virtio_blk
-modprobe ext4
-
-# Wait for /dev/vda3 (root partition).
-n=0; while [ ! -b /dev/vda3 ] && [ $n -lt 30 ]; do sleep 0.1; n=$((n+1)); done
-
-if [ ! -b /dev/vda3 ]; then
-    echo "FATAL: /dev/vda3 not found"
-    exec sh
+if [ -f "$OUT/Image" ]; then
+    echo "==> Installing kernel to EFI partition"
+    mkdir -p "$ROOTFS/boot/EFI/BOOT"
+    cp "$OUT/Image" "$ROOTFS/boot/EFI/BOOT/BOOTAA64.EFI"
+else
+    echo "    (no Image found — run 'make kernel' to include kernel on disk)"
 fi
 
-mount -t ext4 /dev/vda3 /mnt/root
-
-umount /proc /sys /dev
-exec switch_root /mnt/root /sbin/init
-INITEOF
-chmod +x "$INITRD_DIR/init"
-
-cp /bin/busybox.static "$INITRD_DIR/bin/busybox"
-for cmd in sh mount umount modprobe sleep switch_root; do
-    ln -s busybox "$INITRD_DIR/bin/$cmd"
-done
-
-mkdir -p "$INITRD_DIR/lib/modules"
-cp -a "/lib/modules/$KVER" "$INITRD_DIR/lib/modules/$KVER"
-depmod -b "$INITRD_DIR" "$KVER" 2>/dev/null || true
-
-(cd "$INITRD_DIR" && find . | cpio -o -H newc 2>/dev/null | gzip -1) > "$OUT/initramfs.img"
-rm -rf "$INITRD_DIR"
-
-echo "==> Extracting kernel Image from vmlinuz"
-# ARM64 zboot vmlinuz: offset 0x08 (LE u32) is the gzip payload offset.
-payload_off=$(od -A n -t u4 -j 8 -N 4 /boot/vmlinuz-virt | tr -d ' ')
-echo "    payload at offset $payload_off"
-# gunzip exits 2 on trailing garbage (normal for embedded payloads).
-dd if=/boot/vmlinuz-virt bs=1 skip="$payload_off" 2>/dev/null | gunzip > "$OUT/Image" 2>/dev/null || true
-# Also copy the compressed vmlinuz for EFISTUB use on real hardware.
-cp "/boot/vmlinuz-virt" "$OUT/vmlinuz"
+# vfkit requires --initrd even when the kernel doesn't need one.
+echo "==> Creating empty initramfs"
+echo | cpio -o -H newc 2>/dev/null | gzip > "$OUT/initramfs.img"
 
 echo "==> Unmounting"
 umount "$ROOTFS/boot"
 umount "$ROOTFS"
 
 echo "==> Done"
-echo "  disk.img       $(du -h "$DISK" | cut -f1)"
-echo "  vmlinuz        $(du -h "$OUT/vmlinuz" | cut -f1)"
-echo "  initramfs.img  $(du -h "$OUT/initramfs.img" | cut -f1)"
+echo "  disk.img  $(du -h "$DISK" | cut -f1)"

@@ -10,6 +10,12 @@ building an installer ISO. The YSH port (`pm.ysh`) is in progress.
 pm                          # The package manager (KISS 5.5.28, pure POSIX shell)
 pm.ysh                      # YSH port of pm (prefers build.ysh over build)
 YSH.md                      # YSH language reference and gotchas
+Makefile                    # Build/boot/test orchestration
+Dockerfile.boot             # Multi-stage: ysh + KISS rootfs + disk image
+Dockerfile.linux            # Custom kernel build (tinyconfig + kernel.config)
+build_image.sh              # Disk image assembly (runs inside Docker)
+kernel.config               # Kernel config fragment (ext4, virtio, EFI stub built-in)
+TODO.md                     # Pending work items
 tests/
   test_pm.py                # Unit-level integration tests (run on macOS/Linux, no Docker)
   test_pm_cheap.py          # Fast tests (search, list, deps, checksum) — no Docker, no builds
@@ -127,6 +133,27 @@ mode). Key differences from the POSIX version:
 
 16 of 20 vendored packages have `build.ysh` ports. See `YSH.md` for the
 full language reference and gotchas discovered during porting.
+
+## Boot Infrastructure
+
+The project builds a bootable KISS Linux disk image and can boot it in a VM:
+
+- **`Dockerfile.linux`**: Builds a custom minimal Linux kernel from source
+  (tinyconfig + `kernel.config` fragment). All drivers built-in, no modules,
+  no initramfs required. Outputs uncompressed ARM64 `Image`.
+- **`kernel.config`**: Config fragment merged on top of `make tinyconfig`.
+  Includes built-in ext4, virtio (PCI/BLK/NET/console), NVMe, AHCI, USB,
+  EFI stub, devtmpfs auto-mount, framebuffer console.
+- **`Dockerfile.boot`**: Multi-stage Docker build. Stage 1 builds ysh from
+  source. Stage 2 uses `pm.ysh` to build the KISS rootfs (baselayout, musl,
+  busybox). Stage 3 assembles the disk image (no kernel — that's separate).
+- **`build_image.sh`**: Runs inside Docker with `--privileged`. Creates a 12GB
+  GPT disk image (256MB EFI + 8GB swap + ext4 root) via sgdisk + loopback
+  mounts. Installs the KISS rootfs and ysh + Alpine shared libs.
+- **`Makefile`**: `make kernel` (custom kernel → `Image`), `make build`
+  (rootfs → `disk.img`), `make boot` (vfkit VM), `make test` (all three).
+- The rootfs `/usr/bin/init` mounts pseudofs and execs ysh as the shell.
+- vfkit boots the uncompressed ARM64 `Image` directly (not vmlinuz).
 
 ## Vendored Packages
 
