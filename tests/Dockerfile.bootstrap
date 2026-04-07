@@ -9,13 +9,13 @@ FROM alpine:latest
 # linux-headers: kernel headers (needed by musl and busybox builds)
 # make: build system (11 of 16 packages use it)
 # patch: busybox build script applies patches (Alpine busybox lacks it)
-# perl: openssl Configure requires it (only external scripting dep)
+# cmake, samurai, go: boringssl build system
 # bzip2, xz: decompression for source tarballs (.tar.bz2, .tar.xz)
 #   (gzip is already in Alpine busybox)
 RUN apk add --no-cache \
     gcc binutils musl-dev linux-headers \
     make patch \
-    perl \
+    cmake samurai go \
     bzip2 xz
 
 # Install pm.
@@ -32,6 +32,13 @@ RUN find /home/kiss/repo -name post-install -exec chmod +x {} +
 
 # Create the chroot target.
 RUN mkdir -p /kiss-root/var/db/kiss/installed /kiss-root/var/db/kiss/choices
+
+# Register host-provided build tools so the package manager's dependency
+# resolution finds them as already installed.
+RUN for pkg in cmake go samurai; do \
+      mkdir -p "/kiss-root/var/db/kiss/installed/$pkg" && \
+      echo "0 0" > "/kiss-root/var/db/kiss/installed/$pkg/version"; \
+    done
 
 # Add /kiss-root/usr/bin to PATH so that packages built earlier in the
 # bootstrap (e.g. m4, make) are available to later builds (e.g. bison).

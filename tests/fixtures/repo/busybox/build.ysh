@@ -57,7 +57,7 @@ chmod u+s "${dest}/usr/bin/busybox-suid"
 mkdir -p "${dest}/etc/acpi"
 
 # Install runit services.
-for s in (:| acpid crond syslogd mdev ntpd |) {
+for s in (:| acpid syslogd mdev ntpd |) {
     mkdir -p "${dest}/etc/sv/${s}"
     cp -f "${s}.run" "${dest}/etc/sv/${s}/run"
     ln -sf "/run/runit/supervise.${s}" "${dest}/etc/sv/${s}/supervise"

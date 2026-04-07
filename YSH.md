@@ -88,6 +88,7 @@ var words = :| alpha bravo charlie |    # shell-style word array
 
 call files->append('c.txt')
 call files->extend(other_list)
+call files->insert(0, 'first.txt')      # prepend (insert at index)
 var item = files->pop()
 
 for f in (files) {
@@ -115,6 +116,27 @@ for key in (d) { echo $key }
 for key, val in (d) { echo "$key=$val" }
 
 var exists = 'name' in d
+```
+
+Use dicts as sets for O(1) membership testing:
+
+```ysh
+var seen = {}
+for item in (items) {
+  if (item in seen) { continue }         # O(1) lookup
+  setvar seen[item] = true
+}
+```
+
+Prefer `=> startsWith()` / `=> endsWith()` over POSIX prefix-stripping idioms
+for readability when you only need a boolean check:
+
+```ysh
+# Clear intent
+if (url => startsWith('git+')) { ... }
+
+# Equivalent but obscure
+if (url !== "${url##git+}") { ... }
 ```
 
 ## Control Flow
@@ -332,3 +354,19 @@ Things that work in POSIX/bash but break in YSH (`ysh:all` mode):
 - **`\\$(...)` in double quotes is still a command sub.** `\\` produces a
   literal `\`, then `$(cmd)` runs.  To get a literal `$(`, use a raw
   single-quoted prefix: `var s = r'\($(' ++ var ++ ')'`.
+- **`setvar` can't modify global dicts/lists from inside procs.**
+  `setvar d[key] = val` looks for a local `var d` and fails (OILS-ERR-10).
+  Use `setglobal d[key] = val`.  Same for `call d->append(x)` — but `call`
+  already works on globals because it mutates in-place without rebinding.
+- **Expression `if` and command `if` can't mix.**
+  `if (expr and test -f file)` is invalid — the `test` command can't appear
+  inside expression-mode `(...)`.  Nest them:
+  `if (expr) { if test -f file { ... } }`.
+- **Backslash in glob/case patterns is an escape.**
+  `*\V*` matches `*V*` (the `\` escapes `V`).  To match a literal backslash
+  before `V`, double it: `*\\V*`.  In double-quoted strings, `"\\"` produces
+  one `\`, so `"\\\\$var"` is needed to get two backslashes into a pattern.
+- **OILS-ERR-20 only fires in expression context.** `'\\X'` as a proc/command
+  argument (word context) is fine and produces two characters `\X`.  The same
+  literal in `var x = '\\X'` (expression context) triggers OILS-ERR-20.
+  Use `r'\\X'` (raw string) in expression context for literal backslashes.

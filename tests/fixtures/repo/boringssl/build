@@ -1,0 +1,47 @@
+#!/bin/sh -e
+
+cmake -GNinja -B build -DCMAKE_BUILD_TYPE=Release
+ninja -C build
+
+mkdir -p "$1/usr/lib/pkgconfig" "$1/usr/include" "$1/usr/bin" "$1/etc/ssl"
+
+cp -r include/openssl "$1/usr/include/"
+cp build/libssl.a "$1/usr/lib/"
+cp build/libcrypto.a "$1/usr/lib/"
+cp build/bssl "$1/usr/bin/"
+
+cp -f update-certdata.sh "$1/etc/ssl"
+
+# pkg-config files for curl and other consumers.
+cat > "$1/usr/lib/pkgconfig/libssl.pc" <<EOF
+prefix=/usr
+libdir=\${prefix}/lib
+includedir=\${prefix}/include
+
+Name: libssl
+Description: BoringSSL
+Version: 0.0.0
+Libs: -L\${libdir} -lssl -lcrypto -lstdc++ -lpthread
+Cflags: -I\${includedir}
+EOF
+
+cat > "$1/usr/lib/pkgconfig/libcrypto.pc" <<EOF
+prefix=/usr
+libdir=\${prefix}/lib
+includedir=\${prefix}/include
+
+Name: libcrypto
+Description: BoringSSL
+Version: 0.0.0
+Libs: -L\${libdir} -lcrypto -lstdc++ -lpthread
+Cflags: -I\${includedir}
+EOF
+
+cat > "$1/usr/lib/pkgconfig/openssl.pc" <<EOF
+prefix=/usr
+
+Name: openssl
+Description: BoringSSL (OpenSSL-compatible)
+Version: 0.0.0
+Requires: libssl libcrypto
+EOF

@@ -2,13 +2,13 @@ FROM alpine:latest
 
 # pm runtime dependencies: a sha256 utility, a download utility, git, and
 # standard POSIX tools.  Build-time dependencies for the KISS core packages
-# themselves: C toolchain, make, patch, perl (openssl Configure), sed, etc.
+# themselves: C toolchain, make, patch, cmake/ninja (boringssl), sed, etc.
 RUN apk add --no-cache \
     coreutils findutils grep sed gawk diffutils \
     curl git \
-    openssl \
     build-base gcc g++ musl-dev linux-headers \
     make patch bison flex m4 texinfo \
+    cmake samurai go \
     perl gzip bzip2 xz zlib-dev zstd \
     automake autoconf python3 \
     gmp-dev mpfr-dev mpc1-dev \
@@ -28,6 +28,13 @@ RUN find /home/kiss/repo -name post-install -exec chmod +x {} +
 
 # Create the chroot target and its package database.
 RUN mkdir -p /kiss-root/var/db/kiss/installed /kiss-root/var/db/kiss/choices
+
+# Register host-provided build tools so the package manager's dependency
+# resolution finds them as already installed.
+RUN for pkg in cmake go samurai; do \
+      mkdir -p "/kiss-root/var/db/kiss/installed/$pkg" && \
+      echo "0 0" > "/kiss-root/var/db/kiss/installed/$pkg/version"; \
+    done
 
 # Set up the KISS environment.
 # Packages are built with the host toolchain but installed into /kiss-root.

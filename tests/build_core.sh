@@ -20,7 +20,7 @@ all_pkgs="
     make
     busybox
     baseinit
-    openssl
+    boringssl
     curl
     pigz
     bison

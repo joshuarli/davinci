@@ -153,7 +153,7 @@ class TestBuildBaseSystem(DockerPMTestCase):
     ALL_PACKAGES = [
         "baseinit", "baselayout", "bison", "busybox", "bzip2",
         "curl", "flex", "kiss", "linux-headers", "m4", "make",
-        "musl", "openssl", "pigz", "xz", "zlib",
+        "musl", "boringssl", "pigz", "xz", "zlib",
     ]
 
     def test_00_search_all_packages(self):
@@ -222,13 +222,13 @@ class TestBuildBaseSystem(DockerPMTestCase):
         r = self.pm("l")
         self.assertIn("baseinit", r.stdout)
 
-    def test_11_build_openssl(self):
-        self.pm_build("openssl")
+    def test_11_build_boringssl(self):
+        self.pm_build("boringssl")
         r = self.pm("l")
-        self.assertIn("openssl", r.stdout)
+        self.assertIn("boringssl", r.stdout)
 
     def test_12_build_curl(self):
-        """curl depends on openssl and zlib (already built)."""
+        """curl depends on boringssl and zlib (already built)."""
         self.pm_build("curl")
         r = self.pm("l")
         self.assertIn("curl", r.stdout)

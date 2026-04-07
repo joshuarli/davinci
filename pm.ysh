@@ -67,22 +67,20 @@ var repo_dir = ''
 var repo_name = ''
 var repo_ver = ''
 var repo_rel = ''
-var repo_major = ''
-var repo_minor = ''
-var repo_patch = ''
-var repo_ident = ''
+var repo_parts = {major: '', minor: '', patch: '', ident: ''}
 var ver_pre = ''
 var rel_pre = ''
 
-# Temp file state — up to 3 active temp files.
-var _tmp_file = ''
-var _tmp_file_pre = ''
-var _tmp_file_pre_pre = ''
+# Temp file stack — access via tf[-1] (newest), tf[-2], tf[-3].
+var tf = []
 
 # Source resolution state.
 var _res = ''
 var _des = ''
 var _fnr_val = ''
+var _rpath = ''
+var _owns = ''
+var oct = ''
 
 # Build / install state.
 var tar_file = ''
@@ -94,11 +92,15 @@ var _pkg = ''
 var _file = ''
 
 # Dependency / ordering state.
+# Lists preserve insertion order; companion dicts give O(1) membership.
 var deps = []
+var deps_seen = {}
 var explicit = []
-var explicit_build = []
+var explicit_seen = {}
+var explicit_build = {}
 var order = []
 var redro = []
+var repos_seen = {}
 
 proc log (name, msg='', prefix='->') {
     ### Log a message to stderr with optional coloring.
@@ -125,7 +127,7 @@ proc run (...args) {
 }
 
 func contains(list, item) {
-    ### Check if a List contains an item.
+    ### Check if a List contains an item (for non-set lists).
     for x in (list) {
         if (x === item) {
             return (true)
@@ -135,19 +137,17 @@ func contains(list, item) {
 }
 
 proc tmp_file (name, suffix) {
-    ### Create a uniquely named temporary file, rotating the 3-file window.
-    setglobal _tmp_file_pre_pre = _tmp_file_pre
-    setglobal _tmp_file_pre = _tmp_file
-    setglobal _tmp_file = "${tmp_dir}/${name}-${suffix}"
-
-    true > $_tmp_file || die $name "Failed to create temporary file"
+    ### Create a uniquely named temporary file, appending to the stack.
+    var f = "${tmp_dir}/${name}-${suffix}"
+    true > $f || die $name "Failed to create temporary file"
+    call tf->append(f)
 }
 
 proc tmp_file_copy (name, suffix, src) {
     ### Create a temp file and copy src into it if it exists.
     tmp_file $name $suffix
     if test -f $src {
-        cp -f $src $_tmp_file
+        cp -f $src $[tf[-1]]
     }
 }
 
@@ -166,25 +166,43 @@ proc mkcd (...dirs) {
     mkdir -p @dirs && cd $[dirs[0]]
 }
 
+proc _fnr_step (old, new) {
+    ### Replace all occurrences of old with new in _fnr_val.
+    while (true) {
+        case (_fnr_val) {
+            *$old* {
+                setglobal _fnr_val = "${_fnr_val%$old*}${new}${_fnr_val##*$old}"
+            }
+            (else) { break }
+        }
+    }
+}
+
 proc fnr (input, ...pairs) {
     ### Replace all occurrences of substrings with substrings.
     # Takes an input string followed by pairs of (old, new) arguments.
     setglobal _fnr_val = input
     var i = 0
     while (i < len(pairs) - 1) {
-        var old = pairs[i]
-        var new = pairs[i + 1]
-
-        while (true) {
-            case (_fnr_val) {
-                *$old* {
-                    setglobal _fnr_val = "${_fnr_val%$old*}${new}${_fnr_val##*$old}"
-                }
-                (else) { break }
-            }
-        }
-
+        _fnr_step $[pairs[i]] $[pairs[i + 1]]
         setvar i = i + 2
+    }
+}
+
+proc fnr_vars (input) {
+    ### Substitute VERSION/RELEASE/MAJOR/MINOR/PATCH/IDENT/PACKAGE in a source line.
+    # For each keyword: protect \KEYWORD → sentinel, replace KEYWORD → value, restore.
+    setglobal _fnr_val = input
+    var subs = {
+        VERSION: repo_ver, RELEASE: repo_rel,
+        MAJOR: repo_parts['major'], MINOR: repo_parts['minor'],
+        PATCH: repo_parts['patch'], IDENT: repo_parts['ident'],
+        PACKAGE: repo_name,
+    }
+    for key, val in (subs) {
+        _fnr_step "\\\\$key" ' '
+        _fnr_step $key $val
+        _fnr_step ' ' $key
     }
 }
 
@@ -194,7 +212,6 @@ proc am_owner (path) {
     try { setvar inf = $(ls -ld $path) }
     if failed { die "Failed to get file info for '$path'" }
 
-    # Split ls output: perms links user ...
     read --raw-line (&line) <<< $inf
     var fields = line => split(/ ' '+ /)
     setglobal user = fields[2]
@@ -218,7 +235,6 @@ proc pkg_owner (...args) {
     var _owns = ''
 
     if (len(args) < 2) {
-        # No manifest list given — search all installed.
         var manifests = @[glob("${sys_db}/*/manifest")]
         setvar args = [args[0]]
         call args->extend(manifests)
@@ -249,14 +265,9 @@ proc resolve_path (path) {
 
 proc run_hook (hook_name, ...args) {
     ### Run all hooks in KISS_HOOK (colon-separated list of file paths).
-    var hooks = ${KISS_HOOK:-}
-    if (hooks === '') {
-        return
-    }
+    if (KISS_HOOK === '') { return }
 
-    var hook_list = hooks => split(':')
-
-    for hook in (hook_list) {
+    for hook in (KISS_HOOK => split(':')) {
         if (hook !== '') {
             try { $hook @args }
             if failed { die "$hook_name hook failed: '$hook'" }
@@ -308,7 +319,6 @@ proc _sh256 (...files) {
         return
     }
 
-    # Set arguments based on the sha256 utility.
     var sha_args = []
     case (cmd_sha) {
         */openssl { setvar sha_args = :| dgst -sha256 -r | }
@@ -321,7 +331,6 @@ proc _sh256 (...files) {
     try { setvar raw = $($cmd_sha @sha_args @files) }
     if failed { die "Failed to generate checksums" }
 
-    # Strip the filename from each line: '<checksum> ?<file>' -> '<checksum>'
     var result = []
     for line in @(echo $raw) {
         call result->append(${line%% *})
@@ -341,7 +350,6 @@ proc pkg_find_version (pkg, arg2='', arg3='', search_path='') {
     read -r repo_ver_line 2>/dev/null < "${repo_dir}/version" \
         || die $pkg "Failed to read version file (${repo_dir}/version)"
 
-    # Split "version release" from the version file.
     var parts = repo_ver_line => split(" ")
     setglobal repo_ver = parts[0]
     if (len(parts) > 1) {
@@ -364,13 +372,10 @@ proc pkg_find_version (pkg, arg2='', arg3='', search_path='') {
 proc pkg_find_version_split (...args) {
     pkg_find_version @args
 
-    # Split the version on '.+-_' to obtain individual components.
-    # Split the version on '.+-_'.
-    var ver_parts = repo_ver => split(/ '.' | '+' | '-' | '_' /)
-    setglobal repo_major = ver_parts[0] if (len(ver_parts) > 0) else ''
-    setglobal repo_minor = ver_parts[1] if (len(ver_parts) > 1) else ''
-    setglobal repo_patch = ver_parts[2] if (len(ver_parts) > 2) else ''
-    setglobal repo_ident = ver_parts[3] if (len(ver_parts) > 3) else ''
+    var vp = repo_ver => split(/ '.' | '+' | '-' | '_' /)
+    for i, name in (:| major minor patch ident |) {
+        setglobal repo_parts[name] = vp[i] if (i < len(vp)) else ''
+    }
 }
 
 proc pkg_find (name, mode='', test_flag='', search_path='') {
@@ -384,7 +389,6 @@ proc _pkg_find (name, mode='', test_flag='', search_path='') {
     var flag = test_flag if (test_flag !== '') else '-d'
     var results = []
 
-    # Split the colon-separated path and search each directory.
     var paths = spath => split(':')
 
     # Append sys_db as fallback unless a custom test flag was given.
@@ -405,12 +409,10 @@ proc _pkg_find (name, mode='', test_flag='', search_path='') {
     }
 
     if (mode === '') {
-        # Store the first result.
         var first = results[0]
         setglobal repo_dir = first
         setglobal repo_name = ${first##*/}
     } else {
-        # Print all results (for 'kiss search').
         for r in (results) {
             write -- $r
         }
@@ -448,6 +450,11 @@ proc pkg_cache (pkg) {
     return 1
 }
 
+proc _resolve_found (quiet) {
+    ### Print resolution result unless in quiet/checksum mode.
+    if (quiet === '') { write -- "found $_res" }
+}
+
 proc pkg_source_resolve (pkg, src, dest='', quiet='') {
     ### Resolve a source line to an absolute path.
     setglobal _res = ''
@@ -459,31 +466,20 @@ proc pkg_source_resolve (pkg, src, dest='', quiet='') {
         \#* { return }
     }
 
-    # Strip trailing slashes from src.
     var clean_src = ${src%"${src##*[!/]}"}
 
-    # Perform variable substitutions in the source string.
-    fnr $clean_src \
-        '\\VERSION' ' ' 'VERSION' $repo_ver   ' ' 'VERSION' \
-        '\\RELEASE' ' ' 'RELEASE' $repo_rel   ' ' 'RELEASE' \
-        '\\MAJOR'   ' ' 'MAJOR'   $repo_major ' ' 'MAJOR' \
-        '\\MINOR'   ' ' 'MINOR'   $repo_minor ' ' 'MINOR' \
-        '\\PATCH'   ' ' 'PATCH'   $repo_patch ' ' 'PATCH' \
-        '\\IDENT'   ' ' 'IDENT'   $repo_ident ' ' 'IDENT' \
-        '\\PACKAGE' ' ' 'PACKAGE' $repo_name  ' ' 'PACKAGE'
+    fnr_vars $clean_src
 
     var resolved_src = _fnr_val
     var clean_dest = ${dest%"${dest##*[!/]}"}
 
     # Git repository.
-    if (resolved_src === "${resolved_src##git+}") {
-        true  # not a git source, fall through
-    } else {
+    if (resolved_src => startsWith('git+')) {
         setglobal _res = resolved_src
         var base = ${resolved_src##*/}
         setvar base = ${base%[@#]*}
         setglobal _des = "${src_dir}/${pkg}/${clean_dest:+"${clean_dest}/"}${base}/"
-        if (quiet === '') { write -- "found $_res" }
+        _resolve_found $quiet
         return
     }
 
@@ -491,7 +487,7 @@ proc pkg_source_resolve (pkg, src, dest='', quiet='') {
     var cached = "${src_dir}/${pkg}/${clean_dest:+"${clean_dest}/"}${resolved_src##*/}"
     if test -f $cached {
         setglobal _res = cached
-        if (quiet === '') { write -- "found $_res" }
+        _resolve_found $quiet
         return
     }
 
@@ -500,7 +496,7 @@ proc pkg_source_resolve (pkg, src, dest='', quiet='') {
         *://* {
             setglobal _res = "url+${resolved_src}"
             setglobal _des = cached
-            if (quiet === '') { write -- "found $_res" }
+            _resolve_found $quiet
             return
         }
     }
@@ -508,28 +504,28 @@ proc pkg_source_resolve (pkg, src, dest='', quiet='') {
     # Local relative directory.
     if test -d "${repo_dir}/${resolved_src}" {
         setglobal _res = "${repo_dir}/${resolved_src}/."
-        if (quiet === '') { write -- "found $_res" }
+        _resolve_found $quiet
         return
     }
 
     # Local absolute directory.
     if test -d "/${resolved_src##/}" {
         setglobal _res = "/${resolved_src##/}/."
-        if (quiet === '') { write -- "found $_res" }
+        _resolve_found $quiet
         return
     }
 
     # Local relative file.
     if test -f "${repo_dir}/${resolved_src}" {
         setglobal _res = "${repo_dir}/${resolved_src}"
-        if (quiet === '') { write -- "found $_res" }
+        _resolve_found $quiet
         return
     }
 
     # Local absolute file.
     if test -f "/${resolved_src##/}" {
         setglobal _res = "/${resolved_src##/}"
-        if (quiet === '') { write -- "found $_res" }
+        _resolve_found $quiet
         return
     }
 
@@ -600,7 +596,7 @@ proc pkg_source_git (dest, url) {
     git remote set-url origin "${url%[#@]*}" 2>/dev/null \
         || git remote add origin "${url%[#@]*}"
 
-    git fetch --depth=1 origin $com
+    git fetch --depth=1 --filter=blob:none origin $com
     git reset --hard FETCH_HEAD
 }
 
@@ -609,14 +605,14 @@ proc pkg_source_tar (file) {
     tmp_file $repo_name tarball
     tmp_file $repo_name tarball-manifest
 
-    try { decompress $file > $_tmp_file_pre }
+    try { decompress $file > $[tf[-2]] }
     if failed { die $repo_name "Failed to decompress $file" }
 
-    try { tar xf $_tmp_file_pre }
+    try { tar xf $[tf[-2]] }
     if failed { die $repo_name "Failed to extract $file" }
 
     # Get unique top-level directories.
-    try { tar tf $_tmp_file_pre | sort -ut / -k1,1 > $_tmp_file }
+    try { tar tf $[tf[-2]] | sort -ut / -k1,1 > $[tf[-1]] }
     if failed { die $repo_name "Failed to extract manifest" }
 
     while read --raw-line {
@@ -637,9 +633,9 @@ proc pkg_source_tar (file) {
                 rm -rf "${KISS_PID}-${dir}"
             }
         }
-    } < $_tmp_file
+    } < $[tf[-1]]
 
-    rm -f $_tmp_file_pre
+    rm -f $[tf[-2]]
 }
 
 proc pkg_extract (pkg) {
@@ -667,15 +663,14 @@ proc pkg_extract (pkg) {
 
 proc pkg_depends (pkg, mode='', filter='', chain='', dep_type='') {
     ### Resolve all dependencies, deepest first.
-    if (contains(deps, pkg)) { return }
+    if (pkg in deps_seen) { return }
 
     # Filter out non-explicit, already installed packages.
-    if (filter !== '' and mode === '' and not contains(explicit, pkg)) {
+    if (filter !== '' and mode === '' and not (pkg in explicit_seen)) {
         if test -d "${sys_db}/${pkg}" { return }
     }
 
     # Circular dependency detection (5 repeats max).
-    # Count how many times the (last, pkg) pair appears in the chain.
     if (chain !== '') {
         var chain_words = chain => split(" ")
         if (len(chain_words) > 0) {
@@ -697,33 +692,28 @@ proc pkg_depends (pkg, mode='', filter='', chain='', dep_type='') {
     # Recurse through child dependencies.
     try { _pkg_find $pkg }
     if (_status === 0) {
-      if test -e "${repo_dir}/depends" {
-        try {
-          while true {
-              try { read -r dep dep_type_line }
-              if (dep === '' and _status !== 0) { break }
-              case (dep) {
-                  \#* { continue }
-              }
-              if (dep !== '') {
-                  pkg_depends $dep '' $filter "$chain $pkg" $dep_type_line
-              }
-          } < "${repo_dir}/depends"
+        if test -e "${repo_dir}/depends" {
+            while true {
+                try { read -r dep dep_type_line }
+                if (dep === '' and _status !== 0) { break }
+                case (dep) {
+                    \#* { continue }
+                }
+                if (dep !== '') {
+                    pkg_depends $dep '' $filter "$chain $pkg" $dep_type_line
+                }
+            } < "${repo_dir}/depends"
         }
-      }
     }
 
-    # Add to deps list.
-    if (mode !== 'expl') {
-        call deps->append(pkg)
-    } elif (dep_type === 'make') {
+    # Add to deps list unless it's a cached make-dep of an explicit package.
+    if (mode === 'expl' and dep_type === 'make') {
         try { pkg_cache $pkg }
-        if failed {
-            call deps->append(pkg)
-        }
-    } else {
-        call deps->append(pkg)
+        if ! failed { return }
     }
+
+    call deps->append(pkg)
+    setglobal deps_seen[pkg] = true
 }
 
 proc pkg_order (...pkgs) {
@@ -731,14 +721,14 @@ proc pkg_order (...pkgs) {
     setglobal order = []
     setglobal redro = []
     setglobal deps = []
+    setglobal deps_seen = {}
 
     for pkg in (pkgs) {
         case (pkg) {
             *@*.tar.* {
-                # Absolute or relative tarball path.
                 case (pkg) {
-                    [/]* { call deps->append(pkg) }
-                    *    { call deps->append("${ppwd}/${pkg}") }
+                    [/]* { call deps->append(pkg); setglobal deps_seen[pkg] = true }
+                    *    { call deps->append("${ppwd}/${pkg}"); setglobal deps_seen["${ppwd}/${pkg}"] = true }
                 }
             }
             *[/]* { die "Not a package ($pkg)" }
@@ -751,13 +741,12 @@ proc pkg_order (...pkgs) {
         var base = ${pkg##$ppwd/}
         if (contains(pkgs, pkg) or contains(pkgs, base)) {
             call order->append(pkg)
-            var new_redro = [pkg]
-            call new_redro->extend(redro)
-            setglobal redro = new_redro
+            call redro->insert(0, pkg)
         }
     }
 
     setglobal deps = []
+    setglobal deps_seen = {}
 }
 
 proc pkg_strip (pkg) {
@@ -804,7 +793,7 @@ proc pkg_fix_deps (pkg, ...manifests) {
         setvar manifests = @[glob("${sys_db}/*/manifest")]
     }
 
-    var fdep_seen = []
+    var fdep_seen = {}
 
     while read -r _file {
         if test -h $_file { continue }
@@ -824,12 +813,9 @@ proc pkg_fix_deps (pkg, ...manifests) {
                 for lib_line in @(echo $elf_out) {
                     case (lib_line) {
                         *NEEDED*[*]* | *=\>* {
-                            # Extract library name.
-                            # Extract: [lib.so] -> lib.so
                             var lib = ${lib_line##*\[}
                             setvar lib = ${lib%%\]*}
 
-                            # Resolve library path.
                             case (cmd_elf) {
                                 *readelf {
                                     var tab_pattern = "	$lib => "
@@ -853,13 +839,11 @@ proc pkg_fix_deps (pkg, ...manifests) {
                                 }
                             }
 
-                            # Skip already-seen files.
-                            if (contains(fdep_seen, lib)) { continue }
-                            call fdep_seen->append(lib)
+                            if (lib in fdep_seen) { continue }
+                            setvar fdep_seen[lib] = true
 
                             resolve_path $lib
 
-                            # Skip if owned by current package.
                             try { pkg_owner -e $_rpath manifest }
                             if ! failed { continue }
 
@@ -875,11 +859,11 @@ proc pkg_fix_deps (pkg, ...manifests) {
     } < manifest |
 
     # Sort and deduplicate.
-    sort -uk1,1 $_tmp_file_pre - > $_tmp_file
+    sort -uk1,1 $[tf[-2]] - > $[tf[-1]]
 
-    if test -s $_tmp_file {
-        diff -U 3 $_tmp_file_pre $_tmp_file 2>/dev/null || true
-        mv -f $_tmp_file depends
+    if test -s $[tf[-1]] {
+        diff -U 3 $[tf[-2]] $[tf[-1]] 2>/dev/null || true
+        mv -f $[tf[-1]] depends
         pkg_manifest "${PWD##*/}" $pkg_dir
     }
 }
@@ -901,12 +885,12 @@ proc pkg_manifest (pkg, base_dir) {
             -type d -exec printf '%s/\n' {} + \
             -o \( ! -type d -a ! -name '*.la' -a ! -name charset.alias \) -print
 
-    } | sort -ur > $_tmp_file
+    } | sort -ur > $[tf[-1]]
 
     # Remove the prefix from each line.
     while read -r file {
         write -- "${file#"${base_dir}/${pkg}"}"
-    } < $_tmp_file > "${base_dir}/${pkg}/${pkg_db}/${pkg}/manifest"
+    } < $[tf[-1]] > "${base_dir}/${pkg}/${pkg_db}/${pkg}/manifest"
 }
 
 proc pkg_manifest_validate (pkg) {
@@ -935,9 +919,9 @@ proc pkg_manifest_replace (pkg, old_entry, new_entry) {
             setvar out = new_entry
         }
         write -- $out
-    } < "${sys_db}/${pkg}/manifest" | sort -r > $_tmp_file
+    } < "${sys_db}/${pkg}/manifest" | sort -r > $[tf[-1]]
 
-    mv -f $_tmp_file "${sys_db}/${pkg}/manifest"
+    mv -f $[tf[-1]] "${sys_db}/${pkg}/manifest"
 }
 
 proc pkg_etcsums () {
@@ -963,7 +947,7 @@ proc pkg_tar (pkg) {
     ### Create a compressed tarball from the built package.
     log $pkg "Creating tarball"
 
-    var tf = "${bin_dir}/${pkg}@${repo_ver}-${repo_rel}.tar.${KISS_COMPRESS}"
+    var tf_path = "${bin_dir}/${pkg}@${repo_ver}-${repo_rel}.tar.${KISS_COMPRESS}"
 
     cd "${pkg_dir}/${pkg}"
 
@@ -974,13 +958,13 @@ proc pkg_tar (pkg) {
         lz   { lzip -z }
         xz   { xz -z }
         zst  { zstd -z }
-    } > $tf
+    } > $tf_path
 
     cd $OLDPWD
 
     log $pkg "Successfully created tarball"
 
-    run_hook post-package $pkg $tf
+    run_hook post-package $pkg $tf_path
 }
 
 proc pkg_build_all (...pkgs) {
@@ -988,33 +972,39 @@ proc pkg_build_all (...pkgs) {
 
     # Mark packages passed on the command-line as explicit.
     setglobal explicit = []
+    setglobal explicit_seen = {}
     for pkg in (pkgs) {
         pkg_depends $pkg expl filter
         call explicit->append(pkg)
+        setglobal explicit_seen[pkg] = true
     }
 
     # If this is an update, use pre-built binaries when available.
     if (prefer_cache === '') {
-        setglobal explicit_build = []
-        call explicit_build->extend(explicit)
+        setglobal explicit_build = {}
+        for pkg in (explicit) {
+            setglobal explicit_build[pkg] = true
+        }
     }
 
     # If an explicit package is also a dependency of another explicit,
     # remove it from the explicit list.
     var explicit_filtered = []
     for pkg in (explicit) {
-        if (not contains(deps, pkg)) {
+        if (not (pkg in deps_seen)) {
             call explicit_filtered->append(pkg)
         }
     }
     var explicit_cnt = len(explicit_filtered)
     setglobal explicit = explicit_filtered
+    setglobal explicit_seen = {}
+    for pkg in (explicit) {
+        setglobal explicit_seen[pkg] = true
+    }
 
-    var dep_names = []
-    for d in (deps) { call dep_names->append(d) }
     var msg = "Building: explicit: $[explicit => join(' ')]"
-    if (len(dep_names) > 0) {
-        setvar msg = "${msg}, implicit: $[dep_names => join(' ')]"
+    if (len(deps) > 0) {
+        setvar msg = "${msg}, implicit: $[deps => join(' ')]"
     }
     log $msg
 
@@ -1032,13 +1022,13 @@ proc pkg_build_all (...pkgs) {
     # Install any pre-built dependencies that exist and are up to date.
     var to_build = []
     for pkg in (build_list) {
-        if (not contains(explicit_build, pkg)) {
+        if (not (pkg in explicit_build)) {
             try { pkg_cache $pkg }
             if ! failed {
                 log $pkg "Found pre-built binary"
                 forkwait {
                     setglobal ENV.KISS_FORCE = '1'
-                setglobal KISS_FORCE = '1'
+                    setglobal KISS_FORCE = '1'
                     args i $tar_file
                 }
                 continue
@@ -1078,7 +1068,7 @@ proc pkg_build_all (...pkgs) {
         pkg_etcsums
         pkg_tar $pkg
 
-        if (prefer_cache === '1' or not contains(explicit, pkg)) {
+        if (prefer_cache === '1' or not (pkg in explicit_seen)) {
             log $pkg "Needed as a dependency or has an update, installing"
             forkwait {
                 setglobal ENV.KISS_FORCE = '1'
@@ -1230,13 +1220,12 @@ proc pkg_conflicts (pkg) {
                 write -- $_rpath
             }
         }
-    } < "${PWD}/${pkg_db}/${pkg}/manifest" > $_tmp_file_pre
+    } < "${PWD}/${pkg_db}/${pkg}/manifest" > $[tf[-2]]
 
     cd "${tar_dir}/${pkg}"
 
     var manifests = @[glob("${sys_db}/*/manifest")]
 
-    # Remove the current package's manifest from the list.
     var other_manifests = []
     for m in (manifests) {
         if (m !== "${sys_db}/${pkg}/manifest") {
@@ -1246,15 +1235,15 @@ proc pkg_conflicts (pkg) {
 
     if (len(other_manifests) === 0) { return }
 
-    grep -Fxf $_tmp_file_pre -- @other_manifests 2>/dev/null > $_tmp_file || true
+    grep -Fxf $[tf[-2]] -- @other_manifests 2>/dev/null > $[tf[-1]] || true
 
     # Check if it's safe to auto-enable alternatives.
     var safe = ''
-    if ! grep -q ":/var/db/kiss/installed/" $_tmp_file 2>/dev/null {
+    if ! grep -q ":/var/db/kiss/installed/" $[tf[-1]] 2>/dev/null {
         setvar safe = '1'
     }
 
-    if test -s $_tmp_file {
+    if test -s $[tf[-1]] {
         if (KISS_CHOICE !== '1' and safe === '1') {
             while IFS=: read -r _ con {
                 write -- "Found conflict $con"
@@ -1271,7 +1260,7 @@ proc pkg_conflicts (pkg) {
                     log "This usually occurs when a binary is installed to"
                     die "/sbin instead of /usr/bin (example)"
                 }
-            } < $_tmp_file
+            } < $[tf[-1]]
 
             log $pkg "Converted all conflicts to choices (kiss a)"
 
@@ -1356,7 +1345,6 @@ proc pkg_install_files (test_flag, src_dir) {
 
         case (file) {
             */ {
-                # Skip existing directories.
                 if ! test -d $_file {
                     file_rwx "${src_dir}/${file#/}"
                     mkdir -m $oct $_file
@@ -1404,7 +1392,6 @@ proc pkg_remove_files () {
 
         if test -h $_file {
             if test -d $_file {
-                # Match paths like /usr/lib/ (at least two path components + trailing /)
                 var parts = file => split('/')
                 if (len(parts) >= 3 and file => endsWith('/')) {
                     call dir_symlinks->append(_file)
@@ -1417,7 +1404,6 @@ proc pkg_remove_files () {
         }
     }
 
-    # Remove broken directory symlinks.
     for sym in (dir_symlinks) {
         if ! test -e $sym {
             rm -f $sym
@@ -1429,7 +1415,6 @@ proc pkg_etc (file) {
     ### Handle /etc/ file installation with 3-way checksum merge.
     sh256 "${tar_dir}/${_pkg}${file}" "${KISS_ROOT}${file}" >/dev/null
 
-    # Split hash on newline to get new and sys checksums.
     var hash_parts = hash => split(\n)
     var sum_new = hash_parts[0]
     var sum_sys = ''
@@ -1497,7 +1482,7 @@ proc pkg_remove (pkg) {
     tmp_file_copy $pkg etcsums-copy "${sys_db}/${pkg}/etcsums"
 
     log $pkg "Removing package"
-    pkg_remove_files < "${sys_db}/${pkg}/manifest" 3< $_tmp_file
+    pkg_remove_files < "${sys_db}/${pkg}/manifest" 3< $[tf[-1]]
 
     trap_on
     log $pkg "Removed successfully"
@@ -1513,7 +1498,6 @@ proc pkg_installable (pkg, depends_file) {
     while true {
         try { read -r dep dep_type }
         if (dep === '' and _status !== 0) { break }
-        # Skip comments and empty lines.
         if (dep === '' or dep => startsWith('#')) { continue }
 
         if ! test -d "${sys_db}/${dep}" {
@@ -1530,7 +1514,6 @@ proc pkg_installable (pkg, depends_file) {
 proc pkg_install (pkg) {
     ### Install a built package tarball.
 
-    # Install can take a full path to a tarball.
     setglobal _pkg = ''
     case (pkg) {
         *.tar.* {
@@ -1572,16 +1555,16 @@ proc pkg_install (pkg) {
 
     var tar_man = "${PWD}/${pkg_db}/${_pkg}/manifest"
 
-    grep -vFxf $tar_man $_tmp_file_pre_pre > $_tmp_file 2>/dev/null || true
+    grep -vFxf $tar_man $[tf[-3]] > $[tf[-1]] 2>/dev/null || true
 
     # Reverse the manifest for shallow-first installation.
     tmp_file $_pkg manifest-reverse
-    sort $tar_man > $_tmp_file
+    sort $tar_man > $[tf[-1]]
 
     try {
-        pkg_install_files -z $PWD < $_tmp_file 3< $_tmp_file_pre_pre
-        pkg_remove_files < $_tmp_file_pre 3< $_tmp_file_pre_pre
-        pkg_install_files -e $PWD < $_tmp_file 3< $_tmp_file_pre_pre
+        pkg_install_files -z $PWD < $[tf[-1]] 3< $[tf[-4]]
+        pkg_remove_files < $[tf[-2]] 3< $[tf[-4]]
+        pkg_install_files -e $PWD < $[tf[-1]] 3< $[tf[-4]]
     }
     if failed {
         pkg_clean
@@ -1598,8 +1581,7 @@ proc pkg_install (pkg) {
 proc pkg_update () {
     log "Updating repositories"
 
-    var kiss_paths = []
-    setvar kiss_paths = KISS_PATH => split(':')
+    var kiss_paths = KISS_PATH => split(':')
 
     for path in (kiss_paths) {
         var repo = path
@@ -1625,13 +1607,11 @@ proc pkg_update () {
     pkg_upgrade
 }
 
-var repos_seen = []
-
 proc pkg_update_repo (repo, repo_type) {
     cd $repo || die "Repository '$repo' inaccessible"
 
-    if (contains(repos_seen, PWD)) { return }
-    call repos_seen->append(PWD)
+    if (PWD in repos_seen) { return }
+    setglobal repos_seen[PWD] = true
 
     log $PWD ' '
 
@@ -1741,13 +1721,13 @@ proc pkg_help_ext () {
     var exts = []
     try { setvar exts = @(pkg_find 'kiss-*' all -x "$PATH" 2>/dev/null) }
 
-    var seen = []
+    var seen = {}
     var max_len = 0
 
     for path in (exts) {
         var p = ${path#*/kiss-}
-        if (contains(seen, p)) { continue }
-        call seen->append(p)
+        if (p in seen) { continue }
+        setvar seen[p] = true
         if (len(p) > max_len) {
             setvar max_len = len(p)
         }
@@ -1755,9 +1735,8 @@ proc pkg_help_ext () {
 
     for path in (exts) {
         setvar p = ${path#*/kiss-}
-        if (not contains(seen, p)) { continue }
+        if (not (p in seen)) { continue }
 
-        # Read the second line for the description comment.
         var cmt = ''
         {
             read --raw-line
@@ -1943,9 +1922,20 @@ proc create_tmp_dirs () {
              $mak_dir $pkg_dir $tar_dir $tmp_dir
 }
 
+proc _discover_tool (env_override, ...fallbacks) {
+    ### Find the first available command from fallbacks, or use env override.
+    if (env_override !== '') {
+        write -- $env_override
+        return
+    }
+    for cmd in (fallbacks) {
+        try { command -v $cmd }
+        if ! failed { return }
+    }
+}
+
 proc main (...argv) {
     # Import environment variables into YSH globals.
-    # In ysh:all mode, env vars are only accessible via ENV, not $VAR.
     setglobal HOME           = ENV => get("HOME", "")
     setglobal LOGNAME        = ENV => get("LOGNAME", "")
     setglobal PATH           = ENV => get("PATH", "")
@@ -1973,6 +1963,7 @@ proc main (...argv) {
     setglobal DESTDIR        = ENV => get("DESTDIR", "")
     setglobal GOPATH         = ENV => get("GOPATH", "")
     setglobal GOFLAGS        = ENV => get("GOFLAGS", "")
+    setglobal KISS_COMPRESS  = ENV => get("KISS_COMPRESS", "")
 
     setglobal PWD = $(pwd)
     setglobal ppwd = PWD
@@ -1986,7 +1977,6 @@ proc main (...argv) {
       }
     }
 
-    # Defaults for environment variables.
     if (KISS_COMPRESS === '') { setglobal KISS_COMPRESS = 'gz' }
     setglobal KISS_PID = ${KISS_PID:-$$}
 
@@ -1994,56 +1984,21 @@ proc main (...argv) {
         die "POSIX requires LOGNAME be set"
     }
 
-    # Discover tools.
-    if (KISS_SU !== '') {
-        setglobal cmd_su = KISS_SU
-    } else {
-        setglobal cmd_su = $(
-            command -v ssu  ||
-            command -v sudo ||
-            command -v doas ||
-            command -v su   || echo su
-        )
-    }
+    # Discover tools via fallback chains.
+    setglobal cmd_su = $(_discover_tool $KISS_SU ssu sudo doas su)
+    if (cmd_su === '') { setglobal cmd_su = 'su' }
 
-    if (KISS_ELF !== '') {
-        setglobal cmd_elf = KISS_ELF
-    } else {
-        setglobal cmd_elf = $(
-            command -v readelf      ||
-            command -v eu-readelf   ||
-            command -v llvm-readelf || echo ldd
-        )
-    }
+    setglobal cmd_elf = $(_discover_tool $KISS_ELF readelf eu-readelf llvm-readelf)
+    if (cmd_elf === '') { setglobal cmd_elf = 'ldd' }
 
-    if (KISS_CHK !== '') {
-        setglobal cmd_sha = KISS_CHK
-    } else {
-        setglobal cmd_sha = $(
-            command -v openssl   ||
-            command -v sha256sum ||
-            command -v sha256    ||
-            command -v shasum    ||
-            command -v digest    || true
-        )
-    }
+    setglobal cmd_sha = $(_discover_tool $KISS_CHK openssl sha256sum sha256 shasum digest)
     if (cmd_sha === '') { die "No sha256 utility found" }
 
-    if (KISS_GET !== '') {
-        setglobal cmd_get = KISS_GET
-    } else {
-        setglobal cmd_get = $(
-            command -v aria2c ||
-            command -v curl   ||
-            command -v wget   ||
-            command -v wget2  || true
-        )
-    }
+    setglobal cmd_get = $(_discover_tool $KISS_GET aria2c curl wget wget2)
     if (cmd_get === '') { die "No download utility found (aria2c, axel, curl, wget, wget2)" }
 
     setglobal time_str = $(date +%Y-%m-%d-%H:%M)
 
-    # Global build state defaults.
     setglobal build_install = '1'
     setglobal prefer_cache = ''
 

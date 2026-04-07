@@ -1,0 +1,43 @@
+#!/usr/local/bin/ysh
+
+var dest = ARGV[0]
+
+cmake -GNinja -B build -DCMAKE_BUILD_TYPE=Release
+ninja -C build
+
+mkdir -p "${dest}/usr/lib/pkgconfig" "${dest}/usr/include" "${dest}/usr/bin" "${dest}/etc/ssl"
+
+cp -r include/openssl "${dest}/usr/include/"
+cp build/libssl.a "${dest}/usr/lib/"
+cp build/libcrypto.a "${dest}/usr/lib/"
+cp build/bssl "${dest}/usr/bin/"
+
+cp -f update-certdata.sh "${dest}/etc/ssl"
+
+# pkg-config files for curl and other consumers.
+write -- '''prefix=/usr
+libdir=${prefix}/lib
+includedir=${prefix}/include
+
+Name: libssl
+Description: BoringSSL
+Version: 0.0.0
+Libs: -L${libdir} -lssl -lcrypto -lstdc++ -lpthread
+Cflags: -I${includedir}''' > "${dest}/usr/lib/pkgconfig/libssl.pc"
+
+write -- '''prefix=/usr
+libdir=${prefix}/lib
+includedir=${prefix}/include
+
+Name: libcrypto
+Description: BoringSSL
+Version: 0.0.0
+Libs: -L${libdir} -lcrypto -lstdc++ -lpthread
+Cflags: -I${includedir}''' > "${dest}/usr/lib/pkgconfig/libcrypto.pc"
+
+write -- '''prefix=/usr
+
+Name: openssl
+Description: BoringSSL (OpenSSL-compatible)
+Version: 0.0.0
+Requires: libssl libcrypto''' > "${dest}/usr/lib/pkgconfig/openssl.pc"
