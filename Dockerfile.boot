@@ -1,7 +1,7 @@
 # Multi-stage build: ysh -> Kominka packages -> disk image builder
 #
 # Stage 1: Build ysh from source
-# Stage 2: Build minimal Kominka rootfs with pm.ysh
+# Stage 2: Build Kominka rootfs (all core packages) with pm.ysh
 # Stage 3: Assemble GPT disk image (rootfs only, no kernel)
 #
 # Kernel is built separately via Dockerfile.linux.
@@ -33,6 +33,7 @@ RUN apk add --no-cache \
     curl git openssl \
     build-base gcc g++ musl-dev linux-headers \
     make patch bison flex m4 texinfo \
+    cmake samurai go \
     perl gzip bzip2 xz zlib-dev zstd \
     automake autoconf python3 \
     gmp-dev mpfr-dev mpc1-dev \
@@ -47,7 +48,17 @@ RUN find /packages -name build -exec chmod +x {} + && \
 
 RUN mkdir -p /kominka-root/var/db/kominka/installed /kominka-root/var/db/kominka/choices
 
-ENV KOMINKA_PATH=/packages \
+# Register host-provided build tools so pm's dependency resolution
+# finds them as already installed.
+RUN for pkg in cmake go samurai; do \
+      mkdir -p "/kominka-root/var/db/kominka/installed/$pkg" && \
+      echo "0 0" > "/kominka-root/var/db/kominka/installed/$pkg/version"; \
+    done
+
+# Add /kominka-root/usr/bin to PATH so packages built earlier
+# (e.g. m4, make) are available to later builds (e.g. bison).
+ENV PATH=/kominka-root/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    KOMINKA_PATH=/packages \
     KOMINKA_ROOT=/kominka-root \
     KOMINKA_COMPRESS=gz \
     KOMINKA_COLOR=0 \
@@ -68,9 +79,12 @@ WORKDIR /home/kominka
 COPY pm.ysh /usr/bin/pm
 RUN chmod +x /usr/bin/pm
 
-# Build minimal bootable system: baselayout + musl + busybox
-# (linux-headers and make are build-time deps for busybox)
-RUN ysh /usr/bin/pm b baselayout musl linux-headers make busybox
+# Build all core packages in dependency order.
+COPY tests/build_core.sh /home/kominka/build_core.sh
+RUN chmod +x /home/kominka/build_core.sh && sh /home/kominka/build_core.sh && \
+    rm -rf /kominka-root/var/db/kominka/installed/cmake \
+           /kominka-root/var/db/kominka/installed/go \
+           /kominka-root/var/db/kominka/installed/samurai
 
 FROM alpine:latest
 
@@ -85,10 +99,11 @@ COPY --from=ysh-builder /usr/lib/libgcc_s.so.1 /ysh-libs/libgcc_s.so.1
 COPY --from=ysh-builder /usr/lib/libreadline.so.8 /ysh-libs/libreadline.so.8
 COPY --from=ysh-builder /usr/lib/libncursesw.so.6 /ysh-libs/libncursesw.so.6
 
-# Rootfs changes when packages or pm.ysh change.
+# Rootfs, package repo, pm, and pre-built tarballs.
 COPY --from=pkg-builder /kominka-root /rootfs
 COPY --from=pkg-builder /packages /packages
 COPY --from=pkg-builder /usr/bin/pm /pm.ysh
+COPY --from=pkg-builder /root/.cache/kominka/bin /tarball-cache
 
 # build_image.sh changes most often during dev.
 COPY build_image.sh /build_image.sh

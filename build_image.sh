@@ -75,10 +75,12 @@ ln -sf oils-for-unix "$ROOTFS/usr/bin/osh"
 # /bin/sh -> ysh so the interactive shell is ysh
 ln -sf oils-for-unix "$ROOTFS/usr/bin/sh"
 
-# Install pm and the package repo so packages can be managed in the VM.
+# Install pm, package repo, and pre-built tarballs for pm i.
 cp /pm.ysh "$ROOTFS/usr/bin/pm"
 chmod +x "$ROOTFS/usr/bin/pm"
 cp -a /packages "$ROOTFS/packages"
+mkdir -p "$ROOTFS/root/.cache/kominka"
+cp -a /tarball-cache "$ROOTFS/root/.cache/kominka/bin"
 
 echo "==> Configuring system"
 
