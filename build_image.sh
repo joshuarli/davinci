@@ -92,34 +92,28 @@ EOF
 
 echo "kominka" > "$ROOTFS/etc/hostname"
 
-# Minimal init: mount pseudofs, drop to shell.
-# Remove busybox's init -> busybox symlink before creating the script,
-# otherwise writing through the symlink corrupts the busybox binary.
-rm -f "$ROOTFS/usr/bin/init"
-cat > "$ROOTFS/usr/bin/init" <<'INIT'
-#!/usr/bin/busybox sh
-/usr/bin/busybox mount -t devtmpfs none /dev 2>/dev/null
-/usr/bin/busybox mount -t proc     none /proc
-/usr/bin/busybox mount -t sysfs    none /sys
-/usr/bin/busybox mount -t tmpfs    none /tmp
+# Use busybox init with the baseinit rc scripts.
+# Override the default inittab for our console setup.
+cat > "$ROOTFS/etc/inittab" <<'INITTAB'
+::sysinit:/lib/init/rc.boot
+::restart:/sbin/init
+::shutdown:/lib/init/rc.shutdown
 
-/usr/bin/busybox hostname -F /etc/hostname
+# Serial console for vfkit VM.
+hvc0::respawn:/bin/getty 115200 hvc0
 
-/usr/bin/busybox clear
-echo "Kominka Linux (built with pm.ysh)"
-echo "Kernel: $(/usr/bin/busybox uname -sr)"
-echo ""
-if [ -x /usr/bin/pm-install ]; then
-    echo "Run 'pm-install' to install to disk."
-    echo ""
-fi
+# Uncomment for physical TTYs.
+# tty1::respawn:/bin/getty 38400 tty1
+# tty2::respawn:/bin/getty 38400 tty2
+INITTAB
 
+# Add Kominka environment to /etc/profile so login shells get it.
+cat >> "$ROOTFS/etc/profile" <<'PROFILE'
+
+# Kominka package manager.
 export KOMINKA_PATH=/packages
-export LOGNAME=root
-export HOME=/root
-exec /usr/bin/ysh
-INIT
-chmod 755 "$ROOTFS/usr/bin/init"
+export KOMINKA_ROOT=/
+PROFILE
 
 # Install kernel to EFI partition for EFISTUB boot on real hardware.
 # On real hardware: EFI firmware finds /EFI/BOOT/BOOTAA64.EFI

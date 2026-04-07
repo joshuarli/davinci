@@ -11,6 +11,9 @@ mkdir -p \
 cp -R etc "${dest}"
 cp -R lib "${dest}/usr/lib"
 
+# Rebrand KISS -> Kominka.
+sed -i 's/KISS/Kominka/g' "${dest}/usr/lib/init/rc.boot"
+
 for bin in (:| kpow kall |) {
     $CC -o "${dest}/usr/bin/${bin}" "bin/${bin}.c" @CFLAGS -static
     cp -f "bin/${bin}.c" "${dest}/usr/share/doc/kominka/init/${bin}.c"

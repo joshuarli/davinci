@@ -56,32 +56,23 @@ chmod +x /rootfs/usr/bin/pm-install
 mkdir -p /rootfs/usr/share/kominka
 cp /boot/Image /rootfs/usr/share/kominka/Image
 
-# Write init (same as build_image.sh but already has pm-install detection).
-rm -f /rootfs/usr/bin/init
-cat > /rootfs/usr/bin/init <<'INIT'
-#!/usr/bin/busybox sh
-/usr/bin/busybox mount -t devtmpfs none /dev 2>/dev/null
-/usr/bin/busybox mount -t proc     none /proc
-/usr/bin/busybox mount -t sysfs    none /sys
-/usr/bin/busybox mount -t tmpfs    none /tmp
+# Use busybox init with baseinit rc scripts (same as build_image.sh).
+cat > /rootfs/etc/inittab <<'INITTAB'
+::sysinit:/lib/init/rc.boot
+::restart:/sbin/init
+::shutdown:/lib/init/rc.shutdown
 
-/usr/bin/busybox hostname kominka-installer
+hvc0::respawn:/bin/getty 115200 hvc0
+INITTAB
 
-/usr/bin/busybox clear
-echo "Kominka Linux Installer"
-echo "Kernel: $(/usr/bin/busybox uname -sr)"
-echo ""
-if [ -x /usr/bin/pm-install ]; then
-    echo "Run 'pm-install' to install to disk."
-    echo ""
-fi
+echo "kominka-installer" > /rootfs/etc/hostname
 
+cat >> /rootfs/etc/profile <<'PROFILE'
+
+# Kominka package manager.
 export KOMINKA_PATH=/packages
-export LOGNAME=root
-export HOME=/root
-exec /usr/bin/ysh
-INIT
-chmod 755 /rootfs/usr/bin/init
+export KOMINKA_ROOT=/
+PROFILE
 
 # Size partitions to fit contents.
 # ESP: kernel Image + FAT32 overhead. FAT32 needs ~34M minimum to avoid
