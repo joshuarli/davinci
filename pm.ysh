@@ -152,14 +152,13 @@ proc tmp_file_copy (name, suffix, src) {
 }
 
 proc prompt (msg='') {
+    if (KOMINKA_PROMPT === '0') { return }
+
     if (msg !== '') {
         log $msg
     }
     log "Continue?: Press Enter to continue or Ctrl+C to abort"
-
-    if (KOMINKA_PROMPT !== '0') {
-        read --raw-line || exit 1
-    }
+    read --raw-line || exit 1
 }
 
 proc mkcd (...dirs) {
@@ -1775,19 +1774,17 @@ proc args (action='', ...pkgs) {
 
         b | build | c | checksum | d | download | i | install | l | list | r | remove {
             for arg in (pkgs) {
+                var bad = ''
                 case (action) {
                     i | install {
-                        try { echo $arg | grep -q '[][!* ]' }
-                        if ! failed {
-                            die "Invalid argument ('$arg')"
-                        }
+                        try { setvar bad = $(echo $arg | grep '[][!* ]') } 2>/dev/null
                     }
                     * {
-                        try { echo $arg | grep -q '[][!* /]' }
-                        if ! failed {
-                            die "Invalid argument ('$arg')"
-                        }
+                        try { setvar bad = $(echo $arg | grep '[][!* /]') } 2>/dev/null
                     }
+                }
+                if (bad !== '') {
+                    die "Invalid argument ('$arg')"
                 }
             }
 
@@ -1929,7 +1926,7 @@ proc _discover_tool (env_override, ...fallbacks) {
         return
     }
     for cmd in (fallbacks) {
-        try { command -v $cmd }
+        try { command -v $cmd 2>/dev/null }
         if ! failed { return }
     }
 }
