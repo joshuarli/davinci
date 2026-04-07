@@ -25,12 +25,14 @@ all_pkgs="
     pigz
     bison
     flex
+    binutils
+    gcc
     pm
 "
 
 # Heavy packages excluded from default build:
-#   binutils, gcc, git, grub — require complex cross-compilation
-#   fixes and/or take too long. Pass them explicitly to build.
+#   git, grub — require complex cross-compilation fixes and/or
+#   take too long. Pass them explicitly to build.
 
 if [ $# -gt 0 ]; then
     pkgs="$*"

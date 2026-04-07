@@ -1,33 +1,37 @@
-#!/bin/sh -e
+#!/usr/local/bin/ysh
+
+var dest = ARGV[0]
+var ver = ARGV[1]
 
 # Detect the build triplet.
-triplet=$(cc -dumpmachine 2>/dev/null || echo "$(uname -m)-pc-linux-musl")
+var triplet = $(cc -dumpmachine 2>/dev/null) or "$(uname -m)-pc-linux-musl"
 
 # Make sure gmp is built with generic options.
 cp gcc/gmp/configfsf.guess gcc/gmp/config.guess
 cp gcc/gmp/configfsf.sub   gcc/gmp/config.sub
 
 # Use lib not lib64 by default (x86_64 only).
-case $triplet in x86_64*)
+if (triplet => startsWith('x86_64')) {
     sed '/m64=/s/lib64/lib/' gcc/gcc/config/i386/t-linux64 > _
     mv -f _ gcc/gcc/config/i386/t-linux64
     sed 's/lib64/lib/' gcc/gcc/config/i386/linux64.h > _
     mv -f _ gcc/gcc/config/i386/linux64.h
-esac
+}
 
 # Build must happen outside of gcc source.
 mkdir -p gcc-build
 cd gcc-build
 
-# Grab the system's GCC version.
-IFS=. read -r gcc_version _ 2>/dev/null \
-    < "$KOMINKA_ROOT/var/db/kominka/installed/gcc/version" || gcc_version=null
+# Grab the system's GCC version to decide on bootstrap.
+var gcc_version = 'null'
+var ver_file = "${KOMINKA_ROOT}/var/db/kominka/installed/gcc/version"
+try { read (&gcc_version) < $ver_file }
 
-# Skip the bootstrap process if we are able.
-case $2 in "$gcc_version"*)
-    printf '%s\n' "Minor version difference, disabling bootstrap."
-    bootstrap=--disable-bootstrap
-esac
+var bootstrap = '--enable-bootstrap'
+if (gcc_version => startsWith(ver)) {
+    echo "Minor version difference, disabling bootstrap."
+    setvar bootstrap = '--disable-bootstrap'
+}
 
 ../gcc/configure \
     libat_cv_have_ifunc=no \
@@ -56,21 +60,21 @@ esac
     --without-included-gettext \
     --with-zstd=no \
     --with-system-zlib \
-    --build="$triplet" \
-    "${bootstrap:---enable-bootstrap}"
+    --build=$triplet \
+    $bootstrap
 
 make
 make install
 
 # Save 35MB.
-find "$1" -name libgtkpeer.a  -exec rm -f {} +
-find "$1" -name libgjsmalsa.a -exec rm -f {} +
-find "$1" -name libgij.a      -exec rm -f {} +
+find $dest -name libgtkpeer.a  -exec rm -f '{}' +
+find $dest -name libgjsmalsa.a -exec rm -f '{}' +
+find $dest -name libgij.a      -exec rm -f '{}' +
 
-ln -sf gcc "$1/usr/bin/cc"
-cp -f ../c99 "$1/usr/bin"
+ln -sf gcc "${dest}/usr/bin/cc"
+cp -f ../c99 "${dest}/usr/bin"
 
 # Symlink for LTO.
-mkdir -p "$1/usr/lib/bfd-plugins"
-ln -s "/usr/lib/gcc/${triplet}/$2/liblto_plugin.so" \
-      "$1/usr/lib/bfd-plugins/liblto_plugin.so"
+mkdir -p "${dest}/usr/lib/bfd-plugins"
+ln -s "/usr/lib/gcc/${triplet}/${ver}/liblto_plugin.so" \
+      "${dest}/usr/lib/bfd-plugins/liblto_plugin.so"
