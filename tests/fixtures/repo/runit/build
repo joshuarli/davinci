@@ -1,0 +1,16 @@
+#!/bin/sh -e
+
+cd runit-2.1.2
+
+# Override compiler and linker.
+echo "${CC:-cc} -O2 -Wall" > src/conf-cc
+echo "${CC:-cc} -s"        > src/conf-ld
+
+# Build using runit's own build system.
+package/compile
+
+# Install supervision binaries.
+mkdir -p "$1/usr/bin"
+for bin in chpst runsv runsvdir sv svlogd; do
+    cp -f "command/$bin" "$1/usr/bin/"
+done

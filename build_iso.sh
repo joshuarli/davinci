@@ -61,9 +61,16 @@ cat > /rootfs/etc/inittab <<'INITTAB'
 ::sysinit:/lib/init/rc.boot
 ::restart:/sbin/init
 ::shutdown:/lib/init/rc.shutdown
-
-hvc0::respawn:/bin/getty 115200 hvc0
+::respawn:runsvdir -P /var/service
 INITTAB
+
+# Allow root login with no password (installer).
+sed -i 's|^root:!:|root::|' /rootfs/etc/shadow
+
+mkdir -p /rootfs/var/service
+for svc in mdev syslogd getty-hvc0 udhcpc; do
+    [ -d /rootfs/etc/sv/$svc ] && ln -sf "/etc/sv/$svc" "/rootfs/var/service/$svc"
+done
 
 echo "kominka-installer" > /rootfs/etc/hostname
 

@@ -11,7 +11,7 @@ disk image that runs under vfkit (or on real ARM64 hardware via EFISTUB).
 
 ## Base System
 
-The installed rootfs contains 14 packages built from source:
+The installed rootfs contains 15 packages built from source:
 
 | Package | Role |
 |---------|------|
@@ -22,8 +22,9 @@ The installed rootfs contains 14 packages built from source:
 | bzip2, xz | Source tarball decompression |
 | m4 | Macro processor (dependency of bison) |
 | make | Build system |
-| busybox | Core userspace: init, sh, getty, mount, fsck, mdev, coreutils, and ~300 other applets |
+| busybox | Core userspace: init, sh, getty, mount, fsck, mdev, udhcpc, coreutils, and ~300 other applets |
 | baseinit | Init framework: rc.boot, rc.shutdown, rc.lib, kpow, kall |
+| runit | Service supervision: runsvdir, runsv, sv |
 | boringssl | TLS library (static, used by curl) |
 | curl | HTTP client |
 | pigz | Parallel gzip |
@@ -85,9 +86,13 @@ Kernel
   |     |-- Run /etc/rc.d/*.boot hooks
   |     `-- Log boot time
   |
-  |-- hvc0::respawn: /bin/getty 115200 hvc0
+  |-- ::respawn: runsvdir -P /var/service
   |     |
-  |     `-- getty -> login -> /bin/sh (ysh, via /etc/passwd)
+  |     |-- mdev        device manager
+  |     |-- syslogd     system logger
+  |     |-- getty-hvc0   serial console (115200 baud)
+  |     |-- udhcpc      DHCP client on eth0
+  |     `-- ntpd        NTP daemon (waits for network)
   |
   `-- ::shutdown: /lib/init/rc.shutdown
 ```
@@ -132,9 +137,46 @@ session. Replacement for `killall5`.
 
 ## Service Management
 
-Not yet implemented. The baseinit inittab supports `runsvdir` (runit) for
-service supervision, but runit is not currently packaged. Services that need
-to run at boot can use `/etc/rc.d/*.boot` hook scripts.
+**runit** provides service supervision via `runsvdir`. busybox init respawns
+`runsvdir -P /var/service`, which monitors one `runsv` process per enabled
+service.
+
+### Service layout
+
+```
+/etc/sv/<name>/run        Service run script (executable, execs into daemon)
+/etc/sv/<name>/supervise  -> /run/runit/supervise.<name>  (runsv state, tmpfs)
+/var/service/<name>       -> /etc/sv/<name>  (symlink = enabled)
+```
+
+### Default services
+
+| Service | Description |
+|---------|-------------|
+| mdev | Device manager (busybox) |
+| syslogd | System logger (busybox) |
+| getty-hvc0 | Serial console getty at 115200 baud |
+| getty-tty1 | VT getty at 38400 baud (available, not enabled by default) |
+| udhcpc | DHCP client on eth0 (busybox) |
+| ntpd | NTP daemon (busybox) |
+| acpid | ACPI event handler (busybox, not enabled by default) |
+
+### Service ordering
+
+Network-dependent services (ntpd) wait for `/run/network-up`, a marker file
+created by the udhcpc lease script (`/etc/udhcpc.sh`) on successful DHCP
+lease. The marker is removed on deconfig, so services re-block if the lease
+is lost.
+
+### Managing services
+
+```sh
+sv status /var/service/*   # Status of all enabled services
+sv stop  /var/service/ntpd # Stop a service
+sv start /var/service/ntpd # Start a service
+ln -s /etc/sv/acpid /var/service/acpid  # Enable a service
+rm /var/service/acpid                    # Disable a service
+```
 
 ## Build Pipeline
 
@@ -158,7 +200,7 @@ Stage 2: pkg-builder
   -> Install ysh from stage 1
   -> Copy package repo + source tarballs
   -> Register host-provided packages (cmake, go, ninja, glibc, perl)
-  -> Run build_core.sh: build 14 packages with pm.ysh
+  -> Run build_core.sh: build 15 packages with pm.ysh
   -> Output: /kominka-root (installed rootfs), /packages, tarballs
 
 Stage 3: disk image builder

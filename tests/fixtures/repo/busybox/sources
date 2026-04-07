@@ -15,3 +15,7 @@ files/syslogd.run
 files/mdev.run
 files/ntpd.run
 files/mdev.conf
+files/getty-hvc0.run
+files/getty-tty1.run
+files/udhcpc.run
+files/udhcpc.sh

@@ -1,0 +1,19 @@
+#!/usr/local/bin/ysh
+
+var dest = ARGV[0]
+var CC = ENV => get("CC", "cc")
+
+cd runit-2.1.2
+
+# Override compiler and linker.
+write -- "${CC} -O2 -Wall" > src/conf-cc
+write -- "${CC} -s"        > src/conf-ld
+
+# Build using runit's own build system.
+package/compile
+
+# Install supervision binaries.
+mkdir -p "${dest}/usr/bin"
+for bin in (:| chpst runsv runsvdir sv svlogd |) {
+    cp -f "command/${bin}" "${dest}/usr/bin/"
+}

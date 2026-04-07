@@ -39,5 +39,5 @@ FROM debian:bookworm-slim
 COPY --from=builder /linux/arch/arm64/boot/Image /Image
 COPY --from=builder /linux/.config /kernel-config
 
-CMD cp /Image /out/Image && cp /kernel-config /out/kernel-config && \
+CMD cat /Image > /out/Image && cat /kernel-config > /out/kernel-config && \
     echo "Kernel Image: $(du -h /Image | cut -f1)"

@@ -98,14 +98,17 @@ cat > "$ROOTFS/etc/inittab" <<'INITTAB'
 ::sysinit:/lib/init/rc.boot
 ::restart:/sbin/init
 ::shutdown:/lib/init/rc.shutdown
-
-# Serial console for vfkit VM.
-hvc0::respawn:/bin/getty 115200 hvc0
-
-# Uncomment for physical TTYs.
-# tty1::respawn:/bin/getty 38400 tty1
-# tty2::respawn:/bin/getty 38400 tty2
+::respawn:runsvdir -P /var/service
 INITTAB
+
+# Allow root login with no password (dev/VM use).
+sed -i 's|^root:!:|root::|' "$ROOTFS/etc/shadow"
+
+# Enable default services.
+mkdir -p "$ROOTFS/var/service"
+for svc in mdev syslogd getty-hvc0 udhcpc ntpd; do
+    [ -d "$ROOTFS/etc/sv/$svc" ] && ln -sf "/etc/sv/$svc" "$ROOTFS/var/service/$svc"
+done
 
 # Add Kominka environment to /etc/profile so login shells get it.
 cat >> "$ROOTFS/etc/profile" <<'PROFILE'

@@ -1,2 +1,2 @@
-#!/bin/sh
+#!/bin/busybox sh
 exec syslogd -n

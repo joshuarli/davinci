@@ -14,6 +14,12 @@ cp -R lib "${dest}/usr/lib"
 # Rebrand KISS -> Kominka.
 sed -i 's/KISS/Kominka/g' "${dest}/usr/lib/init/rc.boot"
 
+# Silence 'command -v' stderr for shells that print "not found" (osh).
+sed -i 's|command -v \([a-z]*\) >/dev/null|command -v \1 >/dev/null 2>\&1|g' "${dest}/usr/lib/init/rc.boot"
+
+# Skip fsck when no filesystem-specific helpers are installed.
+sed -i '/fsck -ATat/s/^/command -v fsck.ext4 >\/dev\/null 2>\&1 \&\& /' "${dest}/usr/lib/init/rc.boot"
+
 for bin in (:| kpow kall |) {
     $CC -o "${dest}/usr/bin/${bin}" "bin/${bin}.c" @CFLAGS -static
     cp -f "bin/${bin}.c" "${dest}/usr/share/doc/kominka/init/${bin}.c"

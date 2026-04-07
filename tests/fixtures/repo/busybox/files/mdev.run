@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/busybox sh
 
 # Null the legacy hotplugger as the
 # service will take over from here.

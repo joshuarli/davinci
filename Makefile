@@ -9,6 +9,11 @@ INITRAMFS       := initramfs.img
 
 VFKIT_CMDLINE := root=/dev/vda3 rw console=hvc0 loglevel=4
 
+# Package repo files that affect the disk image build.
+REPO_FILES := $(wildcard tests/fixtures/repo/*/build*) \
+              $(wildcard tests/fixtures/repo/*/sources) \
+              $(wildcard tests/fixtures/repo/*/files/*)
+
 .PHONY: kernel build iso boot boot-installer boot-log test stop clean shell
 
 test: boot
@@ -40,7 +45,7 @@ iso:
 $(KERNEL): kernel.config Dockerfile.linux
 	$(MAKE) kernel
 
-$(DISK_IMG): Dockerfile.boot build_image.sh pm.ysh
+$(DISK_IMG): Dockerfile.boot build_image.sh pm.ysh tests/build_core.sh $(REPO_FILES)
 	$(MAKE) build
 
 $(INSTALLER_IMG): Dockerfile.iso build_iso.sh install.sh $(KERNEL) $(DISK_IMG)

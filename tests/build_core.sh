@@ -24,6 +24,7 @@ all_pkgs="
     pigz
     bison
     flex
+    runit
 "
 
 # Excluded from default build:
