@@ -40,14 +40,14 @@ RUN apk add --no-cache \
 
 # Sources (~263MB tarballs, rarely change) before repo and pm.ysh.
 COPY tests/fixtures/sources /home/kominka/sources
-COPY tests/fixtures/repo /home/kominka/repo
+COPY tests/fixtures/repo /packages
 
-RUN find /home/kominka/repo -name build -exec chmod +x {} + && \
-    find /home/kominka/repo -name post-install -exec chmod +x {} +
+RUN find /packages -name build -exec chmod +x {} + && \
+    find /packages -name post-install -exec chmod +x {} +
 
 RUN mkdir -p /kominka-root/var/db/kominka/installed /kominka-root/var/db/kominka/choices
 
-ENV KOMINKA_PATH=/home/kominka/repo \
+ENV KOMINKA_PATH=/packages \
     KOMINKA_ROOT=/kominka-root \
     KOMINKA_COMPRESS=gz \
     KOMINKA_COLOR=0 \

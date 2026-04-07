@@ -23,12 +23,12 @@ COPY pm.ysh /usr/bin/pm
 RUN chmod +x /usr/bin/pm
 
 # Copy in the vendored repo and sources.
-COPY tests/fixtures/repo /home/kominka/repo
+COPY tests/fixtures/repo /packages
 COPY tests/fixtures/sources /home/kominka/sources
 
 # Ensure build/post-install scripts are executable.
-RUN find /home/kominka/repo -name build -exec chmod +x {} +
-RUN find /home/kominka/repo -name post-install -exec chmod +x {} +
+RUN find /packages -name build -exec chmod +x {} +
+RUN find /packages -name post-install -exec chmod +x {} +
 
 # Create the chroot target.
 RUN mkdir -p /kominka-root/var/db/kominka/installed /kominka-root/var/db/kominka/choices
@@ -43,7 +43,7 @@ RUN for pkg in cmake go samurai; do \
 # Add /kominka-root/usr/bin to PATH so that packages built earlier in the
 # bootstrap (e.g. m4, make) are available to later builds (e.g. bison).
 ENV PATH=/kominka-root/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
-    KOMINKA_PATH=/home/kominka/repo \
+    KOMINKA_PATH=/packages \
     KOMINKA_ROOT=/kominka-root \
     KOMINKA_COMPRESS=gz \
     KOMINKA_COLOR=0 \

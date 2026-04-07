@@ -55,18 +55,18 @@ phase2() {
 
     # Copy the repo into the chroot.
     mkdir -p "$ROOT/home/kominka"
-    cp -r /home/kominka/repo "$ROOT/home/kominka/repo"
+    cp -r /packages "$ROOT/packages"
     cp -r /home/kominka/sources "$ROOT/home/kominka/sources"
 
     # Ensure build scripts are executable inside chroot.
-    find "$ROOT/home/kominka/repo" -name build -exec chmod +x {} +
+    find "$ROOT/packages" -name build -exec chmod +x {} +
 
     # Run verification inside the chroot.
     chroot "$ROOT" /bin/sh <<'CHROOT_EOF'
         set -e
 
         export PATH=/usr/bin:/usr/sbin:/bin:/sbin:/host/usr/bin
-        export KOMINKA_PATH=/home/kominka/repo
+        export KOMINKA_PATH=/packages
         export KOMINKA_ROOT=/
         export KOMINKA_COMPRESS=gz
         export KOMINKA_COLOR=0

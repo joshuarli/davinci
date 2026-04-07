@@ -33,11 +33,12 @@ COPY pm.ysh /usr/bin/pm
 RUN chmod +x /usr/bin/pm
 
 # Copy in the vendored repo and sources.
-COPY tests/fixtures/repo /home/kominka/repo
+# Repo at /packages so it can be volume-mounted for interactive use.
+COPY tests/fixtures/repo /packages
 COPY tests/fixtures/sources /home/kominka/sources
 
-RUN find /home/kominka/repo -name build -exec chmod +x {} +
-RUN find /home/kominka/repo -name post-install -exec chmod +x {} +
+RUN find /packages -name build -exec chmod +x {} +
+RUN find /packages -name post-install -exec chmod +x {} +
 
 RUN mkdir -p /kominka-root/var/db/kominka/installed /kominka-root/var/db/kominka/choices
 
@@ -48,7 +49,7 @@ RUN for pkg in cmake go samurai; do \
       echo "0 0" > "/kominka-root/var/db/kominka/installed/$pkg/version"; \
     done
 
-ENV KOMINKA_PATH=/home/kominka/repo \
+ENV KOMINKA_PATH=/packages \
     KOMINKA_ROOT=/kominka-root \
     KOMINKA_COMPRESS=gz \
     KOMINKA_COLOR=0 \

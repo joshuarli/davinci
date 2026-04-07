@@ -9,7 +9,7 @@ INITRAMFS       := initramfs.img
 
 VFKIT_CMDLINE := root=/dev/vda3 rw console=hvc0 loglevel=4
 
-.PHONY: kernel build iso boot boot-installer boot-log test stop clean
+.PHONY: kernel build iso boot boot-installer boot-log test stop clean shell
 
 test: boot
 
@@ -88,6 +88,13 @@ boot-log: $(KERNEL) $(DISK_IMG)
 
 stop:
 	-@pkill vfkit 2>/dev/null && echo "VM stopped" || echo "No VM running"
+
+shell:
+	@command -v docker >/dev/null || { echo "error: docker required"; exit 1; }
+	docker build -t kominka-shell -f tests/Dockerfile.ysh .
+	docker run -it --rm \
+		-v "$(CURDIR)/tests/fixtures/repo":/packages \
+		kominka-shell sh
 
 clean:
 	rm -f disk.img Image initramfs.img kernel-config kominka-installer.img target.img
