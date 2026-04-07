@@ -4,7 +4,7 @@ patch -p1 < fix-fd-issue.patch
 
 # Latest binutils tarball has falsely generated (empty) manual pages.
 # Generating them requires perl. Temporary fix until next release.
-! kiss l perl || {
+! pm l perl || {
     patch -p1 < fix-empty-man.patch
     rm -f binutils/doc/*.1 ld/ld.1 gas/doc/as.1 gprof/gprof.1
 }

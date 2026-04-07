@@ -6,12 +6,12 @@ var CFLAGS = ENV => get("CFLAGS", "") => split(' ')
 
 mkdir -p \
     "${dest}/usr/bin" \
-    "${dest}/usr/share/doc/kiss/init"
+    "${dest}/usr/share/doc/kominka/init"
 
 cp -R etc "${dest}"
 cp -R lib "${dest}/usr/lib"
 
 for bin in (:| kpow kall |) {
     $CC -o "${dest}/usr/bin/${bin}" "bin/${bin}.c" @CFLAGS -static
-    cp -f "bin/${bin}.c" "${dest}/usr/share/doc/kiss/init/${bin}.c"
+    cp -f "bin/${bin}.c" "${dest}/usr/share/doc/kominka/init/${bin}.c"
 }

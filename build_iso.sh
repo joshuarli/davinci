@@ -1,21 +1,21 @@
 #!/bin/sh
-# Build a bootable KISS Linux installer disk image.
+# Build a bootable Kominka Linux installer disk image.
 # Runs inside Docker with --privileged (needs losetup).
 #
 # Inputs (from Docker image layers):
-#   /rootfs         - KISS rootfs (from kiss-boot)
+#   /rootfs         - Kominka rootfs (from kominka-boot)
 #   /ysh-bin/       - ysh binary
 #   /ysh-libs/      - ysh shared libs
-#   /boot/Image     - kernel (from kiss-kernel)
+#   /boot/Image     - kernel (from kominka-kernel)
 #   /install.sh     - installer script
 #
 # Output (written to /out):
-#   kiss-installer.img - dd-able disk image (GPT: EFI + ext4 root)
+#   kominka-installer.img - dd-able disk image (GPT: EFI + ext4 root)
 
 set -eu
 
 OUT=/out
-IMG="$OUT/kiss-installer.img"
+IMG="$OUT/kominka-installer.img"
 ROOTFS=/mnt
 
 cleanup() {
@@ -50,12 +50,12 @@ done
 
 # Add installer script and kernel (on the rootfs, not the ESP, so
 # install.sh can access it without mounting the installer's ESP).
-cp /install.sh /rootfs/usr/bin/kiss-install
-chmod +x /rootfs/usr/bin/kiss-install
-mkdir -p /rootfs/usr/share/kiss
-cp /boot/Image /rootfs/usr/share/kiss/Image
+cp /install.sh /rootfs/usr/bin/pm-install
+chmod +x /rootfs/usr/bin/pm-install
+mkdir -p /rootfs/usr/share/kominka
+cp /boot/Image /rootfs/usr/share/kominka/Image
 
-# Write init (same as build_image.sh but already has kiss-install detection).
+# Write init (same as build_image.sh but already has pm-install detection).
 rm -f /rootfs/usr/bin/init
 cat > /rootfs/usr/bin/init <<'INIT'
 #!/usr/bin/busybox sh
@@ -64,14 +64,14 @@ cat > /rootfs/usr/bin/init <<'INIT'
 /usr/bin/busybox mount -t sysfs    none /sys
 /usr/bin/busybox mount -t tmpfs    none /tmp
 
-/usr/bin/busybox hostname kiss-installer
+/usr/bin/busybox hostname kominka-installer
 
 /usr/bin/busybox clear
-echo "KISS Linux Installer"
+echo "Kominka Linux Installer"
 echo "Kernel: $(/usr/bin/busybox uname -sr)"
 echo ""
-if [ -x /usr/bin/kiss-install ]; then
-    echo "Run 'kiss-install' to install to disk."
+if [ -x /usr/bin/pm-install ]; then
+    echo "Run 'pm-install' to install to disk."
     echo ""
 fi
 
@@ -114,8 +114,8 @@ LOOP_EFI=$(losetup  --find --show --offset "$efi_off"  --sizelimit "$efi_size"  
 LOOP_ROOT=$(losetup --find --show --offset "$root_off" --sizelimit "$root_size" "$IMG")
 
 echo "==> Formatting partitions"
-mkfs.vfat -F32 -n KISS_EFI "$LOOP_EFI"
-mkfs.ext4 -q -m 0 -L KISS_ROOT "$LOOP_ROOT"
+mkfs.vfat -F32 -n KOMINKA_EFI "$LOOP_EFI"
+mkfs.ext4 -q -m 0 -L KOMINKA_ROOT "$LOOP_ROOT"
 
 echo "==> Mounting"
 mount "$LOOP_ROOT" "$ROOTFS"
@@ -138,6 +138,6 @@ umount "$ROOTFS/boot"
 umount "$ROOTFS"
 
 echo "==> Done"
-echo "  kiss-installer.img  $(du -h "$IMG" | cut -f1)"
+echo "  kominka-installer.img  $(du -h "$IMG" | cut -f1)"
 echo ""
-echo "  To flash:  dd if=kiss-installer.img of=/dev/sdX bs=4M status=progress"
+echo "  To flash:  dd if=kominka-installer.img of=/dev/sdX bs=4M status=progress"

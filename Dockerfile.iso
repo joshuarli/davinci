@@ -1,15 +1,15 @@
-# Build a bootable KISS Linux installer disk image.
-# The image boots to a live KISS environment with an install script.
+# Build a bootable Kominka Linux installer disk image.
+# The image boots to a live Kominka environment with an install script.
 # dd the output to a USB drive and boot via UEFI.
 #
-# Requires kiss-boot and kiss-kernel images (make build && make kernel).
+# Requires kominka-boot and kominka-kernel images (make build && make kernel).
 #
 # Usage:
-#   docker build -t kiss-iso -f Dockerfile.iso .
-#   docker run --rm --privileged -v "$(pwd)":/out kiss-iso
+#   docker build -t kominka-iso -f Dockerfile.iso .
+#   docker run --rm --privileged -v "$(pwd)":/out kominka-iso
 
-FROM kiss-boot AS boot-image
-FROM kiss-kernel AS kernel-image
+FROM kominka-boot AS boot-image
+FROM kominka-kernel AS kernel-image
 
 FROM alpine:latest
 

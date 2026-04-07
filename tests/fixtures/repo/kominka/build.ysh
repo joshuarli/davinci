@@ -1,0 +1,23 @@
+#!/usr/local/bin/ysh
+
+var dest = ARGV[0]
+
+mkdir -p \
+    "${dest}/usr/bin" \
+    "${dest}/usr/share/doc/kominka"
+
+cp -f pm @[glob('contrib/*')] "${dest}/usr/bin"
+
+var docs = @[glob('docs/site/*.txt')]
+if (len(docs) > 0) {
+    cp -f @docs "${dest}/usr/share/doc/kominka"
+}
+
+if test -d docs/site/wiki {
+    cp -rf docs/site/wiki "${dest}/usr/share/doc/kominka"
+}
+
+rm -f \
+    "${dest}/usr/share/doc/kominka/README.txt" \
+    "${dest}/usr/share/doc/kominka/post.txt" \
+    "${dest}/usr/share/doc/kominka/tidbits.txt"

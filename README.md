@@ -3,7 +3,7 @@
 Prerequisites: Docker, [vfkit](https://github.com/crc-org/vfkit) (`brew install vfkit`).
 
 ```sh
-make boot   # builds everything, boots VM — drops you into ysh on KISS Linux
+make boot   # builds everything, boots VM — drops you into ysh on Kominka Linux
 ```
 
 That's it. `make boot` auto-triggers `make kernel` and `make build` if the
@@ -17,7 +17,7 @@ Three Docker builds produce the system. Each caches independently.
  Dockerfile.linux              Dockerfile.boot
  ┌──────────────────┐          ┌──────────────────────────────────┐
  │ kernel source     │          │ Stage 1: build ysh from source   │
- │ + kernel.config   │          │ Stage 2: pm.ysh builds KISS pkgs │
+ │ + kernel.config   │          │ Stage 2: pm.ysh builds Kominka pkgs │
  │ (tinyconfig base) │          │   baselayout, musl, busybox      │
  └────────┬─────────┘          │ Stage 3: disk image tools        │
           │                     └──────────────┬───────────────────┘
@@ -27,26 +27,26 @@ Three Docker builds produce the system. Each caches independently.
        Image                         disk.img + initramfs.img
     (ARM64 kernel,                 (12G sparse GPT, ~200M actual)
      ~20M, all drivers             (EFI + swap + ext4 root with
-     built-in)                      KISS rootfs + ysh)
+     built-in)                      Kominka rootfs + ysh)
           │                                    │
           └──────────┐    ┌────────────────────┘
                      ▼    ▼
                     make boot
                         │
                         ▼
-                    vfkit VM ──► ysh shell on KISS Linux
+                    vfkit VM ──► ysh shell on Kominka Linux
 ```
 
 The installer adds a third layer:
 
 ```
-                  kiss-boot + kiss-kernel
+                  kominka-boot + kominka-kernel
                     (Docker images)
                            │
                       make iso ──────► Dockerfile.iso
                            │
                            ▼
-                  kiss-installer.img
+                  kominka-installer.img
                 (rightsized GPT: EFI + ext4 root
                  with rootfs + kernel + install script)
                            │
@@ -62,11 +62,11 @@ The installer adds a third layer:
 | Target | Produces | Description |
 |--------|----------|-------------|
 | `make kernel` | `Image` | Custom ARM64 kernel (tinyconfig + `kernel.config`). Ext4, virtio, NVMe, AHCI, USB, EFI stub all built-in. No modules. |
-| `make build` | `disk.img`, `initramfs.img` | KISS rootfs built by pm.ysh inside Docker. 12G sparse GPT (256M EFI + 8G swap + ext4 root). The rootfs has baselayout + musl + busybox + ysh. |
-| `make iso` | `kiss-installer.img` | Installer disk image, rightsized to content. Includes rootfs + kernel + `kiss-install` script + mkfs tools. |
+| `make build` | `disk.img`, `initramfs.img` | Kominka rootfs built by pm.ysh inside Docker. 12G sparse GPT (256M EFI + 8G swap + ext4 root). The rootfs has baselayout + musl + busybox + ysh. |
+| `make iso` | `kominka-installer.img` | Installer disk image, rightsized to content. Includes rootfs + kernel + `pm-install` script + mkfs tools. |
 | `make boot` | | Boot `disk.img` in vfkit. Auto-builds `Image` and `disk.img` if missing. |
-| `make boot-installer` | | Boot installer in vfkit with a 12G virtual target at `/dev/vdb`. Auto-builds `Image` and `kiss-installer.img` if missing. |
-| `make boot-log` | | Like `boot` but serial goes to `/tmp/kiss-serial.log`. |
+| `make boot-installer` | | Boot installer in vfkit with a 12G virtual target at `/dev/vdb`. Auto-builds `Image` and `kominka-installer.img` if missing. |
+| `make boot-log` | | Like `boot` but serial goes to `/tmp/kominka-serial.log`. |
 | `make stop` | | Kill running vfkit. |
 | `make test` | | `boot` (which auto-builds everything). |
 | `make clean` | | Remove all build artifacts. |
@@ -78,7 +78,7 @@ The installer adds a third layer:
 | `Image` | ~20M | no | Uncompressed ARM64 kernel. vfkit loads this directly. |
 | `disk.img` | 12G apparent, ~200M actual | yes | VM system disk. Room to install packages inside the VM. |
 | `initramfs.img` | ~50 bytes | no | Empty dummy — vfkit requires `--initrd` but our kernel doesn't need one. |
-| `kiss-installer.img` | ~50-80M | no | Installer image, rightsized. `dd` this to a USB drive. |
+| `kominka-installer.img` | ~50-80M | no | Installer image, rightsized. `dd` this to a USB drive. |
 | `target.img` | 12G apparent, ~0 actual | yes | Virtual target disk for testing the installer. Created by `make boot-installer`. |
 | `kernel-config` | ~5K | no | Resolved `.config` from kernel build (for debugging). |
 
@@ -103,11 +103,11 @@ make boot-installer     # test in VM — pick /dev/vdb as target
 
 To flash to a real USB drive:
 ```sh
-dd if=kiss-installer.img of=/dev/sdX bs=4M status=progress
+dd if=kominka-installer.img of=/dev/sdX bs=4M status=progress
 ```
 
 Boot the target machine from USB via UEFI. The kernel has a built-in
-`CONFIG_CMDLINE` (`root=LABEL=KISS_ROOT`) for EFISTUB boot — no
+`CONFIG_CMDLINE` (`root=LABEL=KOMINKA_ROOT`) for EFISTUB boot — no
 bootloader needed. After install, remove the USB and reboot.
 
 ### Running Tests
@@ -123,7 +123,7 @@ python3 -m pytest tests/test_docker_build_ysh.py -v
 
 ## Vision
 
-1. build kiss linux core with kiss (pm)
+1. build pm linux core with pm (pm)
 2. clean port to ysh
 3. build installer iso
 5. port more packages over to osh
@@ -149,8 +149,8 @@ gluing together the rest of the system. No system perl, no python, etc.
 
 ---
 
-POSIX shell is ugly but KISS Linux showed a usable system could be
-possible wtih a package manager in pure POSIX shell. KISS also distilled
+POSIX shell is ugly but Dylan Araps showed a usable system could be
+possible with a package manager in pure POSIX shell, and distilled
 the userspace down to a reasonable minimum.
 
 Alpine Linux showed that a viable distribution was possible based on

@@ -1,15 +1,15 @@
 #!/bin/sh
-# Bootstrap a self-hosting KISS rootfs.
+# Bootstrap a self-hosting Kominka rootfs.
 #
 # Phase 1: Build all 16 core packages using the Alpine host toolchain,
-#           installing into /kiss-root.
-# Phase 2: Chroot into /kiss-root with host gcc bind-mounted, verify
+#           installing into /kominka-root.
+# Phase 2: Chroot into /kominka-root with host gcc bind-mounted, verify
 #           the package manager works from inside the chroot.
 #
 # Usage: ./bootstrap.sh
 set -e
 
-ROOT=/kiss-root
+ROOT=/kominka-root
 
 phase1() {
     echo "============================================"
@@ -20,7 +20,7 @@ phase1() {
 
     echo ""
     echo "Phase 1 complete. Installed packages:"
-    kiss l
+    pm l
 }
 
 phase2() {
@@ -50,29 +50,29 @@ phase2() {
     done
 
     # Copy pm into the chroot (it's not one of the built packages' bins).
-    cp /usr/bin/kiss "$ROOT/usr/bin/kiss"
-    chmod +x "$ROOT/usr/bin/kiss"
+    cp /usr/bin/pm "$ROOT/usr/bin/pm"
+    chmod +x "$ROOT/usr/bin/pm"
 
     # Copy the repo into the chroot.
-    mkdir -p "$ROOT/home/kiss"
-    cp -r /home/kiss/repo "$ROOT/home/kiss/repo"
-    cp -r /home/kiss/sources "$ROOT/home/kiss/sources"
+    mkdir -p "$ROOT/home/kominka"
+    cp -r /home/kominka/repo "$ROOT/home/kominka/repo"
+    cp -r /home/kominka/sources "$ROOT/home/kominka/sources"
 
     # Ensure build scripts are executable inside chroot.
-    find "$ROOT/home/kiss/repo" -name build -exec chmod +x {} +
+    find "$ROOT/home/kominka/repo" -name build -exec chmod +x {} +
 
     # Run verification inside the chroot.
     chroot "$ROOT" /bin/sh <<'CHROOT_EOF'
         set -e
 
         export PATH=/usr/bin:/usr/sbin:/bin:/sbin:/host/usr/bin
-        export KISS_PATH=/home/kiss/repo
-        export KISS_ROOT=/
-        export KISS_COMPRESS=gz
-        export KISS_COLOR=0
-        export KISS_PROMPT=0
-        export KISS_FORCE=1
-        export KISS_STRIP=0
+        export KOMINKA_PATH=/home/kominka/repo
+        export KOMINKA_ROOT=/
+        export KOMINKA_COMPRESS=gz
+        export KOMINKA_COLOR=0
+        export KOMINKA_PROMPT=0
+        export KOMINKA_FORCE=1
+        export KOMINKA_STRIP=0
         export LOGNAME=root
         export HOME=/root
         export CC=/host/usr/bin/gcc
@@ -80,29 +80,29 @@ phase2() {
         export LDFLAGS="-L/usr/lib"
 
         echo "--- chroot: verifying pm works ---"
-        kiss l
+        pm l
         echo ""
 
         echo "--- chroot: counting installed packages ---"
-        count=$(kiss l | wc -l)
+        count=$(pm l | wc -l)
         echo "$count packages installed"
 
         echo ""
         echo "--- chroot: searching for packages ---"
-        kiss s musl
-        kiss s busybox
+        pm s musl
+        pm s busybox
 
         echo ""
         echo "--- chroot: rebuild test (baselayout) ---"
         # Rebuild baselayout as a quick smoke test — it's just mkdir/cp.
-        kiss b baselayout
-        kiss i baselayout
+        pm b baselayout
+        pm i baselayout
         echo "baselayout rebuilt successfully inside chroot"
 
         echo ""
         echo "--- chroot: rebuild test (pigz, uses $CC) ---"
-        kiss b pigz
-        kiss i pigz
+        pm b pigz
+        pm i pigz
         echo "pigz rebuilt successfully inside chroot"
 
         echo ""
@@ -129,5 +129,5 @@ echo ""
 echo "Seed packages from Alpine:"
 echo "  gcc, g++, binutils, musl-dev, linux-headers, make, perl, bzip2, xz"
 echo ""
-echo "KISS packages built and installed into $ROOT:"
-kiss l
+echo "Kominka packages built and installed into $ROOT:"
+pm l

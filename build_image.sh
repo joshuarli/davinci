@@ -1,5 +1,5 @@
 #!/bin/sh
-# Build a bootable KISS Linux disk image.
+# Build a bootable Kominka Linux disk image.
 # Runs inside Docker with --privileged (needs losetup).
 #
 # Outputs (written to /out):
@@ -50,9 +50,9 @@ LOOP_SWAP=$(losetup --find --show --offset "$swap_off" --sizelimit "$swap_size" 
 LOOP_ROOT=$(losetup --find --show --offset "$root_off" --sizelimit "$root_size" "$DISK")
 
 echo "==> Formatting partitions"
-mkfs.vfat -F32 -n KISS_EFI "$LOOP_EFI"
-mkswap -L KISS_SWAP "$LOOP_SWAP"
-mkfs.ext4 -q -L KISS_ROOT "$LOOP_ROOT"
+mkfs.vfat -F32 -n KOMINKA_EFI "$LOOP_EFI"
+mkswap -L KOMINKA_SWAP "$LOOP_SWAP"
+mkfs.ext4 -q -L KOMINKA_ROOT "$LOOP_ROOT"
 
 echo "==> Mounting filesystems"
 mount "$LOOP_ROOT" "$ROOTFS"
@@ -63,12 +63,12 @@ echo "==> Installing rootfs"
 cp -a /rootfs/. "$ROOTFS/"
 
 # Install ysh and its Alpine shared lib dependencies.
-# Our KISS musl is older; use Alpine's musl as the dynamic linker for ysh.
+# Our Kominka musl is older; use Alpine's musl as the dynamic linker for ysh.
 cp /ysh-bin/oils-for-unix "$ROOTFS/usr/bin/oils-for-unix"
 cp /ysh-libs/libstdc++.so.6 /ysh-libs/libgcc_s.so.1 \
    /ysh-libs/libreadline.so.8 /ysh-libs/libncursesw.so.6 \
    "$ROOTFS/usr/lib/"
-# Replace KISS musl with Alpine's musl (ysh was built against it).
+# Replace Kominka musl with Alpine's musl (ysh was built against it).
 cp /ysh-libs/ld-musl-aarch64.so.1 "$ROOTFS/usr/lib/ld-musl-aarch64.so.1"
 ln -sf oils-for-unix "$ROOTFS/usr/bin/ysh"
 ln -sf oils-for-unix "$ROOTFS/usr/bin/osh"
@@ -83,7 +83,7 @@ cat > "$ROOTFS/etc/fstab" <<'EOF'
 /dev/vda2  none   swap  defaults  0 0
 EOF
 
-echo "kiss" > "$ROOTFS/etc/hostname"
+echo "kominka" > "$ROOTFS/etc/hostname"
 
 # Minimal init: mount pseudofs, drop to shell.
 # Remove busybox's init -> busybox symlink before creating the script,
@@ -99,11 +99,11 @@ cat > "$ROOTFS/usr/bin/init" <<'INIT'
 /usr/bin/busybox hostname -F /etc/hostname
 
 /usr/bin/busybox clear
-echo "KISS Linux (built with pm.ysh)"
+echo "Kominka Linux (built with pm.ysh)"
 echo "Kernel: $(/usr/bin/busybox uname -sr)"
 echo ""
-if [ -x /usr/bin/kiss-install ]; then
-    echo "Run 'kiss-install' to install to disk."
+if [ -x /usr/bin/pm-install ]; then
+    echo "Run 'pm-install' to install to disk."
     echo ""
 fi
 

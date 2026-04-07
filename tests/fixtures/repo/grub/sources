@@ -1,4 +1,4 @@
-/home/kiss/sources/grub/grub-2.06.tar.xz grub-pc
-/home/kiss/sources/grub/grub-2.06.tar.xz grub-efi
+/home/kominka/sources/grub/grub-2.06.tar.xz grub-pc
+/home/kominka/sources/grub/grub-2.06.tar.xz grub-efi
 files/grub.default
 files/help2man

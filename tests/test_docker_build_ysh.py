@@ -1,4 +1,4 @@
-"""Integration tests that build real KISS core packages inside Docker using YSH.
+"""Integration tests that build real Kominka core packages inside Docker using YSH.
 
 Mirrors test_docker_build.py but uses Dockerfile.ysh (which installs ysh)
 and runs pm.ysh instead of the POSIX pm.
@@ -86,8 +86,8 @@ class DockerYSHPMTestCase(unittest.TestCase):
             IMAGE_NAME,
             "sleep", "infinity",
         )
-        docker_exec(cls.container, "mkdir -p /kiss-root/var/db/kiss/installed")
-        docker_exec(cls.container, "mkdir -p /kiss-root/var/db/kiss/choices")
+        docker_exec(cls.container, "mkdir -p /kominka-root/var/db/kominka/installed")
+        docker_exec(cls.container, "mkdir -p /kominka-root/var/db/kominka/choices")
 
     @classmethod
     def tearDownClass(cls):
@@ -95,7 +95,7 @@ class DockerYSHPMTestCase(unittest.TestCase):
             docker("rm", "-f", cls.container, check=False)
 
     def pm(self, *args, check=True):
-        cmd = "KISS_ROOT=/kiss-root ysh /usr/bin/kiss " + " ".join(args)
+        cmd = "KOMINKA_ROOT=/kominka-root ysh /usr/bin/pm " + " ".join(args)
         return docker_exec(self.container, cmd, check=check)
 
     def pm_build(self, pkg):
@@ -104,14 +104,14 @@ class DockerYSHPMTestCase(unittest.TestCase):
         self.pm("i", pkg)
 
     def assertInstalled(self, pkg):
-        r = docker_exec(self.container, f"test -d /kiss-root/var/db/kiss/installed/{pkg}")
+        r = docker_exec(self.container, f"test -d /kominka-root/var/db/kominka/installed/{pkg}")
         self.assertEqual(r.returncode, 0, f"{pkg} not installed")
 
     def assertFileInRoot(self, path):
         r = docker_exec(
-            self.container, f"test -e /kiss-root{path}", check=False
+            self.container, f"test -e /kominka-root{path}", check=False
         )
-        self.assertEqual(r.returncode, 0, f"{path} not found in KISS_ROOT")
+        self.assertEqual(r.returncode, 0, f"{path} not found in KOMINKA_ROOT")
 
 
 class TestChecksumVerification(DockerYSHPMTestCase):
@@ -124,7 +124,7 @@ class TestChecksumVerification(DockerYSHPMTestCase):
 
     def test_checksum_mismatch_detected(self):
         """Corrupting a source should cause checksum failure."""
-        src = "/home/kiss/sources/zlib/zlib-1.2.11.tar.gz"
+        src = "/home/kominka/sources/zlib/zlib-1.2.11.tar.gz"
         docker_exec(self.container, f"cp {src} {src}.bak")
         docker_exec(self.container, f"echo corrupt >> {src}")
         r = self.pm("b", "zlib", check=False)
@@ -143,7 +143,7 @@ class TestBuildBaseSystem(DockerYSHPMTestCase):
 
     ALL_PACKAGES = [
         "baseinit", "baselayout", "bison", "busybox", "bzip2",
-        "curl", "flex", "kiss", "linux-headers", "m4", "make",
+        "curl", "flex", "kominka", "linux-headers", "m4", "make",
         "musl", "boringssl", "pigz", "xz", "zlib",
     ]
 
@@ -239,11 +239,11 @@ class TestBuildBaseSystem(DockerYSHPMTestCase):
         r = self.pm("l")
         self.assertIn("flex", r.stdout)
 
-    def test_16_build_kiss(self):
+    def test_16_build_kominka(self):
         """The package manager packages itself."""
-        self.pm_build("kiss")
+        self.pm_build("kominka")
         r = self.pm("l")
-        self.assertIn("kiss", r.stdout)
+        self.assertIn("kominka", r.stdout)
 
     def test_90_list_all_installed(self):
         """After building everything, list should show all 16 packages."""
@@ -275,7 +275,7 @@ class TestBuildBaseSystem(DockerYSHPMTestCase):
         """Every package should have a built tarball in the cache."""
         r = docker_exec(
             self.container,
-            "ls /root/.cache/kiss/bin/",
+            "ls /root/.cache/kominka/bin/",
         )
         tarballs = r.stdout.strip().split("\n")
         for pkg in self.ALL_PACKAGES:
@@ -287,7 +287,7 @@ class TestBuildBaseSystem(DockerYSHPMTestCase):
         for pkg in self.ALL_PACKAGES:
             r = docker_exec(
                 self.container,
-                f"test -s /kiss-root/var/db/kiss/installed/{pkg}/manifest",
+                f"test -s /kominka-root/var/db/kominka/installed/{pkg}/manifest",
                 check=False,
             )
             self.assertEqual(

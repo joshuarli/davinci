@@ -5,5 +5,5 @@ Image
 kernel-config
 vmlinuz
 initramfs.img
-kiss-installer.img
+kominka-installer.img
 target.img

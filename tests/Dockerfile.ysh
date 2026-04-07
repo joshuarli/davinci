@@ -28,45 +28,45 @@ RUN apk add --no-cache \
     gmp-dev mpfr-dev mpc1-dev \
     tar
 
-# Install pm.ysh as kiss.
-COPY pm.ysh /usr/bin/kiss
-RUN chmod +x /usr/bin/kiss
+# Install pm.ysh.
+COPY pm.ysh /usr/bin/pm
+RUN chmod +x /usr/bin/pm
 
 # Copy in the vendored repo and sources.
-COPY tests/fixtures/repo /home/kiss/repo
-COPY tests/fixtures/sources /home/kiss/sources
+COPY tests/fixtures/repo /home/kominka/repo
+COPY tests/fixtures/sources /home/kominka/sources
 
-RUN find /home/kiss/repo -name build -exec chmod +x {} +
-RUN find /home/kiss/repo -name post-install -exec chmod +x {} +
+RUN find /home/kominka/repo -name build -exec chmod +x {} +
+RUN find /home/kominka/repo -name post-install -exec chmod +x {} +
 
-RUN mkdir -p /kiss-root/var/db/kiss/installed /kiss-root/var/db/kiss/choices
+RUN mkdir -p /kominka-root/var/db/kominka/installed /kominka-root/var/db/kominka/choices
 
 # Register host-provided build tools so the package manager's dependency
 # resolution finds them as already installed.
 RUN for pkg in cmake go samurai; do \
-      mkdir -p "/kiss-root/var/db/kiss/installed/$pkg" && \
-      echo "0 0" > "/kiss-root/var/db/kiss/installed/$pkg/version"; \
+      mkdir -p "/kominka-root/var/db/kominka/installed/$pkg" && \
+      echo "0 0" > "/kominka-root/var/db/kominka/installed/$pkg/version"; \
     done
 
-ENV KISS_PATH=/home/kiss/repo \
-    KISS_ROOT=/kiss-root \
-    KISS_COMPRESS=gz \
-    KISS_COLOR=0 \
-    KISS_PROMPT=0 \
-    KISS_STRIP=0 \
-    KISS_FORCE=1 \
+ENV KOMINKA_PATH=/home/kominka/repo \
+    KOMINKA_ROOT=/kominka-root \
+    KOMINKA_COMPRESS=gz \
+    KOMINKA_COLOR=0 \
+    KOMINKA_PROMPT=0 \
+    KOMINKA_STRIP=0 \
+    KOMINKA_FORCE=1 \
     LOGNAME=root \
     HOME=/root \
     CC=gcc \
     CXX=g++ \
-    PKG_CONFIG_PATH=/kiss-root/usr/lib/pkgconfig \
-    CPPFLAGS="-I/kiss-root/usr/include" \
-    LDFLAGS="-L/kiss-root/usr/lib"
+    PKG_CONFIG_PATH=/kominka-root/usr/lib/pkgconfig \
+    CPPFLAGS="-I/kominka-root/usr/include" \
+    LDFLAGS="-L/kominka-root/usr/lib"
 
-WORKDIR /home/kiss
+WORKDIR /home/kominka
 
-COPY tests/build_core.sh /home/kiss/build_core.sh
-RUN chmod +x /home/kiss/build_core.sh
+COPY tests/build_core.sh /home/kominka/build_core.sh
+RUN chmod +x /home/kominka/build_core.sh
 
 RUN apk add --no-cache tini
 ENTRYPOINT ["/sbin/tini", "--"]

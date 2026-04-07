@@ -1,10 +1,10 @@
-# Build a custom minimal Linux kernel for KISS Linux.
+# Build a custom minimal Linux kernel for Kominka Linux.
 # Starts from tinyconfig + kernel.config fragment.
 # Produces an uncompressed Image (ARM64) suitable for vfkit direct boot.
 #
 # Usage:
-#   docker build -t kiss-kernel -f Dockerfile.linux .
-#   docker run --rm -v "$(pwd)":/out kiss-kernel
+#   docker build -t kominka-kernel -f Dockerfile.linux .
+#   docker run --rm -v "$(pwd)":/out kominka-kernel
 
 FROM alpine:latest AS builder
 

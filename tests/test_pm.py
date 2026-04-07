@@ -1,4 +1,4 @@
-"""Integration tests for pm (KISS package manager)."""
+"""Integration tests for pm (Kominka package manager)."""
 
 import os
 import shutil
@@ -15,31 +15,31 @@ REPO = FIXTURES / "repo"
 
 
 class PMTestCase(unittest.TestCase):
-    """Base class that sets up an isolated KISS environment per test."""
+    """Base class that sets up an isolated Kominka environment per test."""
 
     def setUp(self):
         # Resolve the tmpdir path to avoid symlink issues (macOS /var ->
         # /private/var) which break pm's resolve_path during conflict checks.
         self.tmpdir = os.path.realpath(tempfile.mkdtemp(prefix="pm-test-"))
-        self.kiss_root = Path(self.tmpdir) / "root"
-        self.kiss_cache = Path(self.tmpdir) / "cache"
-        self.kiss_tmpdir = Path(self.tmpdir) / "proc"
+        self.kominka_root = Path(self.tmpdir) / "root"
+        self.kominka_cache = Path(self.tmpdir) / "cache"
+        self.kominka_tmpdir = Path(self.tmpdir) / "proc"
 
         # Create the installed package database directory.
-        (self.kiss_root / "var/db/kiss/installed").mkdir(parents=True)
-        (self.kiss_root / "var/db/kiss/choices").mkdir(parents=True)
+        (self.kominka_root / "var/db/kominka/installed").mkdir(parents=True)
+        (self.kominka_root / "var/db/kominka/choices").mkdir(parents=True)
 
         self.env = {
             "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
             "HOME": self.tmpdir,
             "LOGNAME": os.environ.get("LOGNAME", "testuser"),
-            "KISS_PATH": str(REPO),
-            "KISS_ROOT": str(self.kiss_root),
-            "KISS_COLOR": "0",
-            "KISS_PROMPT": "0",
-            "KISS_COMPRESS": "gz",
-            "KISS_TMPDIR": str(self.kiss_tmpdir),
-            "XDG_CACHE_HOME": str(self.kiss_cache),
+            "KOMINKA_PATH": str(REPO),
+            "KOMINKA_ROOT": str(self.kominka_root),
+            "KOMINKA_COLOR": "0",
+            "KOMINKA_PROMPT": "0",
+            "KOMINKA_COMPRESS": "gz",
+            "KOMINKA_TMPDIR": str(self.kominka_tmpdir),
+            "XDG_CACHE_HOME": str(self.kominka_cache),
         }
 
     def tearDown(self):
@@ -69,13 +69,13 @@ class PMTestCase(unittest.TestCase):
         """Build and install a package into the test root."""
         self.pm("b", name)
         # Find the tarball and install it.
-        bin_dir = self.kiss_cache / "kiss" / "bin"
+        bin_dir = self.kominka_cache / "kominka" / "bin"
         tarballs = list(bin_dir.glob(f"{name}@*.tar.*"))
         self.assertTrue(tarballs, f"No tarball found for {name}")
         self.pm("i", str(tarballs[0]))
 
     def installed_db(self, name):
-        return self.kiss_root / "var/db/kiss/installed" / name
+        return self.kominka_root / "var/db/kominka/installed" / name
 
     def create_repo_pkg(self, name, version="1.0 1", depends="", build=None):
         """Create a minimal package in a temporary repo directory."""
@@ -91,8 +91,8 @@ class PMTestCase(unittest.TestCase):
         """).format(name=name)
         (repo / "build").write_text(build_script)
         (repo / "build").chmod(0o755)
-        # Prepend to KISS_PATH so it's found.
-        self.env["KISS_PATH"] = str(repo.parent) + ":" + self.env["KISS_PATH"]
+        # Prepend to KOMINKA_PATH so it's found.
+        self.env["KOMINKA_PATH"] = str(repo.parent) + ":" + self.env["KOMINKA_PATH"]
         return repo
 
 
@@ -101,7 +101,7 @@ class TestHelp(PMTestCase):
 
     def test_no_args_prints_usage(self):
         r = self.pm()
-        self.assertIn("kiss [a|b|c|d|i|l|r|s|u|U|v]", r.stderr)
+        self.assertIn("pm [a|b|c|d|i|l|r|s|u|U|v]", r.stderr)
 
     def test_no_args_mentions_all_commands(self):
         r = self.pm()
@@ -169,30 +169,30 @@ class TestBuild(PMTestCase):
     def test_build_simple_package(self):
         """Build a package with no dependencies."""
         self.pm("b", "samurai")
-        bin_dir = self.kiss_cache / "kiss" / "bin"
+        bin_dir = self.kominka_cache / "kominka" / "bin"
         tarballs = list(bin_dir.glob("samurai@*.tar.*"))
         self.assertEqual(len(tarballs), 1)
         self.assertIn("1.2-1", tarballs[0].name)
 
     def test_build_creates_tarball(self):
         self.pm("b", "zlib")
-        bin_dir = self.kiss_cache / "kiss" / "bin"
+        bin_dir = self.kominka_cache / "kominka" / "bin"
         tarballs = list(bin_dir.glob("zlib@*.tar.*"))
         self.assertTrue(tarballs)
 
     def test_build_with_dependencies(self):
         """Building curl should also build its deps (boringssl, zlib, musl)."""
         self.pm("b", "curl")
-        bin_dir = self.kiss_cache / "kiss" / "bin"
+        bin_dir = self.kominka_cache / "kominka" / "bin"
         # curl and its deps should all have tarballs.
         for pkg in ["curl", "boringssl", "zlib", "musl"]:
             tarballs = list(bin_dir.glob(f"{pkg}@*.tar.*"))
             self.assertTrue(tarballs, f"No tarball for dependency {pkg}")
 
-    def test_build_respects_kiss_compress(self):
+    def test_build_respects_kominka_compress(self):
         """Tarball should use the configured compression."""
-        self.pm("b", "samurai", env_override={"KISS_COMPRESS": "xz"})
-        bin_dir = self.kiss_cache / "kiss" / "bin"
+        self.pm("b", "samurai", env_override={"KOMINKA_COMPRESS": "xz"})
+        bin_dir = self.kominka_cache / "kominka" / "bin"
         tarballs = list(bin_dir.glob("samurai@*.tar.xz"))
         self.assertTrue(tarballs, "Expected .tar.xz tarball")
 
@@ -206,7 +206,7 @@ class TestInstall(PMTestCase):
 
     def test_install_from_tarball(self):
         self.pm("b", "samurai")
-        bin_dir = self.kiss_cache / "kiss" / "bin"
+        bin_dir = self.kominka_cache / "kominka" / "bin"
         tarball = list(bin_dir.glob("samurai@*.tar.*"))[0]
         self.pm("i", str(tarball))
 
@@ -219,8 +219,8 @@ class TestInstall(PMTestCase):
     def test_install_creates_files(self):
         self.install_pkg("samurai")
         # The mock build creates /usr/bin/samu and /usr/bin/ninja.
-        self.assertTrue((self.kiss_root / "usr/bin/samu").exists())
-        self.assertTrue((self.kiss_root / "usr/bin/ninja").exists())
+        self.assertTrue((self.kominka_root / "usr/bin/samu").exists())
+        self.assertTrue((self.kominka_root / "usr/bin/ninja").exists())
 
     def test_install_manifest_lists_files(self):
         self.install_pkg("samurai")
@@ -251,10 +251,10 @@ class TestInstall(PMTestCase):
             """),
         )
         self.pm("b", "samurai")
-        bin_dir = self.kiss_cache / "kiss" / "bin"
+        bin_dir = self.kominka_cache / "kominka" / "bin"
         tarball = sorted(bin_dir.glob("samurai@1.3*.tar.*"))[-1]
 
-        self.pm("i", str(tarball), env_override={"KISS_FORCE": "1"})
+        self.pm("i", str(tarball), env_override={"KOMINKA_FORCE": "1"})
         version = (self.installed_db("samurai") / "version").read_text().strip()
         self.assertEqual(version, "1.3 1")
 
@@ -271,10 +271,10 @@ class TestRemove(PMTestCase):
 
     def test_remove_cleans_files(self):
         self.install_pkg("samurai")
-        self.assertTrue((self.kiss_root / "usr/bin/samu").exists())
+        self.assertTrue((self.kominka_root / "usr/bin/samu").exists())
 
         self.pm("r", "samurai")
-        self.assertFalse((self.kiss_root / "usr/bin/samu").exists())
+        self.assertFalse((self.kominka_root / "usr/bin/samu").exists())
 
     def test_remove_not_installed_fails(self):
         r = self.pm("r", "samurai", check=False)
@@ -290,10 +290,10 @@ class TestRemove(PMTestCase):
         self.assertTrue(self.installed_db("musl").is_dir())
 
     def test_force_remove_with_dependents(self):
-        """KISS_FORCE=1 should allow removing even with dependents."""
+        """KOMINKA_FORCE=1 should allow removing even with dependents."""
         self.install_pkg("musl")
         self.install_pkg("boringssl")
-        self.pm("r", "musl", env_override={"KISS_FORCE": "1"})
+        self.pm("r", "musl", env_override={"KOMINKA_FORCE": "1"})
         self.assertFalse(self.installed_db("musl").exists())
 
 
@@ -327,13 +327,13 @@ class TestAlternatives(PMTestCase):
         self.install_pkg("editor-a")
 
         self.pm("b", "editor-b")
-        bin_dir = self.kiss_cache / "kiss" / "bin"
+        bin_dir = self.kominka_cache / "kominka" / "bin"
         tarball = list(bin_dir.glob("editor-b@*.tar.*"))[0]
         self.pm("i", str(tarball))
 
     def test_conflicting_files_become_alternatives(self):
         """Two packages owning the same file should create an alternative.
-        By default (KISS_CHOICE unset), safe conflicts are auto-converted."""
+        By default (KOMINKA_CHOICE unset), safe conflicts are auto-converted."""
         self._setup_alternatives()
 
         r = self.pm("a")
@@ -344,12 +344,12 @@ class TestAlternatives(PMTestCase):
         self._setup_alternatives()
 
         # editor-a currently owns /usr/bin/editor.
-        content = (self.kiss_root / "usr/bin/editor").read_text()
+        content = (self.kominka_root / "usr/bin/editor").read_text()
         self.assertEqual(content, "aaa")
 
         # Swap to editor-b.
         self.pm("a", "editor-b", "/usr/bin/editor")
-        content = (self.kiss_root / "usr/bin/editor").read_text()
+        content = (self.kominka_root / "usr/bin/editor").read_text()
         self.assertEqual(content, "bbb")
 
 
@@ -426,16 +426,16 @@ class TestEtcHandling(PMTestCase):
         """Files in /etc/ should be installed."""
         self.install_pkg("busybox")
         self.assertTrue(
-            (self.kiss_root / "etc/mdev.conf").exists()
+            (self.kominka_root / "etc/mdev.conf").exists()
         )
 
     def test_etc_modified_preserved_on_remove(self):
         """Modified /etc/ files should be preserved on package removal."""
         self.install_pkg("busybox")
-        conf = self.kiss_root / "etc/mdev.conf"
+        conf = self.kominka_root / "etc/mdev.conf"
         conf.write_text("# user modified config\n")
 
-        self.pm("r", "busybox", env_override={"KISS_FORCE": "1"})
+        self.pm("r", "busybox", env_override={"KOMINKA_FORCE": "1"})
         # Modified config file should be preserved (not deleted).
         self.assertTrue(conf.exists())
 
@@ -447,7 +447,7 @@ class TestDependencyResolution(PMTestCase):
         """curl depends on boringssl and zlib; boringssl depends on musl.
         All should be built."""
         self.pm("b", "curl")
-        bin_dir = self.kiss_cache / "kiss" / "bin"
+        bin_dir = self.kominka_cache / "kominka" / "bin"
         for pkg in ["musl", "zlib", "boringssl", "curl"]:
             self.assertTrue(
                 list(bin_dir.glob(f"{pkg}@*.tar.*")),
@@ -487,7 +487,7 @@ class TestBuildEnvironment(PMTestCase):
         """)
         self.create_repo_pkg("ver-check", version="3.14 1", build=build)
         self.pm("b", "ver-check")
-        bin_dir = self.kiss_cache / "kiss" / "bin"
+        bin_dir = self.kominka_cache / "kominka" / "bin"
         tarballs = list(bin_dir.glob("ver-check@*.tar.*"))
         self.assertTrue(tarballs)
         self.assertIn("3.14-1", tarballs[0].name)
@@ -521,21 +521,21 @@ class TestInvalidArgs(PMTestCase):
         self.assertNotEqual(r.returncode, 0)
 
 
-class TestKissDebug(PMTestCase):
-    """Test KISS_DEBUG behavior."""
+class TestKominkaDebug(PMTestCase):
+    """Test KOMINKA_DEBUG behavior."""
 
     def test_debug_preserves_build_dir(self):
-        """KISS_DEBUG=1 should not clean up the build cache."""
-        self.pm("b", "samurai", env_override={"KISS_DEBUG": "1"})
+        """KOMINKA_DEBUG=1 should not clean up the build cache."""
+        self.pm("b", "samurai", env_override={"KOMINKA_DEBUG": "1"})
         # The proc directory should still exist.
-        self.assertTrue(self.kiss_tmpdir.exists())
+        self.assertTrue(self.kominka_tmpdir.exists())
 
     def test_no_debug_cleans_build_dir(self):
-        """Without KISS_DEBUG, build artifacts should be cleaned up."""
+        """Without KOMINKA_DEBUG, build artifacts should be cleaned up."""
         self.pm("b", "samurai")
         # Contents under the PID-specific proc dir should be gone.
         # The parent tmpdir may still exist, but the build dirs inside should not.
-        proc_contents = list(self.kiss_tmpdir.glob("*/build"))
+        proc_contents = list(self.kominka_tmpdir.glob("*/build"))
         self.assertEqual(proc_contents, [])
 
 

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Download all remote sources for vendored KISS packages.
+# Download all remote sources for vendored Kominka packages.
 # Run once to populate tests/fixtures/sources/.
 set -e
 

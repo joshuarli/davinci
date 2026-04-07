@@ -7,24 +7,24 @@ var PATH = ''
 var PWD = ''
 var OLDPWD = ''
 var XDG_CACHE_HOME = ''
-var KISS_ROOT = ''
-var KISS_PATH = ''
-var KISS_COLOR = ''
-var KISS_PROMPT = ''
-var KISS_COMPRESS = ''
-var KISS_PID = ''
-var KISS_FORCE = ''
-var KISS_CHOICE = ''
-var KISS_DEBUG = ''
-var KISS_STRIP = ''
-var KISS_HOOK = ''
-var KISS_TMPDIR = ''
-var KISS_KEEPLOG = ''
-var KISS_SU = ''
-var KISS_ELF = ''
-var KISS_CHK = ''
-var KISS_GET = ''
-var _KISS_LVL = 0
+var KOMINKA_ROOT = ''
+var KOMINKA_PATH = ''
+var KOMINKA_COLOR = ''
+var KOMINKA_PROMPT = ''
+var KOMINKA_COMPRESS = ''
+var KOMINKA_PID = ''
+var KOMINKA_FORCE = ''
+var KOMINKA_CHOICE = ''
+var KOMINKA_DEBUG = ''
+var KOMINKA_STRIP = ''
+var KOMINKA_HOOK = ''
+var KOMINKA_TMPDIR = ''
+var KOMINKA_KEEPLOG = ''
+var KOMINKA_SU = ''
+var KOMINKA_ELF = ''
+var KOMINKA_CHK = ''
+var KOMINKA_GET = ''
+var _KOMINKA_LVL = 0
 var CC = ''
 var CXX = ''
 var DESTDIR = ''
@@ -157,7 +157,7 @@ proc prompt (msg='') {
     }
     log "Continue?: Press Enter to continue or Ctrl+C to abort"
 
-    if (KISS_PROMPT !== '0') {
+    if (KOMINKA_PROMPT !== '0') {
         read --raw-line || exit 1
     }
 }
@@ -251,7 +251,7 @@ proc pkg_owner (...args) {
 }
 
 proc resolve_path (path) {
-    var rpath = "${KISS_ROOT}/${path#/}"
+    var rpath = "${KOMINKA_ROOT}/${path#/}"
 
     if cd -P "${rpath%/*}" 2>/dev/null {
         var parent = PWD
@@ -260,14 +260,14 @@ proc resolve_path (path) {
         setvar parent = ${rpath%/*}
     }
 
-    setglobal _rpath = "${parent#"$KISS_ROOT"}/${rpath##*/}"
+    setglobal _rpath = "${parent#"$KOMINKA_ROOT"}/${rpath##*/}"
 }
 
 proc run_hook (hook_name, ...args) {
-    ### Run all hooks in KISS_HOOK (colon-separated list of file paths).
-    if (KISS_HOOK === '') { return }
+    ### Run all hooks in KOMINKA_HOOK (colon-separated list of file paths).
+    if (KOMINKA_HOOK === '') { return }
 
-    for hook in (KISS_HOOK => split(':')) {
+    for hook in (KOMINKA_HOOK => split(':')) {
         if (hook !== '') {
             try { $hook @args }
             if failed { die "$hook_name hook failed: '$hook'" }
@@ -384,8 +384,8 @@ proc pkg_find (name, mode='', test_flag='', search_path='') {
 }
 
 proc _pkg_find (name, mode='', test_flag='', search_path='') {
-    ### Search KISS_PATH for directories matching a package name.
-    var spath = search_path if (search_path !== '') else KISS_PATH
+    ### Search KOMINKA_PATH for directories matching a package name.
+    var spath = search_path if (search_path !== '') else KOMINKA_PATH
     var flag = test_flag if (test_flag !== '') else '-d'
     var results = []
 
@@ -435,7 +435,7 @@ proc pkg_cache (pkg) {
     ### Find the tarball of a package in the binary cache.
     pkg_find_version $pkg
 
-    setglobal tar_file = "${bin_dir}/${pkg}@${repo_ver}-${repo_rel}.tar.${KISS_COMPRESS}"
+    setglobal tar_file = "${bin_dir}/${pkg}@${repo_ver}-${repo_rel}.tar.${KOMINKA_COMPRESS}"
 
     if test -f $tar_file {
         return 0
@@ -623,14 +623,14 @@ proc pkg_source_tar (file) {
             ?* {
                 if ! test -d $dir { continue }
 
-                mv -f $dir "${KISS_PID}-${dir}"
+                mv -f $dir "${KOMINKA_PID}-${dir}"
 
-                find "${KISS_PID}-${dir}/." ! -name . -prune \
+                find "${KOMINKA_PID}-${dir}/." ! -name . -prune \
                     -exec sh -c 'mv -f "$0" "$@" .' {} + 2>/dev/null \
-                || find "${KISS_PID}-${dir}/." ! -name . -prune \
+                || find "${KOMINKA_PID}-${dir}/." ! -name . -prune \
                     -exec sh -c 'cp -fRp "$0" "$@" .' {} +
 
-                rm -rf "${KISS_PID}-${dir}"
+                rm -rf "${KOMINKA_PID}-${dir}"
             }
         }
     } < $[tf[-1]]
@@ -754,7 +754,7 @@ proc pkg_strip (pkg) {
     if test -f "${mak_dir}/${pkg}/nostrip" {
         return
     }
-    if (KISS_STRIP === '0') {
+    if (KOMINKA_STRIP === '0') {
         return
     }
 
@@ -947,11 +947,11 @@ proc pkg_tar (pkg) {
     ### Create a compressed tarball from the built package.
     log $pkg "Creating tarball"
 
-    var tf_path = "${bin_dir}/${pkg}@${repo_ver}-${repo_rel}.tar.${KISS_COMPRESS}"
+    var tf_path = "${bin_dir}/${pkg}@${repo_ver}-${repo_rel}.tar.${KOMINKA_COMPRESS}"
 
     cd "${pkg_dir}/${pkg}"
 
-    tar cf - . | case (KISS_COMPRESS) {
+    tar cf - . | case (KOMINKA_COMPRESS) {
         bz2  { bzip2 -z }
         gz   { gzip -6 }
         lzma { lzma -z }
@@ -1027,8 +1027,8 @@ proc pkg_build_all (...pkgs) {
             if ! failed {
                 log $pkg "Found pre-built binary"
                 forkwait {
-                    setglobal ENV.KISS_FORCE = '1'
-                    setglobal KISS_FORCE = '1'
+                    setglobal ENV.KOMINKA_FORCE = '1'
+                    setglobal KOMINKA_FORCE = '1'
                     args i $tar_file
                 }
                 continue
@@ -1071,14 +1071,14 @@ proc pkg_build_all (...pkgs) {
         if (prefer_cache === '1' or not (pkg in explicit_seen)) {
             log $pkg "Needed as a dependency or has an update, installing"
             forkwait {
-                setglobal ENV.KISS_FORCE = '1'
-                setglobal KISS_FORCE = '1'
+                setglobal ENV.KOMINKA_FORCE = '1'
+                setglobal KOMINKA_FORCE = '1'
                 args i $pkg
             }
         }
     }
 
-    if (build_install === '1' and KISS_PROMPT === '1') {
+    if (build_install === '1' and KOMINKA_PROMPT === '1') {
         try { prompt "Install built packages? [$[explicit => join(' ')]]" }
         if ! failed {
             forkwait { args i @explicit }
@@ -1095,7 +1095,7 @@ proc pkg_build (pkg) {
     run_hook pre-build $pkg "${mak_dir}/${pkg}"
 
     # Create log file early to catch permission errors.
-    true > "${log_dir}/${pkg}-${time_str}-${KISS_PID}"
+    true > "${log_dir}/${pkg}-${time_str}-${KOMINKA_PID}"
 
     # Prefer build.ysh (run with ysh) over build (run with sh).
     var build_cmd = []
@@ -1115,21 +1115,21 @@ proc pkg_build (pkg) {
         RUSTFLAGS="--remap-path-prefix=$PWD=. ${RUSTFLAGS:-}" \
         GOFLAGS="-trimpath -modcacherw ${GOFLAGS:-}" \
         GOPATH="${PWD}/go" \
-        KISS_ROOT="${KISS_ROOT}" \
+        KOMINKA_ROOT="${KOMINKA_ROOT}" \
         \
         @build_cmd "${pkg_dir}/${pkg}" $repo_ver 2>&1 || {
             log $pkg "Build failed"
-            log $pkg "Log stored to ${log_dir}/${pkg}-${time_str}-${KISS_PID}"
+            log $pkg "Log stored to ${log_dir}/${pkg}-${time_str}-${KOMINKA_PID}"
 
             try { forkwait { run_hook build-fail $pkg "${mak_dir}/${pkg}" } }
 
             pkg_clean
             kill 0
         }
-    } | tee "${log_dir}/${pkg}-${time_str}-${KISS_PID}"
+    } | tee "${log_dir}/${pkg}-${time_str}-${KOMINKA_PID}"
 
-    if (KISS_KEEPLOG !== '1') {
-        rm -f "${log_dir}/${pkg}-${time_str}-${KISS_PID}"
+    if (KOMINKA_KEEPLOG !== '1') {
+        rm -f "${log_dir}/${pkg}-${time_str}-${KOMINKA_PID}"
     }
 
     cp -LRf $repo_dir "${pkg_dir}/${pkg}/${pkg_db}/"
@@ -1239,12 +1239,12 @@ proc pkg_conflicts (pkg) {
 
     # Check if it's safe to auto-enable alternatives.
     var safe = ''
-    if ! grep -q ":/var/db/kiss/installed/" $[tf[-1]] 2>/dev/null {
+    if ! grep -q ":/var/db/kominka/installed/" $[tf[-1]] 2>/dev/null {
         setvar safe = '1'
     }
 
     if test -s $[tf[-1]] {
-        if (KISS_CHOICE !== '1' and safe === '1') {
+        if (KOMINKA_CHOICE !== '1' and safe === '1') {
             while IFS=: read -r _ con {
                 write -- "Found conflict $con"
 
@@ -1262,12 +1262,12 @@ proc pkg_conflicts (pkg) {
                 }
             } < $[tf[-1]]
 
-            log $pkg "Converted all conflicts to choices (kiss a)"
+            log $pkg "Converted all conflicts to choices (pm a)"
 
             pkg_manifest $pkg $tar_dir
         } else {
             log "Package '$pkg' conflicts with another package" '' '!>'
-            log "Run 'KISS_CHOICE=1 kiss i $pkg' to add conflicts" '' '!>'
+            log "Run 'KOMINKA_CHOICE=1 pm i $pkg' to add conflicts" '' '!>'
             die "as alternatives." '' '!>'
         }
     }
@@ -1302,17 +1302,17 @@ proc pkg_swap (pkg, path='') {
         die "Alternative '$pkg ${path:-null}' doesn't exist"
     }
 
-    if test -f "${KISS_ROOT}${path}" {
+    if test -f "${KOMINKA_ROOT}${path}" {
         try { pkg_owner "/${path#/}" }
         if failed { die "File '$path' exists on filesystem but isn't owned" }
 
         log "Swapping '$path' from '$_owns' to '$pkg'"
 
-        cp -Pf "${KISS_ROOT}${path}" "${sys_ch}/${_owns}>${_fnr_val#*>}"
+        cp -Pf "${KOMINKA_ROOT}${path}" "${sys_ch}/${_owns}>${_fnr_val#*>}"
         pkg_manifest_replace $_owns $path "/${cho_db}/${_owns}>${_fnr_val#*>}"
     }
 
-    mv -f "${sys_ch}/${_fnr_val}" "${KISS_ROOT}/${path}"
+    mv -f "${sys_ch}/${_fnr_val}" "${KOMINKA_ROOT}/${path}"
     pkg_manifest_replace $pkg "/${cho_db}/${_fnr_val}" $path
 }
 
@@ -1341,7 +1341,7 @@ proc file_rwx (path) {
 proc pkg_install_files (test_flag, src_dir) {
     ### Copy files and create directories, preserving permissions.
     while read -r file {
-        setglobal _file = "${KISS_ROOT}${file}"
+        setglobal _file = "${KOMINKA_ROOT}${file}"
 
         case (file) {
             */ {
@@ -1363,7 +1363,7 @@ proc pkg_install_files (test_flag, src_dir) {
                 if test -h $_file {
                     cp -fP "${src_dir}${file}" "${_file%/*}/."
                 } else {
-                    var __tmp = "${_file%/*}/__kiss-tmp-${_pkg}-${file##*/}-${KISS_PID}"
+                    var __tmp = "${_file%/*}/__kominka-tmp-${_pkg}-${file##*/}-${KOMINKA_PID}"
                     cp -fP "${src_dir}${file}" $__tmp \
                         && mv -f $__tmp $_file
                 }
@@ -1378,7 +1378,7 @@ proc pkg_remove_files () {
 
     while read -r file {
         if (file => startsWith('/etc/') and len(file) > 5 and not file => endsWith('/')) {
-            sh256 "${KISS_ROOT}/${file}" >/dev/null
+            sh256 "${KOMINKA_ROOT}/${file}" >/dev/null
 
             read -r sum_pkg <&3 || true
 
@@ -1388,7 +1388,7 @@ proc pkg_remove_files () {
             }
         }
 
-        var _file = "${KISS_ROOT:+"${KISS_ROOT}/"}${file%%/}"
+        var _file = "${KOMINKA_ROOT:+"${KOMINKA_ROOT}/"}${file%%/}"
 
         if test -h $_file {
             if test -d $_file {
@@ -1413,7 +1413,7 @@ proc pkg_remove_files () {
 
 proc pkg_etc (file) {
     ### Handle /etc/ file installation with 3-way checksum merge.
-    sh256 "${tar_dir}/${_pkg}${file}" "${KISS_ROOT}${file}" >/dev/null
+    sh256 "${tar_dir}/${_pkg}${file}" "${KOMINKA_ROOT}${file}" >/dev/null
 
     var hash_parts = hash => split(\n)
     var sum_new = hash_parts[0]
@@ -1472,7 +1472,7 @@ proc pkg_remove (pkg) {
 
     trap_off
 
-    if (KISS_FORCE !== '1') {
+    if (KOMINKA_FORCE !== '1') {
         pkg_removable $pkg
     }
 
@@ -1535,10 +1535,10 @@ proc pkg_install (pkg) {
     decompress $tar_file | tar xf -
 
     if ! test -f "${PWD}/${pkg_db}/${_pkg}/manifest" {
-        die "Not a valid KISS package"
+        die "Not a valid package"
     }
 
-    if (KISS_FORCE !== '1') {
+    if (KOMINKA_FORCE !== '1') {
         pkg_manifest_validate $_pkg
         pkg_installable $_pkg "${PWD}/${pkg_db}/${_pkg}/depends"
     }
@@ -1581,9 +1581,9 @@ proc pkg_install (pkg) {
 proc pkg_update () {
     log "Updating repositories"
 
-    var kiss_paths = KISS_PATH => split(':')
+    var kominka_paths = KOMINKA_PATH => split(':')
 
-    for path in (kiss_paths) {
+    for path in (kominka_paths) {
         var repo = path
         var repo_type = ''
 
@@ -1666,7 +1666,7 @@ proc pkg_upgrade () {
 
         # Detect repository orphans.
         case (repo_dir) {
-            */var/db/kiss/installed/* {
+            */var/db/kominka/installed/* {
                 call repo_orphans->append(pkg)
             }
         }
@@ -1685,13 +1685,13 @@ proc pkg_upgrade () {
     setglobal build_install = '0'
     setglobal prefer_cache = '1'
 
-    if (contains(to_update, 'kiss')) {
+    if (contains(to_update, 'kominka')) {
         log "Detected package manager update"
         log "The package manager will be updated first"
         prompt
-        pkg_build_all kiss
+        pkg_build_all pm
         log "Updated the package manager"
-        log "Re-run 'kiss update' to update your system"
+        log "Re-run 'pm update' to update your system"
         return
     }
 
@@ -1709,23 +1709,23 @@ proc pkg_upgrade () {
 
 proc pkg_clean () {
     ### Clean up build files. Top-level process removes everything.
-    case ("${KISS_DEBUG:-0}-${_KISS_LVL:-1}") {
+    case ("${KOMINKA_DEBUG:-0}-${_KOMINKA_LVL:-1}") {
         0-1 { rm -rf $proc_dir }
         0-* { rm -rf $tar_dir }
     }
 }
 
 proc pkg_help_ext () {
-    log 'Installed extensions (kiss-* in PATH)'
+    log 'Installed extensions (pm-* in PATH)'
 
     var exts = []
-    try { setvar exts = @(pkg_find 'kiss-*' all -x "$PATH" 2>/dev/null) }
+    try { setvar exts = @(pkg_find 'pm-*' all -x "$PATH" 2>/dev/null) }
 
     var seen = {}
     var max_len = 0
 
     for path in (exts) {
-        var p = ${path#*/kiss-}
+        var p = ${path#*/pm-}
         if (p in seen) { continue }
         setvar seen[p] = true
         if (len(p) > max_len) {
@@ -1734,7 +1734,7 @@ proc pkg_help_ext () {
     }
 
     for path in (exts) {
-        setvar p = ${path#*/kiss-}
+        setvar p = ${path#*/pm-}
         if (not (p in seen)) { continue }
 
         var cmt = ''
@@ -1796,9 +1796,9 @@ proc args (action='', ...pkgs) {
                 l | list { true }
                 * {
                     if (len(pkgs) === 0) {
-                        var _new_path = "${PWD%/*}:${KISS_PATH}"
-                        setglobal ENV.KISS_PATH = _new_path
-                        setglobal KISS_PATH = _new_path
+                        var _new_path = "${PWD%/*}:${KOMINKA_PATH}"
+                        setglobal ENV.KOMINKA_PATH = _new_path
+                        setglobal KOMINKA_PATH = _new_path
                         setvar pkgs = ["${PWD##*/}"]
                     }
                 }
@@ -1807,9 +1807,9 @@ proc args (action='', ...pkgs) {
             # Search installed database first when removing.
             case (action) {
                 r | remove {
-                    var _rm_path = "${sys_db}:${KISS_PATH}"
-                    setglobal ENV.KISS_PATH = _rm_path
-                    setglobal KISS_PATH = _rm_path
+                    var _rm_path = "${sys_db}:${KOMINKA_PATH}"
+                    setglobal ENV.KOMINKA_PATH = _rm_path
+                    setglobal KOMINKA_PATH = _rm_path
                 }
             }
 
@@ -1818,14 +1818,14 @@ proc args (action='', ...pkgs) {
         }
     }
 
-    setglobal _KISS_LVL = _KISS_LVL + 1
-    setglobal ENV._KISS_LVL = "$[_KISS_LVL]"
+    setglobal _KOMINKA_LVL = _KOMINKA_LVL + 1
+    setglobal ENV._KOMINKA_LVL = "$[_KOMINKA_LVL]"
 
     # Rerun as root if needed for install/remove/alternatives.
     case (action) {
         a | alternatives | i | install | r | remove {
             if (len(pkgs) > 0) {
-                try { am_owner "${KISS_ROOT}/" }
+                try { am_owner "${KOMINKA_ROOT}/" }
                 if failed {
                     trap_off
 
@@ -1833,15 +1833,15 @@ proc args (action='', ...pkgs) {
                         LOGNAME="$user" \
                         HOME="$HOME" \
                         XDG_CACHE_HOME="${XDG_CACHE_HOME:-}" \
-                        KISS_COMPRESS="$KISS_COMPRESS" \
-                        KISS_PATH="$KISS_PATH" \
-                        KISS_FORCE="${KISS_FORCE:-}" \
-                        KISS_ROOT="${KISS_ROOT:-}" \
-                        KISS_CHOICE="${KISS_CHOICE:-}" \
-                        KISS_COLOR="${KISS_COLOR:-}" \
-                        KISS_TMPDIR="${KISS_TMPDIR:-}" \
-                        KISS_PID="$KISS_PID" \
-                        _KISS_LVL="$_KISS_LVL" \
+                        KOMINKA_COMPRESS="$KOMINKA_COMPRESS" \
+                        KOMINKA_PATH="$KOMINKA_PATH" \
+                        KOMINKA_FORCE="${KOMINKA_FORCE:-}" \
+                        KOMINKA_ROOT="${KOMINKA_ROOT:-}" \
+                        KOMINKA_CHOICE="${KOMINKA_CHOICE:-}" \
+                        KOMINKA_COLOR="${KOMINKA_COLOR:-}" \
+                        KOMINKA_TMPDIR="${KOMINKA_TMPDIR:-}" \
+                        KOMINKA_PID="$KOMINKA_PID" \
+                        _KOMINKA_LVL="$_KOMINKA_LVL" \
                         $0 $action @pkgs
 
                     trap_on
@@ -1866,7 +1866,7 @@ proc args (action='', ...pkgs) {
         v | version      { write -- '5.5.28' }
 
         '' {
-            log 'kiss [a|b|c|d|i|l|r|s|u|U|v] [pkg]...'
+            log 'pm [a|b|c|d|i|l|r|s|u|U|v] [pkg]...'
             log 'alternatives List and swap alternatives'
             log 'build        Build packages'
             log 'checksum     Generate checksums'
@@ -1879,39 +1879,39 @@ proc args (action='', ...pkgs) {
             log 'upgrade      Update the system'
             log 'version      Package manager version'
             write -- ''
-            write -- 'Run "kiss [H|help-ext]" to see all actions'
+            write -- 'Run "pm [H|help-ext]" to see all actions'
         }
 
         * {
             # Extension dispatch.
-            pkg_find "kiss-${action}*" '' -x "$PATH"
-            _KISS_LVL=0 $repo_dir @pkgs
+            pkg_find "pm-${action}*" '' -x "$PATH"
+            _KOMINKA_LVL=0 $repo_dir @pkgs
         }
     }
 }
 
 proc create_tmp_dirs () {
-    # Normalize KISS_ROOT — strip trailing slashes.
-    setglobal KISS_ROOT = ${KISS_ROOT%"${KISS_ROOT##*[!/]}"}
+    # Normalize KOMINKA_ROOT — strip trailing slashes.
+    setglobal KOMINKA_ROOT = ${KOMINKA_ROOT%"${KOMINKA_ROOT##*[!/]}"}
 
-    mkdir -p "${KISS_ROOT}/" 2>/dev/null || true
+    mkdir -p "${KOMINKA_ROOT}/" 2>/dev/null || true
 
-    setglobal pkg_db = 'var/db/kiss/installed'
-    setglobal cho_db = 'var/db/kiss/choices'
-    setglobal sys_db = "${KISS_ROOT}/${pkg_db}"
-    setglobal sys_ch = "${KISS_ROOT}/${cho_db}"
+    setglobal pkg_db = 'var/db/kominka/installed'
+    setglobal cho_db = 'var/db/kominka/choices'
+    setglobal sys_db = "${KOMINKA_ROOT}/${pkg_db}"
+    setglobal sys_ch = "${KOMINKA_ROOT}/${cho_db}"
 
     # Persistent cache directories.
     setglobal cac_dir = "${XDG_CACHE_HOME:-"${HOME%"${HOME##*[!/]}"}/.cache"}"
-    setglobal cac_dir = "${cac_dir%"${cac_dir##*[!/]}"}/kiss"
+    setglobal cac_dir = "${cac_dir%"${cac_dir##*[!/]}"}/kominka"
 
     setglobal src_dir = "${cac_dir}/sources"
     setglobal log_dir = "${cac_dir}/logs/${time_str%-*}"
     setglobal bin_dir = "${cac_dir}/bin"
 
     # Temporary cache directories.
-    setglobal proc_dir = "${KISS_TMPDIR:-"${cac_dir}/proc"}"
-    setglobal proc_dir = "${proc_dir%"${proc_dir##*[!/]}"}/${KISS_PID}"
+    setglobal proc_dir = "${KOMINKA_TMPDIR:-"${cac_dir}/proc"}"
+    setglobal proc_dir = "${proc_dir%"${proc_dir##*[!/]}"}/${KOMINKA_PID}"
 
     setglobal mak_dir = "${proc_dir}/build"
     setglobal pkg_dir = "${proc_dir}/pkg"
@@ -1940,36 +1940,36 @@ proc main (...argv) {
     setglobal LOGNAME        = ENV => get("LOGNAME", "")
     setglobal PATH           = ENV => get("PATH", "")
     setglobal XDG_CACHE_HOME = ENV => get("XDG_CACHE_HOME", "")
-    setglobal KISS_ROOT      = ENV => get("KISS_ROOT", "")
-    setglobal KISS_PATH      = ENV => get("KISS_PATH", "")
-    setglobal KISS_COLOR     = ENV => get("KISS_COLOR", "")
-    setglobal KISS_PROMPT    = ENV => get("KISS_PROMPT", "")
-    setglobal KISS_FORCE     = ENV => get("KISS_FORCE", "")
-    setglobal KISS_CHOICE    = ENV => get("KISS_CHOICE", "")
-    setglobal KISS_DEBUG     = ENV => get("KISS_DEBUG", "")
-    setglobal KISS_STRIP     = ENV => get("KISS_STRIP", "")
-    setglobal KISS_HOOK      = ENV => get("KISS_HOOK", "")
-    setglobal KISS_TMPDIR    = ENV => get("KISS_TMPDIR", "")
-    setglobal KISS_KEEPLOG   = ENV => get("KISS_KEEPLOG", "")
-    setglobal KISS_SU        = ENV => get("KISS_SU", "")
-    setglobal KISS_ELF       = ENV => get("KISS_ELF", "")
-    setglobal KISS_CHK       = ENV => get("KISS_CHK", "")
-    setglobal KISS_GET       = ENV => get("KISS_GET", "")
-    var _lvl_str = ENV => get("_KISS_LVL", "0") => trim()
+    setglobal KOMINKA_ROOT      = ENV => get("KOMINKA_ROOT", "")
+    setglobal KOMINKA_PATH      = ENV => get("KOMINKA_PATH", "")
+    setglobal KOMINKA_COLOR     = ENV => get("KOMINKA_COLOR", "")
+    setglobal KOMINKA_PROMPT    = ENV => get("KOMINKA_PROMPT", "")
+    setglobal KOMINKA_FORCE     = ENV => get("KOMINKA_FORCE", "")
+    setglobal KOMINKA_CHOICE    = ENV => get("KOMINKA_CHOICE", "")
+    setglobal KOMINKA_DEBUG     = ENV => get("KOMINKA_DEBUG", "")
+    setglobal KOMINKA_STRIP     = ENV => get("KOMINKA_STRIP", "")
+    setglobal KOMINKA_HOOK      = ENV => get("KOMINKA_HOOK", "")
+    setglobal KOMINKA_TMPDIR    = ENV => get("KOMINKA_TMPDIR", "")
+    setglobal KOMINKA_KEEPLOG   = ENV => get("KOMINKA_KEEPLOG", "")
+    setglobal KOMINKA_SU        = ENV => get("KOMINKA_SU", "")
+    setglobal KOMINKA_ELF       = ENV => get("KOMINKA_ELF", "")
+    setglobal KOMINKA_CHK       = ENV => get("KOMINKA_CHK", "")
+    setglobal KOMINKA_GET       = ENV => get("KOMINKA_GET", "")
+    var _lvl_str = ENV => get("_KOMINKA_LVL", "0") => trim()
     if (_lvl_str === '') { setvar _lvl_str = "0" }
-    setglobal _KISS_LVL = int(_lvl_str)
+    setglobal _KOMINKA_LVL = int(_lvl_str)
     setglobal CC             = ENV => get("CC", "")
     setglobal CXX            = ENV => get("CXX", "")
     setglobal DESTDIR        = ENV => get("DESTDIR", "")
     setglobal GOPATH         = ENV => get("GOPATH", "")
     setglobal GOFLAGS        = ENV => get("GOFLAGS", "")
-    setglobal KISS_COMPRESS  = ENV => get("KISS_COMPRESS", "")
+    setglobal KOMINKA_COMPRESS  = ENV => get("KOMINKA_COMPRESS", "")
 
     setglobal PWD = $(pwd)
     setglobal ppwd = PWD
 
-    # Color setup — disabled via KISS_COLOR=0 or non-tty stderr.
-    if (KISS_COLOR !== '0') {
+    # Color setup — disabled via KOMINKA_COLOR=0 or non-tty stderr.
+    if (KOMINKA_COLOR !== '0') {
       if test -t 2 {
         setglobal c1 = u'\u{1b}[1;33m'
         setglobal c2 = u'\u{1b}[1;34m'
@@ -1977,24 +1977,24 @@ proc main (...argv) {
       }
     }
 
-    if (KISS_COMPRESS === '') { setglobal KISS_COMPRESS = 'gz' }
-    setglobal KISS_PID = ${KISS_PID:-$$}
+    if (KOMINKA_COMPRESS === '') { setglobal KOMINKA_COMPRESS = 'gz' }
+    setglobal KOMINKA_PID = ${KOMINKA_PID:-$$}
 
     if (LOGNAME === '') {
         die "POSIX requires LOGNAME be set"
     }
 
     # Discover tools via fallback chains.
-    setglobal cmd_su = $(_discover_tool $KISS_SU ssu sudo doas su)
+    setglobal cmd_su = $(_discover_tool $KOMINKA_SU ssu sudo doas su)
     if (cmd_su === '') { setglobal cmd_su = 'su' }
 
-    setglobal cmd_elf = $(_discover_tool $KISS_ELF readelf eu-readelf llvm-readelf)
+    setglobal cmd_elf = $(_discover_tool $KOMINKA_ELF readelf eu-readelf llvm-readelf)
     if (cmd_elf === '') { setglobal cmd_elf = 'ldd' }
 
-    setglobal cmd_sha = $(_discover_tool $KISS_CHK openssl sha256sum sha256 shasum digest)
+    setglobal cmd_sha = $(_discover_tool $KOMINKA_CHK openssl sha256sum sha256 shasum digest)
     if (cmd_sha === '') { die "No sha256 utility found" }
 
-    setglobal cmd_get = $(_discover_tool $KISS_GET aria2c curl wget wget2)
+    setglobal cmd_get = $(_discover_tool $KOMINKA_GET aria2c curl wget wget2)
     if (cmd_get === '') { die "No download utility found (aria2c, axel, curl, wget, wget2)" }
 
     setglobal time_str = $(date +%Y-%m-%d-%H:%M)

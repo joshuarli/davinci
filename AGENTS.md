@@ -1,19 +1,18 @@
 # davinci
 
-A project to build a complete Linux distribution using the KISS package manager
+A project to build a complete Linux distribution using the Kominka package manager
 (`pm`), with the eventual goal of porting the package manager to YSH and
 building an installer ISO. The YSH port (`pm.ysh`) is in progress.
 
 ## Repository Structure
 
 ```
-pm                          # The package manager (KISS 5.5.28, pure POSIX shell)
-pm.ysh                      # YSH port of pm (prefers build.ysh over build)
+pm.ysh                      # The package manager (YSH, forked from KLPM 5.5.28)
 YSH.md                      # YSH language reference and gotchas
 Makefile                    # Build/boot/test orchestration
-Dockerfile.boot             # Multi-stage: ysh + KISS rootfs + disk image
+Dockerfile.boot             # Multi-stage: ysh + Kominka rootfs + disk image
 Dockerfile.linux            # Custom kernel build (tinyconfig + kernel.config)
-Dockerfile.iso              # Installer disk image (references kiss-boot + kiss-kernel)
+Dockerfile.iso              # Installer disk image (references kominka-boot + kominka-kernel)
 build_image.sh              # Disk image assembly (runs inside Docker)
 build_iso.sh                # Installer image assembly (runs inside Docker)
 install.sh                  # Interactive installer script (runs on live rootfs)
@@ -22,19 +21,17 @@ TODO.md                     # Pending work items
 tests/
   test_pm.py                # Unit-level integration tests (run on macOS/Linux, no Docker)
   test_pm_cheap.py          # Fast tests (search, list, deps, checksum) — no Docker, no builds
-  test_docker_build.py      # Full build tests using POSIX pm in Alpine Docker
   test_docker_build_ysh.py  # Full build tests using pm.ysh in Alpine Docker (with ysh)
-  Dockerfile                # Alpine-based image with build toolchain (POSIX pm)
   Dockerfile.ysh            # Alpine-based image with ysh + build toolchain (pm.ysh)
   download_sources.sh       # Downloads upstream source tarballs to fixtures/sources/
   localize_sources.sh       # Rewrites sources files to use local paths
   fixtures/
-    repo/                   # Vendored KISS package definitions (20 packages from kisslinux/repo core)
+    repo/                   # Vendored Kominka package definitions (20 packages from the upstream repo)
       <package>/
         build               # Build script (POSIX shell, executable)
         build.ysh           # YSH build script (optional, preferred by pm.ysh)
         version             # "VERSION RELEASE" format
-        sources             # Source URLs/paths (localized to /home/kiss/sources/...)
+        sources             # Source URLs/paths (localized to /home/kominka/sources/...)
         checksums           # SHA256 checksums, one per source line
         depends             # Dependencies (optional)
         patches/            # Patch files (optional)
@@ -46,20 +43,20 @@ tests/
 
 ## How `pm` Works
 
-`pm` is Dylan Araps' KISS package manager (v5.5.28), a ~2000-line POSIX shell
+`pm` is a YSH port of Dylan Araps' package manager (v5.5.28), a ~2000-line
 script. It handles the full package lifecycle:
 
 ### Key Concepts
 
-- **KISS_PATH**: Colon-separated list of repository directories to search for
+- **KOMINKA_PATH**: Colon-separated list of repository directories to search for
   packages. Each package is a directory containing `build`, `version`, and
   optionally `sources`, `checksums`, `depends`.
-- **KISS_ROOT**: Target root filesystem. All packages install relative to this.
+- **KOMINKA_ROOT**: Target root filesystem. All packages install relative to this.
   Defaults to `/`. Used for chroot/cross builds.
-- **Package database**: `$KISS_ROOT/var/db/kiss/installed/<pkg>/` stores
+- **Package database**: `$KOMINKA_ROOT/var/db/kominka/installed/<pkg>/` stores
   manifest, version, depends, and build script for each installed package.
 - **Alternatives**: When two packages own the same file, the conflict is
-  stored in `$KISS_ROOT/var/db/kiss/choices/` and can be swapped with `kiss a`.
+  stored in `$KOMINKA_ROOT/var/db/kominka/choices/` and can be swapped with `pm a`.
 
 ### Build Pipeline
 
@@ -91,7 +88,7 @@ script. It handles the full package lifecycle:
 | `install` | `i` | Install package from tarball |
 | `list` | `l` | List installed packages |
 | `remove` | `r` | Remove installed packages |
-| `search` | `s` | Search for packages in KISS_PATH |
+| `search` | `s` | Search for packages in KOMINKA_PATH |
 | `update` | `u` | Update repositories (git pull) and upgrade packages |
 | `upgrade` | `U` | Upgrade installed packages to newer versions |
 | `version` | `v` | Print version (5.5.28) |
@@ -100,15 +97,15 @@ script. It handles the full package lifecycle:
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `KISS_PATH` | (required) | Package search path |
-| `KISS_ROOT` | `/` | Target rootfs |
-| `KISS_COMPRESS` | `gz` | Tarball compression (gz/bz2/xz/zst/lz/lzma) |
-| `KISS_PROMPT` | `1` | Set to `0` to skip confirmations |
-| `KISS_FORCE` | (unset) | Set to `1` to skip dep/removal checks |
-| `KISS_COLOR` | (auto) | Set to `0` to disable color |
-| `KISS_STRIP` | (unset) | Set to `0` to skip binary stripping |
-| `KISS_DEBUG` | `0` | Set to `1` to preserve build dirs on exit |
-| `KISS_KEEPLOG` | (unset) | Set to `1` to keep build logs |
+| `KOMINKA_PATH` | (required) | Package search path |
+| `KOMINKA_ROOT` | `/` | Target rootfs |
+| `KOMINKA_COMPRESS` | `gz` | Tarball compression (gz/bz2/xz/zst/lz/lzma) |
+| `KOMINKA_PROMPT` | `1` | Set to `0` to skip confirmations |
+| `KOMINKA_FORCE` | (unset) | Set to `1` to skip dep/removal checks |
+| `KOMINKA_COLOR` | (auto) | Set to `0` to disable color |
+| `KOMINKA_STRIP` | (unset) | Set to `0` to skip binary stripping |
+| `KOMINKA_DEBUG` | `0` | Set to `1` to preserve build dirs on exit |
+| `KOMINKA_KEEPLOG` | (unset) | Set to `1` to keep build logs |
 
 ### Notable Design Choices
 
@@ -139,7 +136,7 @@ full language reference and gotchas discovered during porting.
 
 ## Boot Infrastructure
 
-The project builds a bootable KISS Linux disk image and can boot it in a VM:
+The project builds a bootable Kominka Linux disk image and can boot it in a VM:
 
 - **`Dockerfile.linux`**: Builds a custom minimal Linux kernel from source
   (tinyconfig + `kernel.config` fragment). All drivers built-in, no modules,
@@ -148,46 +145,46 @@ The project builds a bootable KISS Linux disk image and can boot it in a VM:
   Includes built-in ext4, virtio (PCI/BLK/NET/console), NVMe, AHCI, USB,
   EFI stub, devtmpfs auto-mount, framebuffer console.
 - **`Dockerfile.boot`**: Multi-stage Docker build. Stage 1 builds ysh from
-  source. Stage 2 uses `pm.ysh` to build the KISS rootfs (baselayout, musl,
+  source. Stage 2 uses `pm.ysh` to build the Kominka rootfs (baselayout, musl,
   busybox). Stage 3 assembles the disk image (no kernel — that's separate).
 - **`build_image.sh`**: Runs inside Docker with `--privileged`. Creates a 12GB
   GPT disk image (256MB EFI + 8GB swap + ext4 root) via sgdisk + loopback
-  mounts. Installs the KISS rootfs and ysh + Alpine shared libs.
-- **`Dockerfile.iso`**: Builds the installer disk image. References kiss-boot
-  (rootfs + ysh) and kiss-kernel (Image). Adds mkfs.ext4/mkfs.vfat from Alpine
-  and the install script. Outputs `kiss-installer.img`.
+  mounts. Installs the Kominka rootfs and ysh + Alpine shared libs.
+- **`Dockerfile.iso`**: Builds the installer disk image. References kominka-boot
+  (rootfs + ysh) and kominka-kernel (Image). Adds mkfs.ext4/mkfs.vfat from Alpine
+  and the install script. Outputs `kominka-installer.img`.
 - **`build_iso.sh`**: Creates a rightsized image (EFI + ext4 root, sized to
-  content) with the KISS rootfs, ysh, mkfs.ext4/mkfs.vfat, and kernel.
+  content) with the Kominka rootfs, ysh, mkfs.ext4/mkfs.vfat, and kernel.
 - **`install.sh`**: Interactive installer. Lists block devices, shows
   partition layout with sizes, partitions with busybox fdisk (MBR: 256M EFI
   type 0xEF + 8G swap + ext4 root), formats, copies live rootfs to target,
   installs kernel to EFI as BOOTAA64.EFI.
 - **`Makefile`**: File-based dependencies trigger rebuilds when sources change
   (e.g. editing `kernel.config` makes `Image` stale, which cascades to
-  `kiss-installer.img`). Phony targets (`make kernel`, etc.) always run when
+  `kominka-installer.img`). Phony targets (`make kernel`, etc.) always run when
   invoked directly. `make boot` / `make boot-installer` auto-build missing
   or stale artifacts.
 - The rootfs `/usr/bin/init` mounts pseudofs and execs ysh. Auto-detects
-  installer mode if `kiss-install` is present.
+  installer mode if `pm-install` is present.
 - vfkit boots the uncompressed ARM64 `Image` directly (not vmlinuz).
-- `CONFIG_CMDLINE` provides a default `root=LABEL=KISS_ROOT` for real hardware
+- `CONFIG_CMDLINE` provides a default `root=LABEL=KOMINKA_ROOT` for real hardware
   EFISTUB boot; vfkit overrides this via `--kernel-cmdline`.
 - Dockerfiles ordered for layer caching: stable layers (ysh, Alpine packages,
   kernel source) first, frequently-changed layers (pm.ysh, scripts) last.
 
 ## Vendored Packages
 
-All 20 packages from `kisslinux/repo` core are vendored:
+All 20 packages from the upstream repo core are vendored:
 
 **Built and tested (16 packages)**:
 baselayout, baseinit, busybox, musl, linux-headers, bzip2, xz, zlib,
-pigz, bison, flex, m4, make, curl, openssl, kiss
+pigz, bison, flex, m4, make, curl, openssl, pm
 
 **Vendored but not built** (too complex for the Alpine cross-build env):
 binutils, gcc, git, grub
 
 Sources files have been rewritten to point to local tarballs in
-`/home/kiss/sources/` (the path inside the Docker container).
+`/home/kominka/sources/` (the path inside the Docker container).
 
 ## Running Tests
 
@@ -211,34 +208,26 @@ python3 -m unittest tests.test_pm -v
 
 ### Docker Build Tests (slow, builds real packages)
 
-These build actual KISS core packages inside Alpine Docker:
+These build actual Kominka core packages inside Alpine Docker:
 
 ```sh
 # 1. Download source tarballs (once, ~263MB).
 cd tests && ./download_sources.sh
 
-# 2. Run the POSIX pm build suite.
-python3 -m pytest tests/test_docker_build.py -v
-
-# 3. Run the YSH pm.ysh build suite.
+# 2. Run the YSH pm.ysh build suite.
 python3 -m pytest tests/test_docker_build_ysh.py -v
 ```
 
 ### Manual Docker Testing
 
 ```sh
-# POSIX pm:
-docker build -t pm-test -f tests/Dockerfile .
-docker run -it pm-test sh
-
-# YSH pm.ysh:
 docker build -t pm-ysh-test -f tests/Dockerfile.ysh .
 docker run -it pm-ysh-test sh
 
 # Inside the container:
-mkdir -p /kiss-root/var/db/kiss/installed /kiss-root/var/db/kiss/choices
-KISS_ROOT=/kiss-root kiss b baselayout
-KISS_ROOT=/kiss-root kiss l
+mkdir -p /kominka-root/var/db/kominka/installed /kominka-root/var/db/kominka/choices
+KOMINKA_ROOT=/kominka-root pm b baselayout
+KOMINKA_ROOT=/kominka-root pm l
 ```
 
 ## Known Issues and Build Fixes
@@ -254,7 +243,7 @@ Build fixes applied to vendored packages for Alpine compatibility:
   GCC doesn't support -m64). Removed `perl` from depends (Alpine provides it).
 - **pigz**: Upstream URL dead; uses GitHub archive. Checksums updated.
 - **zlib**: Old version removed from zlib.net; uses fossils mirror.
-- **kiss**: Removed `git` dependency (not needed for the simple file-copy build).
+- **kominka**: Removed `git` dependency (not needed for the simple file-copy build).
 - **git, binutils, gcc, grub**: Not built — too complex for Alpine cross-build
   (musl basename conflict, missing REG_STARTEND, long compile times).
 - **pm alternatives bug**: When exactly one other package is installed,

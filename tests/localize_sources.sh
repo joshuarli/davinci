@@ -43,7 +43,7 @@ EOF
 
                 if [ -f "$SOURCES/$pkg/$filename" ]; then
                     # Use absolute path that will be valid inside Docker.
-                    printf '/home/kiss/sources/%s/%s%s\n' "$pkg" "$filename" "$rest"
+                    printf '/home/kominka/sources/%s/%s%s\n' "$pkg" "$filename" "$rest"
                     changed=1
                 else
                     printf '%s\n' "$line"

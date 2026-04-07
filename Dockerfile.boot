@@ -1,14 +1,14 @@
-# Multi-stage build: ysh -> KISS packages -> disk image builder
+# Multi-stage build: ysh -> Kominka packages -> disk image builder
 #
 # Stage 1: Build ysh from source
-# Stage 2: Build minimal KISS rootfs with pm.ysh
+# Stage 2: Build minimal Kominka rootfs with pm.ysh
 # Stage 3: Assemble GPT disk image (rootfs only, no kernel)
 #
 # Kernel is built separately via Dockerfile.linux.
 #
 # Usage:
-#   docker build -t kiss-boot -f Dockerfile.boot .
-#   docker run --rm --privileged -v "$(pwd)":/out kiss-boot sh /build_image.sh
+#   docker build -t kominka-boot -f Dockerfile.boot .
+#   docker run --rm --privileged -v "$(pwd)":/out kominka-boot sh /build_image.sh
 
 FROM alpine:latest AS ysh-builder
 
@@ -39,38 +39,38 @@ RUN apk add --no-cache \
     tar
 
 # Sources (~263MB tarballs, rarely change) before repo and pm.ysh.
-COPY tests/fixtures/sources /home/kiss/sources
-COPY tests/fixtures/repo /home/kiss/repo
+COPY tests/fixtures/sources /home/kominka/sources
+COPY tests/fixtures/repo /home/kominka/repo
 
-RUN find /home/kiss/repo -name build -exec chmod +x {} + && \
-    find /home/kiss/repo -name post-install -exec chmod +x {} +
+RUN find /home/kominka/repo -name build -exec chmod +x {} + && \
+    find /home/kominka/repo -name post-install -exec chmod +x {} +
 
-RUN mkdir -p /kiss-root/var/db/kiss/installed /kiss-root/var/db/kiss/choices
+RUN mkdir -p /kominka-root/var/db/kominka/installed /kominka-root/var/db/kominka/choices
 
-ENV KISS_PATH=/home/kiss/repo \
-    KISS_ROOT=/kiss-root \
-    KISS_COMPRESS=gz \
-    KISS_COLOR=0 \
-    KISS_PROMPT=0 \
-    KISS_STRIP=0 \
-    KISS_FORCE=1 \
+ENV KOMINKA_PATH=/home/kominka/repo \
+    KOMINKA_ROOT=/kominka-root \
+    KOMINKA_COMPRESS=gz \
+    KOMINKA_COLOR=0 \
+    KOMINKA_PROMPT=0 \
+    KOMINKA_STRIP=0 \
+    KOMINKA_FORCE=1 \
     LOGNAME=root \
     HOME=/root \
     CC=gcc \
     CXX=g++ \
-    PKG_CONFIG_PATH=/kiss-root/usr/lib/pkgconfig \
-    CPPFLAGS="-I/kiss-root/usr/include" \
-    LDFLAGS="-L/kiss-root/usr/lib"
+    PKG_CONFIG_PATH=/kominka-root/usr/lib/pkgconfig \
+    CPPFLAGS="-I/kominka-root/usr/include" \
+    LDFLAGS="-L/kominka-root/usr/lib"
 
-WORKDIR /home/kiss
+WORKDIR /home/kominka
 
 # pm.ysh last — changes most often, only invalidates the build step.
-COPY pm.ysh /usr/bin/kiss
-RUN chmod +x /usr/bin/kiss
+COPY pm.ysh /usr/bin/pm
+RUN chmod +x /usr/bin/pm
 
 # Build minimal bootable system: baselayout + musl + busybox
 # (linux-headers and make are build-time deps for busybox)
-RUN ysh /usr/bin/kiss b baselayout musl linux-headers make busybox
+RUN ysh /usr/bin/pm b baselayout musl linux-headers make busybox
 
 FROM alpine:latest
 
@@ -86,7 +86,7 @@ COPY --from=ysh-builder /usr/lib/libreadline.so.8 /ysh-libs/libreadline.so.8
 COPY --from=ysh-builder /usr/lib/libncursesw.so.6 /ysh-libs/libncursesw.so.6
 
 # Rootfs changes when packages or pm.ysh change.
-COPY --from=pkg-builder /kiss-root /rootfs
+COPY --from=pkg-builder /kominka-root /rootfs
 
 # build_image.sh changes most often during dev.
 COPY build_image.sh /build_image.sh

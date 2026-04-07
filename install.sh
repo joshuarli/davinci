@@ -1,5 +1,5 @@
 #!/usr/bin/busybox sh
-# KISS Linux installer.
+# Kominka Linux installer.
 # Partitions a disk, formats filesystems, and copies the live rootfs into place.
 #
 # Partition layout (MBR via busybox fdisk):
@@ -9,7 +9,7 @@
 
 set -eu
 
-echo "KISS Linux Installer"
+echo "Kominka Linux Installer"
 echo ""
 
 list_disks() {
@@ -102,9 +102,9 @@ case "$DISK" in
 esac
 
 echo "==> Formatting partitions"
-/usr/sbin/mkfs.vfat -F32 -n KISS_EFI "${P}1"
-/usr/bin/busybox mkswap -L KISS_SWAP "${P}2"
-/usr/sbin/mkfs.ext4 -q -L KISS_ROOT "${P}3"
+/usr/sbin/mkfs.vfat -F32 -n KOMINKA_EFI "${P}1"
+/usr/bin/busybox mkswap -L KOMINKA_SWAP "${P}2"
+/usr/sbin/mkfs.ext4 -q -L KOMINKA_ROOT "${P}3"
 
 echo "==> Mounting target"
 MNT=/mnt/target
@@ -124,18 +124,18 @@ done
 /usr/bin/busybox ln -sf usr/lib "$MNT/lib"
 
 # Remove installer-only files from target.
-/usr/bin/busybox rm -f "$MNT/usr/bin/kiss-install"
-/usr/bin/busybox rm -rf "$MNT/usr/share/kiss"
+/usr/bin/busybox rm -f "$MNT/usr/bin/pm-install"
+/usr/bin/busybox rm -rf "$MNT/usr/share/kominka"
 
 echo "==> Installing kernel"
 /usr/bin/busybox mkdir -p "$MNT/boot/EFI/BOOT"
-/usr/bin/busybox cp /usr/share/kiss/Image "$MNT/boot/EFI/BOOT/BOOTAA64.EFI"
+/usr/bin/busybox cp /usr/share/kominka/Image "$MNT/boot/EFI/BOOT/BOOTAA64.EFI"
 
 echo "==> Writing fstab"
 /usr/bin/busybox cat > "$MNT/etc/fstab" <<'EOF'
-LABEL=KISS_ROOT  /      ext4  defaults  0 1
-LABEL=KISS_EFI   /boot  vfat  defaults  0 2
-LABEL=KISS_SWAP  none   swap  defaults  0 0
+LABEL=KOMINKA_ROOT  /      ext4  defaults  0 1
+LABEL=KOMINKA_EFI   /boot  vfat  defaults  0 2
+LABEL=KOMINKA_SWAP  none   swap  defaults  0 0
 EOF
 
 echo "==> Unmounting"
@@ -143,5 +143,5 @@ echo "==> Unmounting"
 /usr/bin/busybox umount "$MNT"
 
 echo ""
-echo "Done! KISS Linux installed to $DISK."
+echo "Done! Kominka Linux installed to $DISK."
 echo "Remove installer media and reboot."

@@ -16,7 +16,6 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PM_SH = ROOT / "pm"
 PM_YSH = ROOT / "pm.ysh"
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 REPO = FIXTURES / "repo"
@@ -25,32 +24,31 @@ HAS_YSH = os.path.isfile(YSH) and os.access(YSH, os.X_OK)
 
 
 class CheapPMTestCase(unittest.TestCase):
-    """Base class with isolated KISS environment and manual db population."""
+    """Base class with isolated kominka environment and manual db population."""
 
-    # Subclasses override these to switch between sh/ysh.
-    PM_INTERPRETER = "sh"
-    PM_SCRIPT = PM_SH
+    PM_INTERPRETER = YSH
+    PM_SCRIPT = PM_YSH
 
     def setUp(self):
         self.tmpdir = os.path.realpath(tempfile.mkdtemp(prefix="pm-cheap-"))
-        self.kiss_root = Path(self.tmpdir) / "root"
-        self.kiss_cache = Path(self.tmpdir) / "cache"
-        self.kiss_tmpdir = Path(self.tmpdir) / "proc"
+        self.kominka_root = Path(self.tmpdir) / "root"
+        self.kominka_cache = Path(self.tmpdir) / "cache"
+        self.kominka_tmpdir = Path(self.tmpdir) / "proc"
 
-        (self.kiss_root / "var/db/kiss/installed").mkdir(parents=True)
-        (self.kiss_root / "var/db/kiss/choices").mkdir(parents=True)
+        (self.kominka_root / "var/db/kominka/installed").mkdir(parents=True)
+        (self.kominka_root / "var/db/kominka/choices").mkdir(parents=True)
 
         self.env = {
             "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
             "HOME": self.tmpdir,
             "LOGNAME": os.environ.get("LOGNAME", "testuser"),
-            "KISS_PATH": str(REPO),
-            "KISS_ROOT": str(self.kiss_root),
-            "KISS_COLOR": "0",
-            "KISS_PROMPT": "0",
-            "KISS_COMPRESS": "gz",
-            "KISS_TMPDIR": str(self.kiss_tmpdir),
-            "XDG_CACHE_HOME": str(self.kiss_cache),
+            "KOMINKA_PATH": str(REPO),
+            "KOMINKA_ROOT": str(self.kominka_root),
+            "KOMINKA_COLOR": "0",
+            "KOMINKA_PROMPT": "0",
+            "KOMINKA_COMPRESS": "gz",
+            "KOMINKA_TMPDIR": str(self.kominka_tmpdir),
+            "XDG_CACHE_HOME": str(self.kominka_cache),
         }
 
     def tearDown(self):
@@ -81,7 +79,7 @@ class CheapPMTestCase(unittest.TestCase):
         Creates the db entry with version, build, manifest, and optionally
         depends files — mimicking what a real install leaves behind.
         """
-        db = self.kiss_root / "var/db/kiss/installed" / name
+        db = self.kominka_root / "var/db/kominka/installed" / name
         db.mkdir(parents=True, exist_ok=True)
         (db / "version").write_text(version + "\n")
         if depends:
@@ -92,7 +90,7 @@ class CheapPMTestCase(unittest.TestCase):
         build.chmod(0o755)
         if manifest is None:
             # Real manifests include the db entries themselves.
-            db_prefix = f"/var/db/kiss/installed/{name}"
+            db_prefix = f"/var/db/kominka/installed/{name}"
             lines = [
                 f"/usr/bin/{name}",
                 f"{db_prefix}/manifest",
@@ -123,14 +121,14 @@ class CheapPMTestCase(unittest.TestCase):
         """).format(name=name)
         (repo / "build").write_text(build_script)
         (repo / "build").chmod(0o755)
-        self.env["KISS_PATH"] = str(repo.parent) + ":" + self.env["KISS_PATH"]
+        self.env["KOMINKA_PATH"] = str(repo.parent) + ":" + self.env["KOMINKA_PATH"]
         return repo
 
 
 class HelpTests:
     def test_no_args_prints_usage(self):
         r = self.pm()
-        self.assertIn("kiss [a|b|c|d|i|l|r|s|u|U|v]", r.stderr)
+        self.assertIn("pm [a|b|c|d|i|l|r|s|u|U|v]", r.stderr)
 
     def test_help_mentions_all_commands(self):
         r = self.pm()
@@ -389,61 +387,24 @@ class RemoveDependentTests:
         self.fake_install("base-lib", "1.0 1")
         self.fake_install("consumer", "1.0 1", depends="base-lib")
         # Create the file that the manifest references.
-        f = self.kiss_root / "usr/bin/base-lib"
+        f = self.kominka_root / "usr/bin/base-lib"
         f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text("mock")
-        r = self.pm("r", "base-lib", env_override={"KISS_FORCE": "1"})
+        r = self.pm("r", "base-lib", env_override={"KOMINKA_FORCE": "1"})
         self.assertEqual(r.returncode, 0)
 
     def test_remove_orphan_succeeds(self):
         """Removing a package with no dependents should succeed."""
         self.fake_install("orphan", "1.0 1")
         # Create the file that the manifest references.
-        f = self.kiss_root / "usr/bin/orphan"
+        f = self.kominka_root / "usr/bin/orphan"
         f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text("mock")
         r = self.pm("r", "orphan")
         self.assertEqual(r.returncode, 0)
         self.assertFalse(
-            (self.kiss_root / "var/db/kiss/installed/orphan").exists()
+            (self.kominka_root / "var/db/kominka/installed/orphan").exists()
         )
-
-
-class SH_HelpTests(CheapPMTestCase, HelpTests):
-    PM_INTERPRETER = "sh"
-    PM_SCRIPT = PM_SH
-
-class SH_SearchTests(CheapPMTestCase, SearchTests):
-    PM_INTERPRETER = "sh"
-    PM_SCRIPT = PM_SH
-
-class SH_ListTests(CheapPMTestCase, ListTests):
-    PM_INTERPRETER = "sh"
-    PM_SCRIPT = PM_SH
-
-class SH_DependencyTests(CheapPMTestCase, DependencyTests):
-    PM_INTERPRETER = "sh"
-    PM_SCRIPT = PM_SH
-
-class SH_ChecksumTests(CheapPMTestCase, ChecksumTests):
-    PM_INTERPRETER = "sh"
-    PM_SCRIPT = PM_SH
-
-class SH_DownloadTests(CheapPMTestCase, DownloadTests):
-    PM_INTERPRETER = "sh"
-    PM_SCRIPT = PM_SH
-
-class SH_VersionSubstitutionTests(CheapPMTestCase, VersionSubstitutionTests):
-    PM_INTERPRETER = "sh"
-    PM_SCRIPT = PM_SH
-
-class SH_ArgumentValidationTests(CheapPMTestCase, ArgumentValidationTests):
-    PM_INTERPRETER = "sh"
-    PM_SCRIPT = PM_SH
-
-class SH_RemoveDependentTests(CheapPMTestCase, RemoveDependentTests):
-    PM_INTERPRETER = "sh"
-    PM_SCRIPT = PM_SH
 
 
 @unittest.skipUnless(HAS_YSH, "ysh interpreter not found")

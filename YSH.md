@@ -109,7 +109,7 @@ word-splitting ambiguity.
 ## Dicts
 
 ```ysh
-var d = {name: 'kiss', version: 3}
+var d = {name: 'kominka', version: 3}
 setvar d['arch'] = 'x86_64'
 
 for key in (d) { echo $key }
@@ -333,7 +333,7 @@ Things that work in POSIX/bash but break in YSH (`ysh:all` mode):
   args is an error.  Use `s => split(/ ' '+ /)` for whitespace splitting.
 - **`[] + []` doesn't concatenate lists.** Use
   `var c = []; call c->extend(other)`.
-- **`_KISS_LVL` and numeric env vars are strings.** `ENV => get(...)` always
+- **`_KOMINKA_LVL` and numeric env vars are strings.** `ENV => get(...)` always
   returns a string.  Use `int(s)` to convert before arithmetic.
 - **Empty `$var` is still an argument.** No word splitting means `$CC $CFLAGS`
   with empty CFLAGS passes `""` as an arg — fatal for compilers.  Split flags

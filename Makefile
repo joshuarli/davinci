@@ -1,8 +1,8 @@
-BUILDER_IMAGE   := kiss-boot
-KERNEL_IMAGE    := kiss-kernel
-INSTALLER_IMAGE := kiss-iso
+BUILDER_IMAGE   := kominka-boot
+KERNEL_IMAGE    := kominka-kernel
+INSTALLER_IMAGE := kominka-iso
 DISK_IMG        := disk.img
-INSTALLER_IMG   := kiss-installer.img
+INSTALLER_IMG   := kominka-installer.img
 TARGET_IMG      := target.img
 KERNEL          := Image
 INITRAMFS       := initramfs.img
@@ -83,11 +83,11 @@ boot-log: $(KERNEL) $(DISK_IMG)
 		--cpus 4 --memory 4096 \
 		--device virtio-blk,path=$(DISK_IMG) \
 		--device virtio-net,nat \
-		--device virtio-serial,logFilePath=/tmp/kiss-serial.log &
-	@sleep 3 && echo "VM started. Serial log: /tmp/kiss-serial.log"
+		--device virtio-serial,logFilePath=/tmp/kominka-serial.log &
+	@sleep 3 && echo "VM started. Serial log: /tmp/kominka-serial.log"
 
 stop:
 	-@pkill vfkit 2>/dev/null && echo "VM stopped" || echo "No VM running"
 
 clean:
-	rm -f disk.img Image initramfs.img kernel-config kiss-installer.img target.img
+	rm -f disk.img Image initramfs.img kernel-config kominka-installer.img target.img
