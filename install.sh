@@ -102,9 +102,9 @@ case "$DISK" in
 esac
 
 echo "==> Formatting partitions"
-/usr/sbin/mkfs.vfat -F32 -n KOMINKA_EFI "${P}1"
+mkfs.vfat -F32 -n KOMINKA_EFI "${P}1"
 /usr/bin/busybox mkswap -L KOMINKA_SWAP "${P}2"
-/usr/sbin/mkfs.ext4 -q -L KOMINKA_ROOT "${P}3"
+mkfs.ext4 -q -L KOMINKA_ROOT "${P}3"
 
 echo "==> Mounting target"
 MNT=/mnt/target
