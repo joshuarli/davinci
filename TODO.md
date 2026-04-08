@@ -1,11 +1,5 @@
 # TODO
 
-## Bugs
-
-- **strip**: zig objcopy can't `--strip-all` on shared libs or static
-  musl binaries. Wrapper backs up and restores on failure. Binaries
-  are larger than necessary.
-
 ## Packaging
 
 - openssh (remote access)

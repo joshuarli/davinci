@@ -34,9 +34,8 @@ if (cc_ver => contains('clang')) {
     chmod +x scripts/trylink
 }
 
-# Build and install regular busybox.
-# SKIP_STRIP=y: zig objcopy doesn't support stripping busybox's binary format.
-# pm's pkg_strip handles stripping after install.
+# SKIP_STRIP=y: busybox Makefile uses strip -o (output to new file),
+# which our strip doesn't support. pm's pkg_strip runs after build.
 make HOSTCC=$CC SKIP_STRIP=y
 make CONFIG_PREFIX="${dest}/usr" install
 
