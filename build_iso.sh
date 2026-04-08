@@ -14,7 +14,8 @@ cleanup() {
     set +e
     umount "$MNT/boot" 2>/dev/null
     umount "$MNT" 2>/dev/null
-    [ -n "${LOOP:-}" ] && losetup -d "$LOOP" 2>/dev/null
+    [ -n "${LOOP_EFI:-}" ]  && losetup -d "$LOOP_EFI"  2>/dev/null
+    [ -n "${LOOP_ROOT:-}" ] && losetup -d "$LOOP_ROOT" 2>/dev/null
 }
 trap cleanup EXIT
 
@@ -64,17 +65,10 @@ efi_size=$(( (P1_END - P1_START + 1) * 512 ))
 root_off=$((P2_START * 512))
 root_size=$(( (P2_END - P2_START + 1) * 512 ))
 
-LOOP=$(losetup --find --show "$IMG")
-LOOP_EFI="${LOOP}p1"
-LOOP_ROOT="${LOOP}p2"
-
-# Create partition device nodes if they don't exist.
-if ! [ -b "$LOOP_EFI" ]; then
-    mknod "$LOOP_EFI" b $(stat -c '0x%t 0x%T' "$LOOP") 2>/dev/null || true
-    # Fallback: use offset-based losetup.
-    LOOP_EFI=$(losetup --find --show --offset "$efi_off" --sizelimit "$efi_size" "$IMG")
-    LOOP_ROOT=$(losetup --find --show --offset "$root_off" --sizelimit "$root_size" "$IMG")
-fi
+# busybox losetup: -f finds free device, -o sets offset.
+# No --sizelimit support — mkfs respects the partition size from the table.
+LOOP_EFI=$(losetup -f) && losetup -o "$efi_off" "$LOOP_EFI" "$IMG"
+LOOP_ROOT=$(losetup -f) && losetup -o "$root_off" "$LOOP_ROOT" "$IMG"
 
 echo "==> Formatting partitions"
 mkfs.vfat -F32 -n KOMINKA_EFI "$LOOP_EFI"
