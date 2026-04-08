@@ -64,32 +64,33 @@ GitHub release tarball using only Kominka packages for the toolchain:
 | Go | go (Kominka) |
 | make | make (Kominka) |
 
-### Phase 2: Build ALL packages from source
+### Phase 2: Build all packages from source (DONE)
 
-Extend `tests/Dockerfile.toolchain` to build every package from source
-in dependency order. Need to build and upload: git, bzip2, xz, flex,
-pkgconf first.
+`tests/Dockerfile.toolchain` builds bzip2, xz, pkgconf, git, and
+boringssl from source. All toolchain packages installed from R2 binaries,
+all source builds use Kominka's zig/cmake/go/samurai/make.
 
-Build order:
-```
-glibc → baselayout → busybox → baseinit → runit
-zlib → boringssl → curl → git
-opendoas → ysh
-make → samurai → cmake
-go
-bzip2 → xz → flex → bison → m4
-e2fsprogs → dosfstools
-pkgconf
-```
+Remaining: flex (SIGPIPE issue, not blocking).
 
-### Phase 3: Replace Debian pm runtime
+### Phase 3: Self-hosting FROM scratch (DONE)
 
-Replace Debian shell utilities with Kominka's own:
-- busybox provides: coreutils, findutils, grep, sed, diffutils, gzip,
-  bzip2, tar, patch
-- Kominka curl replaces Debian curl
-- Kominka xz replaces Debian xz-utils
-- Need: ca-certificates (or ship cert bundle via boringssl)
+`tests/Dockerfile.selfhost` produces a FROM scratch image with the
+full toolchain. `pm b zlib` and `pm b boringssl` both succeed inside
+the image — zero Debian tools.
+
+Key changes needed:
+- **busybox compression applets**: enabled gzip, gunzip, bzip2, xz,
+  lzma, unxz in busybox config (were all disabled).
+- **strip wrapper**: `zig objcopy --strip-debug` as strip replacement.
+  `--strip-all` is unimplemented in zig objcopy for shared libs, so
+  the wrapper falls back silently (`|| true`). HACK: binaries are not
+  fully stripped. Revisit when zig objcopy improves.
+- **busybox SKIP_STRIP**: busybox's own Makefile strips via GNU strip
+  which zig objcopy can't handle. Pass `SKIP_STRIP=y` to make.
+- **CA certificates**: copied from Debian builder stage for now. Need
+  to ship cert bundle via boringssl's update-certdata.sh or a
+  standalone package.
+- **No awk/gawk needed**: pm doesn't use awk at all.
 
 ### Phase 4: Boot from own foundation
 

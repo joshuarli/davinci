@@ -35,7 +35,9 @@ if (cc_ver => contains('clang')) {
 }
 
 # Build and install regular busybox.
-make HOSTCC=$CC
+# SKIP_STRIP=y: zig objcopy doesn't support stripping busybox's binary format.
+# pm's pkg_strip handles stripping after install.
+make HOSTCC=$CC SKIP_STRIP=y
 make CONFIG_PREFIX="${dest}/usr" install
 
 # Rename the binary temporarily.
@@ -43,7 +45,7 @@ mv "${dest}/usr/bin/busybox" "${dest}/usr/bin/busybox-nosuid"
 
 # Build and install suid busybox.
 cp -f .config-suid .config
-make HOSTCC=$CC
+make HOSTCC=$CC SKIP_STRIP=y
 make CONFIG_PREFIX="${dest}/usr" install
 
 # Aptly name the busybox binaries.

@@ -10,11 +10,29 @@ printf '#!/bin/sh\nexec zig cc "$@"\n'  > "$dest/usr/bin/cc"
 printf '#!/bin/sh\nexec zig c++ "$@"\n' > "$dest/usr/bin/c++"
 # ld — zig's bundled lld, exposed directly.
 printf '#!/bin/sh\nexec zig ld.lld "$@"\n' > "$dest/usr/bin/ld"
-# ar/ranlib/objcopy wrappers.
+# ar/ranlib/objcopy/strip wrappers.
 printf '#!/bin/sh\nexec zig ar "$@"\n' > "$dest/usr/bin/ar"
 printf '#!/bin/sh\nexec zig ranlib "$@"\n' > "$dest/usr/bin/ranlib"
 printf '#!/bin/sh\nexec zig objcopy "$@"\n' > "$dest/usr/bin/objcopy"
+# strip wrapper — translates GNU strip flags to zig objcopy equivalents.
+# Silently drops unsupported flags (--remove-section, -R, -o, etc.).
+cat > "$dest/usr/bin/strip" <<'STRIPEOF'
+#!/bin/sh
+flags="" files="" skip=""
+for a in "$@"; do
+    if [ -n "$skip" ]; then skip=""; continue; fi
+    case "$a" in
+        -s|-g|-S) flags="$flags --strip-debug" ;;
+        -o|-R|-N|-K) skip=1 ;;
+        --remove-section=*|--strip-unneeded|-p|-w) ;;
+        -*) ;;
+        *) files="$files $a" ;;
+    esac
+done
+for f in $files; do zig objcopy $flags "$f" "$f" 2>/dev/null || true; done
+STRIPEOF
 # nm — tiny ELF symbol lister (needed by libtool).
 "$dest/usr/bin/zig" cc -o "$dest/usr/bin/nm" nm.c
 chmod +x "$dest/usr/bin/cc" "$dest/usr/bin/c++" "$dest/usr/bin/ld" \
-         "$dest/usr/bin/ar" "$dest/usr/bin/ranlib" "$dest/usr/bin/objcopy"
+         "$dest/usr/bin/ar" "$dest/usr/bin/ranlib" "$dest/usr/bin/objcopy" \
+         "$dest/usr/bin/strip"
