@@ -6,15 +6,22 @@
 #
 # Usage:
 #   docker build -t kominka:core .
-#   docker run --rm kominka:core pm l
+#   docker build --platform linux/amd64 -t kominka:core-amd64 .
 
 FROM busybox:latest AS bootstrap
 
-ARG R2=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev/aarch64-linux-gnu
+ARG R2_BASE=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev
+
+# Detect architecture for R2 binary path.
+RUN case "$(busybox uname -m)" in \
+        x86_64)  echo "x86_64-linux-gnu" > /tmp/arch ;; \
+        *)       echo "aarch64-linux-gnu" > /tmp/arch ;; \
+    esac
 
 # Get ysh (static musl binary — runs on any Linux, no glibc needed).
 RUN busybox mkdir -p /usr/local/bin && \
-    busybox wget --no-check-certificate -qO- "$R2/ysh@0.37.0-2.tar.gz" | \
+    ARCH=$(busybox cat /tmp/arch) && \
+    busybox wget --no-check-certificate -qO- "$R2_BASE/$ARCH/ysh@0.37.0-2.tar.gz" | \
     busybox tar xzf - -C / ./usr/local/bin/
 
 # Install pm and package repo.
