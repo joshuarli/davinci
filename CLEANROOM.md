@@ -94,9 +94,16 @@ Key changes needed:
 
 ### Phase 4: Boot from own foundation
 
-Build the live ISO using only Kominka-built packages. The entire
-system — kernel, bootloader, userspace, package manager, every
-library — comes from our repos.
+Build the live ISO using only Kominka-built packages. Requires:
+- Linux kernel build (already exists in `Dockerfile.linux`)
+- Bootloader (grub or systemd-boot EFI stub)
+- Installer (`install.sh` already exists)
+- Integration: modify `Dockerfile.iso` to use `kominka:build` as
+  the base instead of Debian
+
+The `kominka:build` image (940MB) has everything needed to build
+any package from source. The core image (`kominka:core`) is ~32MB —
+that's what gets installed on target hardware.
 
 ## Gaps and workarounds
 
