@@ -772,6 +772,20 @@ proc pkg_order (...pkgs) {
     setglobal deps_seen = {}
 }
 
+proc pkg_clean_dev (pkg) {
+    ### Remove dev artifacts (static libs, headers, pkgconfig, libtool).
+    var pd = "${pkg_dir}/${pkg}"
+
+    # Static archives (.a) — not needed at runtime.
+    for f in @[glob("${pd}/usr/lib/*.a")] { rm -f $f }
+
+    # Libtool archives (.la) — only useful for static linking.
+    for f in @[glob("${pd}/usr/lib/*.la")] { rm -f $f }
+
+    # pkgconfig files — only needed at build time.
+    rm -rf "${pd}/usr/lib/pkgconfig" "${pd}/usr/share/pkgconfig"
+}
+
 proc pkg_strip (pkg) {
     ### Strip package binaries and libraries.
     if test -f "${mak_dir}/${pkg}/nostrip" {
@@ -1082,6 +1096,7 @@ proc pkg_build_all (...pkgs) {
         }
 
         pkg_build $pkg
+        pkg_clean_dev $pkg
         pkg_manifest $pkg $pkg_dir
         pkg_strip $pkg
 

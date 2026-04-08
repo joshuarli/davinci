@@ -54,11 +54,6 @@ RUN for lib in libstdc++.so.6 libgcc_s.so.1; do \
 # Install pm into the chroot.
 RUN cp /usr/bin/pm /kominka-root/usr/bin/pm
 
-# Strip dev artifacts for a lean runtime image.
-RUN rm -rf /kominka-root/usr/include \
-           /kominka-root/usr/lib/*.a \
-           /kominka-root/usr/lib/pkgconfig && \
-    find /kominka-root/usr/lib/gconv -name '*.so' ! -name 'UTF*' ! -name 'UNICODE*' -delete 2>/dev/null; true
 
 FROM scratch
 
