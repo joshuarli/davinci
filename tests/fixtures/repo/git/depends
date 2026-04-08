@@ -1,3 +1,4 @@
-curl    make
-boringssl make
-zlib    make
+glibc
+curl
+boringssl
+zlib
