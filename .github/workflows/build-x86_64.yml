@@ -40,16 +40,10 @@ jobs:
               KOMINKA_COMPRESS=gz KOMINKA_COLOR=0 KOMINKA_PROMPT=0 \
               KOMINKA_STRIP=0 KOMINKA_FORCE=1 LOGNAME=root HOME=/root
 
-          # glibc from Debian — package it as a tarball.
+          # glibc from Debian — copy all runtime libs and package as tarball.
           RUN mkdir -p /kominka-root/usr/lib && \
-              for lib in /lib/x86_64-linux-gnu/libc.so* /lib/x86_64-linux-gnu/libm.so* \
-                         /lib/x86_64-linux-gnu/libdl.so* /lib/x86_64-linux-gnu/libpthread.so* \
-                         /lib/x86_64-linux-gnu/librt.so* /lib/x86_64-linux-gnu/libresolv.so* \
-                         /lib/x86_64-linux-gnu/libnss_dns.so* /lib/x86_64-linux-gnu/libnss_files.so* \
-                         /lib/x86_64-linux-gnu/libcrypt.so*; do \
-                  [ -f "$lib" ] && cp -a "$lib" /kominka-root/usr/lib/ || true; \
-              done && \
-              cp -a /lib64/ld-linux-x86-64.so.2 /kominka-root/usr/lib/ && \
+              cp -a /lib/x86_64-linux-gnu/lib*.so* /kominka-root/usr/lib/ 2>/dev/null; \
+              cp -a /lib64/ld-linux-x86-64.so* /kominka-root/usr/lib/ 2>/dev/null; \
               ln -sf usr/lib /kominka-root/lib && \
               ln -sf usr/lib /kominka-root/lib64 && \
               mkdir -p /kominka-root/var/db/kominka/installed/glibc && \
