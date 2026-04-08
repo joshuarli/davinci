@@ -1,14 +1,14 @@
 #!/bin/sh -e
 
-busybox mkdir -p \
+mkdir -p \
     "$1/usr/bin" \
     "$1/usr/share/doc/kominka"
 
-busybox cp -f  pm contrib/*  "$1/usr/bin"
-busybox cp -f  docs/site/*.txt "$1/usr/share/doc/kominka"
-busybox cp -rf docs/site/wiki  "$1/usr/share/doc/kominka"
+cp -f  pm contrib/*  "$1/usr/bin"
+cp -f  docs/site/*.txt "$1/usr/share/doc/kominka"
+cp -rf docs/site/wiki  "$1/usr/share/doc/kominka"
 
-busybox rm -f \
+rm -f \
     "$1/usr/share/doc/kominka/README.txt" \
     "$1/usr/share/doc/kominka/post.txt" \
     "$1/usr/share/doc/kominka/tidbits.txt"

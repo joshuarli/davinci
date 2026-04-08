@@ -9,7 +9,7 @@ var dest = ARGV[0]
 make
 make DESTDIR=$dest install
 
-busybox ln -s pkgconf "${dest}/usr/bin/pkg-config"
+ln -s pkgconf "${dest}/usr/bin/pkg-config"
 
 # Remove documentation.
-busybox rm -rf "${dest}/usr/share/doc"
+rm -rf "${dest}/usr/share/doc"

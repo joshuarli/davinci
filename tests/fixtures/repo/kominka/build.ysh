@@ -2,22 +2,22 @@
 
 var dest = ARGV[0]
 
-busybox mkdir -p \
+mkdir -p \
     "${dest}/usr/bin" \
     "${dest}/usr/share/doc/kominka"
 
-busybox cp -f pm @[glob('contrib/*')] "${dest}/usr/bin"
+cp -f pm @[glob('contrib/*')] "${dest}/usr/bin"
 
 var docs = @[glob('docs/site/*.txt')]
 if (len(docs) > 0) {
-    busybox cp -f @docs "${dest}/usr/share/doc/kominka"
+    cp -f @docs "${dest}/usr/share/doc/kominka"
 }
 
 if test -d docs/site/wiki {
-    busybox cp -rf docs/site/wiki "${dest}/usr/share/doc/kominka"
+    cp -rf docs/site/wiki "${dest}/usr/share/doc/kominka"
 }
 
-busybox rm -f \
+rm -f \
     "${dest}/usr/share/doc/kominka/README.txt" \
     "${dest}/usr/share/doc/kominka/post.txt" \
     "${dest}/usr/share/doc/kominka/tidbits.txt"

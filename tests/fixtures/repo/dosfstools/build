@@ -1,8 +1,8 @@
 #!/bin/sh -e
 
 # Disable documentation (READMEs and such).
-busybox sed 's/^\(dist_doc_DATA\)/\1_null/' Makefile.in > _
-busybox mv -f _ Makefile.in
+sed 's/^\(dist_doc_DATA\)/\1_null/' Makefile.in > _
+mv -f _ Makefile.in
 
 ./configure \
     --prefix=/usr \

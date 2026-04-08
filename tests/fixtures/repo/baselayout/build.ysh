@@ -2,7 +2,7 @@
 
 var dest = ARGV[0]
 
-busybox mkdir -m 755 \
+mkdir -m 755 \
     "${dest}/boot" \
     "${dest}/dev" \
     "${dest}/etc" \
@@ -35,32 +35,32 @@ busybox mkdir -m 755 \
     "${dest}/var/service" \
     "${dest}/var/spool"
 
-busybox mkdir -m 555 \
+mkdir -m 555 \
     "${dest}/proc" \
     "${dest}/sys"
 
-busybox mkdir -m 0750 \
+mkdir -m 0750 \
     "${dest}/root"
 
-busybox mkdir -m 1777 \
+mkdir -m 1777 \
     "${dest}/tmp" \
     "${dest}/var/tmp" \
     "${dest}/var/spool/mail"
 
-busybox ln -sf usr/bin "${dest}/bin"
-busybox ln -sf usr/bin "${dest}/sbin"
-busybox ln -sf bin     "${dest}/usr/sbin"
-busybox ln -sf usr/lib "${dest}/lib"
-busybox ln -sf usr/lib "${dest}/lib64"
+ln -sf usr/bin "${dest}/bin"
+ln -sf usr/bin "${dest}/sbin"
+ln -sf bin     "${dest}/usr/sbin"
+ln -sf usr/lib "${dest}/lib"
+ln -sf usr/lib "${dest}/lib64"
 
-busybox ln -sf lib               "${dest}/usr/lib64"
-busybox ln -sf spool/mail        "${dest}/var/mail"
-busybox ln -sf ../run            "${dest}/var/run"
-busybox ln -sf ../run/lock       "${dest}/var/lock"
-busybox ln -sf /proc/self/mounts "${dest}/etc/mtab"
+ln -sf lib               "${dest}/usr/lib64"
+ln -sf spool/mail        "${dest}/var/mail"
+ln -sf ../run            "${dest}/var/run"
+ln -sf ../run/lock       "${dest}/var/lock"
+ln -sf /proc/self/mounts "${dest}/etc/mtab"
 
-busybox cp -f ./* "${dest}/etc"
+cp -f ./* "${dest}/etc"
 
-busybox chmod 600 \
+chmod 600 \
     "${dest}/etc/crypttab" \
     "${dest}/etc/shadow"

@@ -4,23 +4,23 @@ var dest = ARGV[0]
 var CC = ENV => get("CC", "cc")
 var CFLAGS = ENV => get("CFLAGS", "") => split(' ')
 
-busybox mkdir -p \
+mkdir -p \
     "${dest}/usr/bin" \
     "${dest}/usr/share/doc/kominka/init"
 
-busybox cp -R etc "${dest}"
-busybox cp -R lib "${dest}/usr/lib"
+cp -R etc "${dest}"
+cp -R lib "${dest}/usr/lib"
 
 # Rebrand KISS -> Kominka.
-busybox sed -i 's/KISS/Kominka/g' "${dest}/usr/lib/init/rc.boot"
+sed -i 's/KISS/Kominka/g' "${dest}/usr/lib/init/rc.boot"
 
 # Silence 'command -v' stderr for shells that print "not found" (osh).
-busybox sed -i 's|command -v \([a-z]*\) >/dev/null|command -v \1 >/dev/null 2>\&1|g' "${dest}/usr/lib/init/rc.boot"
+sed -i 's|command -v \([a-z]*\) >/dev/null|command -v \1 >/dev/null 2>\&1|g' "${dest}/usr/lib/init/rc.boot"
 
 # Skip fsck when no filesystem-specific helpers are installed.
-busybox sed -i '/fsck -ATat/s/^/command -v fsck.ext4 >\/dev\/null 2>\&1 \&\& /' "${dest}/usr/lib/init/rc.boot"
+sed -i '/fsck -ATat/s/^/command -v fsck.ext4 >\/dev\/null 2>\&1 \&\& /' "${dest}/usr/lib/init/rc.boot"
 
 for bin in (:| kpow kall |) {
     $CC -o "${dest}/usr/bin/${bin}" "bin/${bin}.c" @CFLAGS
-    busybox cp -f "bin/${bin}.c" "${dest}/usr/share/doc/kominka/init/${bin}.c"
+    cp -f "bin/${bin}.c" "${dest}/usr/share/doc/kominka/init/${bin}.c"
 }

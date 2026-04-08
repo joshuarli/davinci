@@ -11,8 +11,8 @@ for patch in @[glob('patch/*.patch')] {
 var sed1 = "s#= g[c+][c+]#= ${CC}#g"
 var _pre2 = r's#\(\$(CROSS_COMPILE)\)gcc#\1'
 var sed2 = "${_pre2}${CC}#g"
-busybox sed -e $sed1 -e $sed2 Makefile > _
-busybox mv -f _ Makefile
+sed -e $sed1 -e $sed2 Makefile > _
+mv -f _ Makefile
 
 var cc_ver = $($CC --version)
 if (cc_ver => contains('clang')) {
@@ -22,16 +22,16 @@ if (cc_ver => contains('clang')) {
 
     var _pre3 = r's&\(\$(CC),\)clang&\1'
     var sed3 = "${_pre3}${CC}&g"
-    busybox sed $sed3 Makefile.flags > _
-    busybox mv -f _ Makefile.flags
+    sed $sed3 Makefile.flags > _
+    mv -f _ Makefile.flags
 
     # Strip linker flags unsupported by lld (zig's linker).
-    busybox sed -e 's/-Wl,--warn-common//g' \
+    sed -e 's/-Wl,--warn-common//g' \
         -e 's/-Wl,-Map,[^ ]*//g' \
         -e 's/-Wl,--verbose//g' \
         scripts/trylink > _
-    busybox mv -f _ scripts/trylink
-    busybox chmod +x scripts/trylink
+    mv -f _ scripts/trylink
+    chmod +x scripts/trylink
 }
 
 # Build and install regular busybox.
@@ -41,42 +41,42 @@ make HOSTCC=$CC SKIP_STRIP=y
 make CONFIG_PREFIX="${dest}/usr" install
 
 # Rename the binary temporarily.
-busybox mv "${dest}/usr/bin/busybox" "${dest}/usr/bin/busybox-nosuid"
+mv "${dest}/usr/bin/busybox" "${dest}/usr/bin/busybox-nosuid"
 
 # Build and install suid busybox.
-busybox cp -f .config-suid .config
+cp -f .config-suid .config
 make HOSTCC=$CC SKIP_STRIP=y
 make CONFIG_PREFIX="${dest}/usr" install
 
 # Aptly name the busybox binaries.
-busybox mv -f "${dest}/usr/bin/busybox"        "${dest}/usr/bin/busybox-suid"
-busybox mv -f "${dest}/usr/bin/busybox-nosuid" "${dest}/usr/bin/busybox"
+mv -f "${dest}/usr/bin/busybox"        "${dest}/usr/bin/busybox-suid"
+mv -f "${dest}/usr/bin/busybox-nosuid" "${dest}/usr/bin/busybox"
 
 # Install the non-suid symlinks.
 "${dest}/usr/bin/busybox" --list | while read -r bin {
-    busybox ln -s busybox "${dest}/usr/bin/${bin}"
+    ln -s busybox "${dest}/usr/bin/${bin}"
 }
 
 # Install the suid symlinks.
 "${dest}/usr/bin/busybox-suid" --list | while read -r bin {
-    busybox ln -s busybox-suid "${dest}/usr/bin/${bin}"
+    ln -s busybox-suid "${dest}/usr/bin/${bin}"
 }
 
-busybox chmod u+s "${dest}/usr/bin/busybox-suid"
+chmod u+s "${dest}/usr/bin/busybox-suid"
 
-busybox mkdir -p "${dest}/etc/acpi"
+mkdir -p "${dest}/etc/acpi"
 
 # Install runit services.
 for s in (:| acpid syslogd mdev ntpd udhcpc getty-hvc0 getty-tty1 |) {
-    busybox mkdir -p "${dest}/etc/sv/${s}"
-    busybox cp -f "${s}.run" "${dest}/etc/sv/${s}/run"
-    busybox chmod +x "${dest}/etc/sv/${s}/run"
-    busybox ln -sf "/run/runit/supervise.${s}" "${dest}/etc/sv/${s}/supervise"
+    mkdir -p "${dest}/etc/sv/${s}"
+    cp -f "${s}.run" "${dest}/etc/sv/${s}/run"
+    chmod +x "${dest}/etc/sv/${s}/run"
+    ln -sf "/run/runit/supervise.${s}" "${dest}/etc/sv/${s}/supervise"
 }
 
-busybox cp -f mdev.conf "${dest}/etc/mdev.conf"
+cp -f mdev.conf "${dest}/etc/mdev.conf"
 
 # udhcpc lease script.
-busybox mkdir -p "${dest}/etc"
-busybox cp -f udhcpc.sh "${dest}/etc/udhcpc.sh"
-busybox chmod +x "${dest}/etc/udhcpc.sh"
+mkdir -p "${dest}/etc"
+cp -f udhcpc.sh "${dest}/etc/udhcpc.sh"
+chmod +x "${dest}/etc/udhcpc.sh"

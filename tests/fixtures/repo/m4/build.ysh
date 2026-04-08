@@ -6,7 +6,7 @@ var dest = ARGV[0]
     --prefix=/usr
 
 # Fix gnulib _GL_ATTRIBUTE_NODISCARD incompatibility with newer GCC.
-busybox find lib -name '*.h' -exec sed -i \
+find lib -name '*.h' -exec sed -i \
     's/^\(# *define _GL_ATTRIBUTE_NODISCARD\) .*/\1/' {} +
 
 make

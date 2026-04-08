@@ -8,7 +8,7 @@
 make
 make install
 
-busybox ln -s flex "$1/usr/bin/lex"
+ln -s flex "$1/usr/bin/lex"
 
 # Remove READMEs and such.
-busybox rm -rf "$1/usr/share/doc"
+rm -rf "$1/usr/share/doc"

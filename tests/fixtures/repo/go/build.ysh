@@ -3,12 +3,12 @@
 var dest = ARGV[0]
 
 # pm strips the top-level directory, so bin/, src/, pkg/ are in $PWD.
-busybox mkdir -p "${dest}/usr/lib/go"
-busybox cp -a . "${dest}/usr/lib/go"
+mkdir -p "${dest}/usr/lib/go"
+cp -a . "${dest}/usr/lib/go"
 
-busybox mkdir -p "${dest}/usr/bin"
-busybox ln -s ../lib/go/bin/go "${dest}/usr/bin/go"
-busybox ln -s ../lib/go/bin/gofmt "${dest}/usr/bin/gofmt"
+mkdir -p "${dest}/usr/bin"
+ln -s ../lib/go/bin/go "${dest}/usr/bin/go"
+ln -s ../lib/go/bin/gofmt "${dest}/usr/bin/gofmt"
 
-busybox mkdir -p "${dest}/etc/profile.d"
-busybox cp -f go.sh "${dest}/etc/profile.d/"
+mkdir -p "${dest}/etc/profile.d"
+cp -f go.sh "${dest}/etc/profile.d/"

@@ -9,8 +9,8 @@ export PYTHON=/bin/true
 # blank file, this prevents the blank file from overwriting
 # the existing one.
 for f in ./*/Makefile.in; do
-    busybox sed 's/mv $@.new $@/:/g' "$f" > _
-    busybox mv -f _ "$f"
+    sed 's/mv $@.new $@/:/g' "$f" > _
+    mv -f _ "$f"
 done
 
 # Strip '-march' from 'CFLAGS' as per advice from upstream.
@@ -22,8 +22,8 @@ CFLAGS=$(printf %s "$CFLAGS" | sed 's/-march=[^ ]*//g')
 # have full linker script support and I'm not certain that lld or gold have
 # ever worked to build Grub.
 {
-    busybox mkdir -p .bin
-    busybox ln -s "$KOMINKA_ROOT/usr/bin/ld.bfd" .bin/ld
+    mkdir -p .bin
+    ln -s "$KOMINKA_ROOT/usr/bin/ld.bfd" .bin/ld
     export PATH=$PWD/.bin:$PATH
 
     # Strip '-B<path>mold' and '--ld-path=<path>mold' from CFLAGS.
@@ -53,16 +53,16 @@ build_grub() (
 build_grub --with-platform=pc
 build_grub --with-platform=efi --disable-efiemu
 
-busybox mkdir -p "$1/etc/default"
-busybox cp -f grub.default "$1/etc/default/grub"
+mkdir -p "$1/etc/default"
+cp -f grub.default "$1/etc/default/grub"
 
 # Remove gdb debugging files.
 (
     cd "$1/usr/lib"
 
-    busybox rm -f grub/*/*.module
-    busybox rm -f grub/*/*.image
-    busybox rm -f grub/*/kernel.exec
-    busybox rm -f grub/*/gdb_grub
-    busybox rm -f grub/*/gmodule.pl
+    rm -f grub/*/*.module
+    rm -f grub/*/*.image
+    rm -f grub/*/kernel.exec
+    rm -f grub/*/gdb_grub
+    rm -f grub/*/gmodule.pl
 )

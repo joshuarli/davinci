@@ -1,22 +1,22 @@
 #!/bin/sh -e
 dest=$1
 
-busybox mkdir -p "$dest/usr/bin" "$dest/usr/lib"
-busybox cp -a zig "$dest/usr/bin/"
-busybox cp -a lib "$dest/usr/lib/zig"
+mkdir -p "$dest/usr/bin" "$dest/usr/lib"
+cp -a zig "$dest/usr/bin/"
+cp -a lib "$dest/usr/lib/zig"
 
 # cc/c++ wrappers using native target (system glibc).
-busybox printf '#!/bin/sh\nexec zig cc "$@"\n'  > "$dest/usr/bin/cc"
-busybox printf '#!/bin/sh\nexec zig c++ "$@"\n' > "$dest/usr/bin/c++"
+printf '#!/bin/sh\nexec zig cc "$@"\n'  > "$dest/usr/bin/cc"
+printf '#!/bin/sh\nexec zig c++ "$@"\n' > "$dest/usr/bin/c++"
 # ld — zig's bundled lld, exposed directly.
-busybox printf '#!/bin/sh\nexec zig ld.lld "$@"\n' > "$dest/usr/bin/ld"
+printf '#!/bin/sh\nexec zig ld.lld "$@"\n' > "$dest/usr/bin/ld"
 # ar/ranlib/objcopy/strip wrappers.
-busybox printf '#!/bin/sh\nexec zig ar "$@"\n' > "$dest/usr/bin/ar"
-busybox printf '#!/bin/sh\nexec zig ranlib "$@"\n' > "$dest/usr/bin/ranlib"
-busybox printf '#!/bin/sh\nexec zig objcopy "$@"\n' > "$dest/usr/bin/objcopy"
+printf '#!/bin/sh\nexec zig ar "$@"\n' > "$dest/usr/bin/ar"
+printf '#!/bin/sh\nexec zig ranlib "$@"\n' > "$dest/usr/bin/ranlib"
+printf '#!/bin/sh\nexec zig objcopy "$@"\n' > "$dest/usr/bin/objcopy"
 # strip wrapper — translates GNU strip flags to zig objcopy equivalents.
 # Silently drops unsupported flags (--remove-section, -R, -o, etc.).
-busybox cat > "$dest/usr/bin/strip" <<'STRIPEOF'
+cat > "$dest/usr/bin/strip" <<'STRIPEOF'
 #!/bin/sh
 flags="" files="" skip=""
 for a in "$@"; do
@@ -30,13 +30,13 @@ for a in "$@"; do
     esac
 done
 for f in $files; do
-    busybox cp "$f" "$f.bak"
-    zig objcopy $flags "$f" "$f" 2>/dev/null || { busybox cp "$f.bak" "$f"; }
-    busybox rm -f "$f.bak"
+    cp "$f" "$f.bak"
+    zig objcopy $flags "$f" "$f" 2>/dev/null || { cp "$f.bak" "$f"; }
+    rm -f "$f.bak"
 done
 STRIPEOF
 # nm — tiny ELF symbol lister (needed by libtool).
 "$dest/usr/bin/zig" cc -o "$dest/usr/bin/nm" nm.c
-busybox chmod +x "$dest/usr/bin/cc" "$dest/usr/bin/c++" "$dest/usr/bin/ld" \
+chmod +x "$dest/usr/bin/cc" "$dest/usr/bin/c++" "$dest/usr/bin/ld" \
          "$dest/usr/bin/ar" "$dest/usr/bin/ranlib" "$dest/usr/bin/objcopy" \
          "$dest/usr/bin/strip"

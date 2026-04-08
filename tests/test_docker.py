@@ -51,7 +51,8 @@ class TestCoreImage(unittest.TestCase):
     def test_busybox_applets(self):
         r = docker_check("run", "--rm", "kominka:core",
                           "busybox", "--list")
-        for applet in ["gzip", "tar", "sh", "sed", "awk", "fdisk", "losetup"]:
+        for applet in ["gzip", "tar", "sh", "sed", "awk", "fdisk", "losetup",
+                       "cpio", "wget"]:
             self.assertIn(applet, r.stdout, f"missing applet: {applet}")
 
     def test_curl_works(self):

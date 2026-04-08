@@ -5,7 +5,7 @@
 
 # Fix gnulib _GL_ATTRIBUTE_NODISCARD incompatibility with newer GCC.
 # The [[__nodiscard__]] attribute in GL_OSET_INLINE context confuses the parser.
-busybox find lib -name '*.h' -exec sed -i \
+find lib -name '*.h' -exec sed -i \
     's/^\(# *define _GL_ATTRIBUTE_NODISCARD\) .*/\1/' {} +
 
 make

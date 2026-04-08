@@ -5,9 +5,9 @@ for patch in patch/*.patch; do
 done
 
 # Remove forced gcc/g++ usage so builds work on gcc-less systems.
-busybox sed -e "s#= g[c+][c+]#= $CC#g" \
+sed -e "s#= g[c+][c+]#= $CC#g" \
     -e "s#\(\$(CROSS_COMPILE)\)gcc#\1$CC#g" Makefile > _
-busybox mv -f _ Makefile
+mv -f _ Makefile
 
 case $("$CC" --version) in *clang*)
     # Disable UB based optimizations which are optimized out by
@@ -16,8 +16,8 @@ case $("$CC" --version) in *clang*)
 
     # Ensure that busybox's build system is aware that 'cc' may point
     # to clang rather than GCC. This is the case in non-GCC systems.
-    busybox sed "s&\(\$(CC),\)clang&\1$CC&g" Makefile.flags > _
-    busybox mv -f _ Makefile.flags
+    sed "s&\(\$(CC),\)clang&\1$CC&g" Makefile.flags > _
+    mv -f _ Makefile.flags
 esac
 
 # Build and install regular busybox.
@@ -26,46 +26,46 @@ make HOSTCC="$CC"
 make CONFIG_PREFIX="$1/usr" install
 
 # Rename the binary temporarily.
-busybox mv "$1/usr/bin/busybox" "$1/usr/bin/busybox-nosuid"
+mv "$1/usr/bin/busybox" "$1/usr/bin/busybox-nosuid"
 
 # Build and install suid busybox.
 # This _only_ includes utlities which require 'suid' to function.
-busybox cp -f .config-suid .config
+cp -f .config-suid .config
 make HOSTCC="$CC"
 make CONFIG_PREFIX="$1/usr" install
 
 # Aptly name the busybox binaries.
-busybox mv -f "$1/usr/bin/busybox"        "$1/usr/bin/busybox-suid"
-busybox mv -f "$1/usr/bin/busybox-nosuid" "$1/usr/bin/busybox"
+mv -f "$1/usr/bin/busybox"        "$1/usr/bin/busybox-suid"
+mv -f "$1/usr/bin/busybox-nosuid" "$1/usr/bin/busybox"
 
 # Install the non-suid symlinks.
 "$1/usr/bin/busybox" --list | while read -r bin; do
-    busybox ln -s busybox "$1/usr/bin/$bin"
+    ln -s busybox "$1/usr/bin/$bin"
 done
 
 # Install the suid symlinks.
 "$1/usr/bin/busybox-suid" --list | while read -r bin; do
-    busybox ln -s busybox-suid "$1/usr/bin/$bin"
+    ln -s busybox-suid "$1/usr/bin/$bin"
 done
 
 # Set suid on busybox suid.
-busybox chmod u+s "$1/usr/bin/busybox-suid"
+chmod u+s "$1/usr/bin/busybox-suid"
 
 # The acpid command requires that this directory exist
 # and does not automatically create it..
-busybox mkdir -p "$1/etc/acpi"
+mkdir -p "$1/etc/acpi"
 
 # Install runit services.
 for s in acpid syslogd mdev ntpd udhcpc getty-hvc0 getty-tty1; do
-    busybox mkdir -p "$1/etc/sv/$s"
-    busybox cp -f "$s.run" "$1/etc/sv/$s/run"
-    busybox chmod +x "$1/etc/sv/$s/run"
-    busybox ln -sf "/run/runit/supervise.$s" "$1/etc/sv/$s/supervise"
+    mkdir -p "$1/etc/sv/$s"
+    cp -f "$s.run" "$1/etc/sv/$s/run"
+    chmod +x "$1/etc/sv/$s/run"
+    ln -sf "/run/runit/supervise.$s" "$1/etc/sv/$s/supervise"
 done
 
-busybox cp -f mdev.conf "$1/etc/mdev.conf"
+cp -f mdev.conf "$1/etc/mdev.conf"
 
 # udhcpc lease script.
-busybox mkdir -p "$1/etc"
-busybox cp -f udhcpc.sh "$1/etc/udhcpc.sh"
-busybox chmod +x "$1/etc/udhcpc.sh"
+mkdir -p "$1/etc"
+cp -f udhcpc.sh "$1/etc/udhcpc.sh"
+chmod +x "$1/etc/udhcpc.sh"

@@ -8,4 +8,4 @@ make CC=$CC PREFIX=/usr
 make PREFIX=/usr DESTDIR=$dest install
 
 # Provide a 'ninja' symlink so cmake -GNinja works.
-busybox ln -sf samu "${dest}/usr/bin/ninja"
+ln -sf samu "${dest}/usr/bin/ninja"

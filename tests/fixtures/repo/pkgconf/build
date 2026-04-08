@@ -7,7 +7,7 @@
 make
 make DESTDIR="$1" install
 
-busybox ln -s pkgconf "$1/usr/bin/pkg-config"
+ln -s pkgconf "$1/usr/bin/pkg-config"
 
 # Remove documentation.
-busybox rm -rf "$1/usr/share/doc"
+rm -rf "$1/usr/share/doc"
