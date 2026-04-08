@@ -22,7 +22,6 @@ ENV KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
     KOMINKA_COLOR=0 \
     KOMINKA_PROMPT=0 \
     KOMINKA_FORCE=1 \
-    KOMINKA_INSECURE=1 \
     LOGNAME=root \
     HOME=/root
 

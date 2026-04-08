@@ -10,7 +10,6 @@
 
 ## Packaging
 
-- CA certificates package (currently using `KOMINKA_INSECURE=1`)
 - openssh (remote access)
 - ncurses + vim (text editing)
 - zstd (compression, increasingly common for tarballs)

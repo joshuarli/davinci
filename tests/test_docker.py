@@ -55,13 +55,11 @@ class TestCoreImage(unittest.TestCase):
                         "losetup", "cpio", "wget"]:
             self.assertIn(applet, r.stdout, f"missing applet: {applet}")
 
-    def test_curl_works(self):
-        """curl can fetch a known file from R2."""
+    def test_https_works(self):
+        """curl HTTPS works with CA certificates (no -k needed)."""
         r = docker("run", "--rm", "kominka:core",
-                    "curl", "-ksfo", "/dev/null",
-                    "https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev/"
-                    "aarch64-linux-gnu/baselayout@1-8.tar.gz",
-                    timeout=30)
+                    "curl", "-sfo", "/dev/null", "https://www.google.com",
+                    timeout=15)
         self.assertEqual(r.returncode, 0)
 
     def test_pm_install_package(self):
