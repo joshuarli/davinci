@@ -773,17 +773,34 @@ proc pkg_order (...pkgs) {
 }
 
 proc pkg_clean_dev (pkg) {
-    ### Remove dev artifacts (static libs, headers, pkgconfig, libtool).
+    ### Remove dev/doc artifacts from the built package tree.
     var pd = "${pkg_dir}/${pkg}"
 
-    # Static archives (.a) — not needed at runtime.
-    for f in @[glob("${pd}/usr/lib/*.a")] { rm -f $f }
-
-    # Libtool archives (.la) — only useful for static linking.
+    # Static archives and libtool files — only useful for static linking.
+    for f in @[glob("${pd}/usr/lib/*.a")]  { rm -f $f }
     for f in @[glob("${pd}/usr/lib/*.la")] { rm -f $f }
 
-    # pkgconfig files — only needed at build time.
+    # pkgconfig — only needed at build time.
     rm -rf "${pd}/usr/lib/pkgconfig" "${pd}/usr/share/pkgconfig"
+
+    # Headers — belong in a -dev split (not yet implemented).
+    rm -rf "${pd}/usr/include"
+
+    # Info pages, man pages, doc — not useful in a minimal system.
+    rm -rf "${pd}/usr/share/info" "${pd}/usr/share/man" "${pd}/usr/share/doc"
+
+    # Locale data (i18n definitions) — large, not needed at runtime.
+    rm -rf "${pd}/usr/share/i18n"
+
+    # gconv charset modules — keep only UTF-8 and UNICODE.
+    if test -d "${pd}/usr/lib/gconv" {
+        for f in @[glob("${pd}/usr/lib/gconv/*.so")] {
+            case (f) {
+                *UTF* | *UNICODE* { true }
+                * { rm -f $f }
+            }
+        }
+    }
 }
 
 proc pkg_strip (pkg) {
