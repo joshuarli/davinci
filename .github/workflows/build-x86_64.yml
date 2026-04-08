@@ -3,27 +3,33 @@ name: Build x86_64 packages
 on:
   workflow_dispatch:
 
+env:
+  R2: https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev
+  PM_ENV: >-
+    KOMINKA_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev
+    KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev
+    KOMINKA_PATH=/packages KOMINKA_ROOT=/kominka-root
+    KOMINKA_COMPRESS=gz KOMINKA_COLOR=0 KOMINKA_PROMPT=0
+    KOMINKA_STRIP=0 KOMINKA_FORCE=1 LOGNAME=root HOME=/root
+
 jobs:
-  build:
+  # Base image with Debian glibc + zig + ysh. Reused by all package jobs.
+  base:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build all x86_64 packages
+      - name: Build base image
         run: |
-          docker build --platform linux/amd64 -f - -t kominka:rebuild-x86 . <<'DEOF'
+          docker build -f - -t kominka:base . <<'DEOF'
           FROM debian:bookworm-slim
-
           RUN apt-get update && apt-get install -y --no-install-recommends \
               build-essential curl ca-certificates tar gzip bzip2 xz-utils \
-              make patch git && \
-              rm -rf /var/lib/apt/lists/*
-
+              make patch git && rm -rf /var/lib/apt/lists/*
           RUN curl -fLo /tmp/oils.tar.gz \
                   https://oils.pub/download/oils-for-unix-0.37.0.tar.gz && \
               cd /tmp && tar xzf oils.tar.gz && cd oils-for-unix-* && \
               ./configure --without-readline && _build/oils.sh && ./install
-
           COPY tests/fixtures/repo /packages
           RUN find /packages -name build -exec chmod +x {} + && \
               find /packages -name post-install -exec chmod +x {} +
@@ -32,12 +38,6 @@ jobs:
               chown -R root:root /kominka-root
           COPY pm.ysh /usr/bin/pm
           RUN chmod +x /usr/bin/pm
-          ENV KOMINKA_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
-              KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
-              KOMINKA_PATH=/packages KOMINKA_ROOT=/kominka-root \
-              KOMINKA_COMPRESS=gz KOMINKA_COLOR=0 KOMINKA_PROMPT=0 \
-              KOMINKA_STRIP=0 KOMINKA_FORCE=1 LOGNAME=root HOME=/root
-
           # glibc from Debian.
           RUN mkdir -p /kominka-root/usr/lib && \
               for lib in libc.so.6 libm.so.6 libdl.so.2 libpthread.so.0 \
@@ -53,44 +53,58 @@ jobs:
               echo "2.38 3" > /kominka-root/var/db/kominka/installed/glibc/version && \
               printf '#!/bin/sh\n:\n' > /kominka-root/var/db/kominka/installed/glibc/build && \
               chmod +x /kominka-root/var/db/kominka/installed/glibc/build
-
-          RUN pm b zig && pm i zig
-          ENV PATH=/kominka-root/usr/bin:$PATH
-
-          RUN pm b linux-headers && pm i linux-headers
+          # Fake perl.
           RUN mkdir -p /kominka-root/var/db/kominka/installed/perl && \
               echo "999 1" > /kominka-root/var/db/kominka/installed/perl/version
-
-          RUN pm b baselayout && pm i baselayout
-          RUN pm b busybox && pm i busybox
-          RUN pm b baseinit && pm i baseinit
-          RUN pm b runit && pm i runit
-          RUN pm b zlib && pm i zlib
-          RUN pm b boringssl && pm i boringssl
-          RUN pm b curl && pm i curl
-          RUN pm b ca-certificates && pm i ca-certificates
-          RUN pm b opendoas || true
-          RUN pm b make && pm i make
-          RUN pm b samurai && pm i samurai
-          RUN pm b cmake && pm i cmake
-          RUN pm b go && pm i go
-          RUN pm b bzip2 && pm i bzip2
-          RUN pm b xz && pm i xz
-          RUN pm b pkgconf && pm i pkgconf
-          RUN pm b m4 && pm i m4
-          RUN pm b bison && pm i bison
-          RUN pm b git && pm i git
-          RUN pm b ysh && pm i ysh
           DEOF
 
-      - name: Extract tarballs
+      - name: Build zig
         run: |
+          docker run --name zig-build kominka:base sh -c \
+            'env ${{ env.PM_ENV }} pm b zig && env ${{ env.PM_ENV }} pm i zig'
           mkdir -p artifacts
-          docker create --name builder kominka:rebuild-x86 true
-          docker cp builder:/root/.cache/kominka/bin/. artifacts/
-          docker rm builder
-          echo "=== x86_64 packages ==="
-          ls -lhS artifacts/*.tar.gz
+          docker cp zig-build:/root/.cache/kominka/bin/. artifacts/
+          docker commit zig-build kominka:with-zig
+          docker rm zig-build
+
+      - name: Build linux-headers
+        run: |
+          docker run --name lh-build kominka:with-zig sh -c \
+            'export PATH=/kominka-root/usr/bin:$PATH && env ${{ env.PM_ENV }} pm b linux-headers && env ${{ env.PM_ENV }} pm i linux-headers'
+          docker cp lh-build:/root/.cache/kominka/bin/. artifacts/
+          docker commit lh-build kominka:with-toolchain-base
+          docker rm lh-build
+
+      - name: Build core packages
+        run: |
+          docker run --name core-build kominka:with-toolchain-base sh -c '
+            export PATH=/kominka-root/usr/bin:$PATH
+            for pkg in baselayout busybox baseinit runit zlib boringssl curl \
+                       ca-certificates opendoas make; do
+              echo "=== $pkg ==="
+              env ${{ env.PM_ENV }} pm b "$pkg" && env ${{ env.PM_ENV }} pm i "$pkg" \
+                || echo "FAILED: $pkg"
+            done
+          '
+          docker cp core-build:/root/.cache/kominka/bin/. artifacts/
+          docker commit core-build kominka:with-core
+          docker rm core-build
+
+      - name: Build toolchain packages
+        run: |
+          docker run --name tool-build kominka:with-core sh -c '
+            export PATH=/kominka-root/usr/bin:$PATH
+            for pkg in samurai cmake go bzip2 xz pkgconf m4 bison git ysh; do
+              echo "=== $pkg ==="
+              env ${{ env.PM_ENV }} pm b "$pkg" && env ${{ env.PM_ENV }} pm i "$pkg" \
+                || echo "FAILED: $pkg"
+            done
+          '
+          docker cp tool-build:/root/.cache/kominka/bin/. artifacts/
+          docker rm tool-build
+
+      - name: List results
+        run: ls -lhS artifacts/*.tar.gz
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
