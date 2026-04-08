@@ -7,7 +7,7 @@ var dest = ARGV[0]
     --sysconfdir=/etc
 
 make
-make install
+make DESTDIR=$dest install
 
 ln -s pkgconf "${dest}/usr/bin/pkg-config"
 

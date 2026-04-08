@@ -5,42 +5,37 @@ The only external requirement is a minimal Debian image that runs pm
 (shell utilities + curl for downloading + tar for extraction). Zero
 Debian compilers, linkers, or build tools.
 
-## Current state (2026-04-07)
+## Current state (2026-04-08)
 
 ### Phase 1: COMPLETE
+### Phase 2: COMPLETE (with workarounds)
 
-`tests/Dockerfile.toolchain` builds BoringSSL from source using only
-Kominka packages. Zero Debian build tools.
+`tests/Dockerfile.toolchain` builds boringssl, git, bzip2, xz, and
+pkgconf from source. Zero Debian build tools.
 
-### On R2 (aarch64 binaries)
+### On R2 (aarch64 binaries, 24 packages)
 
 Core (9):
 - glibc, baselayout, busybox, baseinit, runit
 - boringssl (0.20260327.0-6, shared libs + headers)
 - curl (7.80.0-5, shared lib + headers), opendoas, ysh
 
-Toolchain (7):
+Toolchain (11):
 - zig 0.15.2-2 (cc, c++, ld via lld, ar, ranlib, nm, objcopy)
 - make, samurai (ninja), cmake, go
-- zlib, linux-headers
+- zlib, linux-headers, bzip2, xz, pkgconf, git
 
 Other (4):
 - bison, m4, dosfstools, e2fsprogs
 
-### Not on R2
+### Known issues
 
-Need to build and upload for Phase 2:
-- **git** — built from source in cleanroom, not yet uploaded
-- **bzip2** — source tarball decompression
-- **xz** — source tarball decompression
-- **flex** — parser generator
-- **pkgconf** — pkg-config implementation
-
-Not needed for self-hosting (zig replaces gcc):
+- **flex**: stage1flex crashes with SIGPIPE when built with zig cc.
+  The bootstrapped binary runs but dies immediately writing output.
+  Needs investigation — may be a zig cc signal handling issue.
+  flex is not blocking any current cleanroom build.
+- **perl**: git builds without it (`NO_PERL=YesPlease`). Not packaging.
 - ~~gcc, binutils~~ — deleted, zig provides cc/ld/ar/nm
-- perl — git builds without it (`NO_PERL=YesPlease`)
-- grub — installer only
-- sqlite, strace, libudev-zero — optional
 
 ### Debian runtime (pm only)
 

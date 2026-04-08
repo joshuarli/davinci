@@ -2,6 +2,7 @@
 #
 # Debian provides ONLY pm runtime (coreutils, curl, tar, etc.).
 # All compilers, build tools, and libraries come from Kominka R2.
+# This Dockerfile builds all buildable packages from source.
 #
 # Usage:
 #   docker build -t kominka:toolchain -f tests/Dockerfile.toolchain .
@@ -45,8 +46,13 @@ COPY tests/build_core.sh /home/kominka/build_core.sh
 RUN chmod +x /home/kominka/build_core.sh && sh /home/kominka/build_core.sh
 RUN pm i zig make zlib samurai cmake go
 
+# Fake deps not yet buildable in cleanroom.
+RUN for pkg in perl; do \
+        mkdir -p "/kominka-root/var/db/kominka/installed/$pkg" && \
+        echo "999 1" > "/kominka-root/var/db/kominka/installed/$pkg/version"; \
+    done
+
 # Kominka build tools on PATH (after Debian bins so pm uses Debian's curl/tar).
-# CC/CXX point to Kominka's zig wrappers explicitly.
 ENV GOROOT=/kominka-root/usr/lib/go \
     PATH=$PATH:/kominka-root/usr/bin:/kominka-root/usr/lib/go/bin \
     CC=/kominka-root/usr/bin/cc \
@@ -56,10 +62,17 @@ ENV GOROOT=/kominka-root/usr/lib/go \
     RANLIB=/kominka-root/usr/bin/ranlib \
     CFLAGS="-I/kominka-root/usr/include" \
     CXXFLAGS="-I/kominka-root/usr/include" \
-    LDFLAGS="-L/kominka-root/usr/lib"
+    LDFLAGS="-L/kominka-root/usr/lib -Wl,-rpath,/kominka-root/usr/lib"
 
-# Build BoringSSL from source — cmake, go, ninja, zig all from Kominka.
+# Phase 2: Build all packages from source.
+RUN pm b bzip2 && pm i bzip2
+RUN pm b xz && pm i xz
+RUN pm b pkgconf && pm i pkgconf
+# HACK: flex skipped — stage1flex crashes with SIGPIPE when built with zig cc.
+# Needs investigation: may be a zig cc signal handling issue with bootstrapped binaries.
+RUN pm b git && pm i git
 RUN pm b boringssl && pm i boringssl
 
-# Verify shared libs.
+# Verify key outputs.
 RUN ls /kominka-root/usr/lib/libssl.so /kominka-root/usr/lib/libcrypto.so
+RUN ls /kominka-root/usr/bin/git /kominka-root/usr/bin/bzip2 /kominka-root/usr/bin/xz

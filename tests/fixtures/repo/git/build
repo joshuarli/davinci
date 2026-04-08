@@ -22,7 +22,7 @@ EOF
     ac_cv_fread_reads_directories=yes
 
 make LIBS="-lcurl -lssl -lcrypto libgit.a xdiff/lib.a -lz"
-make install
+make DESTDIR="$1" install
 
 # Install manpages if downloaded.
 if [ -d man ]; then
