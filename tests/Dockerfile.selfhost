@@ -1,6 +1,7 @@
 # Self-hosting build image — Kominka from scratch with full toolchain.
 #
-# Stage 1: Install all packages from R2 into /kominka-root using Debian.
+# Stage 1: Bootstrap from R2 using curl+tar (the only Debian deps),
+#           then use Kominka's own pm in a chroot for the toolchain.
 # Stage 2: FROM scratch with everything needed to run pm b.
 #
 # Usage:
@@ -9,55 +10,62 @@
 
 FROM debian:bookworm-slim AS builder
 
+ARG R2=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev/aarch64-linux-gnu
+
+# Bare minimum from Debian: download and extract.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    coreutils findutils grep sed gawk diffutils \
-    curl ca-certificates \
-    gzip bzip2 xz-utils tar \
-    patch && \
+    curl ca-certificates tar gzip && \
     rm -rf /var/lib/apt/lists/*
 
-RUN curl -fL https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev/aarch64-linux-gnu/ysh@0.37.0-1.tar.gz | \
-    tar xzf - -C /
+# Bootstrap core + curl (needed by pm to download toolchain packages).
+RUN mkdir -p /kominka-root/var/db/kominka/installed /kominka-root/var/db/kominka/choices && \
+    for pkg in \
+        glibc@2.38-3 \
+        baselayout@1-8 \
+        busybox@1.34.1-2 \
+        baseinit@1.0.3-1 \
+        runit@2.1.2-1 \
+        boringssl@0.20260327.0-6 \
+        curl@7.80.0-5 \
+        opendoas@6.8.1-1 \
+        ysh@0.37.0-1; \
+    do \
+        echo "=== $pkg ===" && \
+        curl -fL "$R2/$pkg.tar.gz" | tar xzf - -C /kominka-root; \
+    done
 
-COPY tests/fixtures/repo /packages
-RUN find /packages -name build -exec chmod +x {} + && \
-    find /packages -name post-install -exec chmod +x {} +
-RUN mkdir -p /kominka-root/var/db/kominka/installed /kominka-root/var/db/kominka/choices
-
-ENV KOMINKA_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
-    KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
-    KOMINKA_PATH=/packages \
-    KOMINKA_ROOT=/kominka-root \
-    KOMINKA_COMPRESS=gz \
-    KOMINKA_COLOR=0 \
-    KOMINKA_PROMPT=0 \
-    KOMINKA_STRIP=0 \
-    KOMINKA_FORCE=1 \
-    LOGNAME=root \
-    HOME=/root
-
-COPY pm.ysh /usr/bin/pm
-RUN chmod +x /usr/bin/pm
-
-# Install core + full toolchain from R2.
-COPY tests/build_core.sh /home/kominka/build_core.sh
-RUN chmod +x /home/kominka/build_core.sh && sh /home/kominka/build_core.sh
-RUN pm i zig make zlib samurai cmake go bzip2 xz pkgconf git m4 bison linux-headers
-
-# Copy libstdc++ and libgcc_s from host — ysh and cmake need these.
+# Copy libstdc++ and libgcc_s — ysh and cmake need these.
 RUN for lib in libstdc++.so.6 libgcc_s.so.1; do \
         src=$(find /lib /usr/lib -name "$lib" 2>/dev/null | head -1); \
         [ -n "$src" ] && cp "$src" /kominka-root/usr/lib/; \
     done
 
-# Copy CA certificates for HTTPS.
-RUN cp -r /etc/ssl/certs /kominka-root/etc/ssl/
+# CA certificates for HTTPS downloads.
+RUN mkdir -p /kominka-root/etc/ssl/certs && \
+    cp /etc/ssl/certs/ca-certificates.crt /kominka-root/etc/ssl/certs/
 
-# Install pm into the chroot.
-RUN cp /usr/bin/pm /kominka-root/usr/bin/pm
+# Install pm and package repo into chroot.
+COPY pm.ysh /kominka-root/usr/bin/pm
+RUN chmod +x /kominka-root/usr/bin/pm
+COPY tests/fixtures/repo /kominka-root/packages
+RUN find /kominka-root/packages -name build -exec chmod +x {} + && \
+    find /kominka-root/packages -name post-install -exec chmod +x {} +
 
-# Copy package repo.
-RUN cp -r /packages /kominka-root/packages
+# Install toolchain packages via pm inside the chroot.
+# Core is already extracted above; pm downloads toolchain from R2.
+RUN cp /etc/resolv.conf /kominka-root/etc/resolv.conf && \
+    chroot /kominka-root /bin/sh -c '\
+    export KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
+           KOMINKA_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
+           KOMINKA_PATH=/packages \
+           KOMINKA_COMPRESS=gz \
+           KOMINKA_COLOR=0 \
+           KOMINKA_PROMPT=0 \
+           KOMINKA_STRIP=0 \
+           KOMINKA_FORCE=1 \
+           LOGNAME=root \
+           HOME=/root && \
+    ysh /usr/bin/pm i zig make zlib samurai cmake go bzip2 xz pkgconf git m4 bison linux-headers'
 
 FROM scratch
 
