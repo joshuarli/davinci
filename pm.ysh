@@ -1260,6 +1260,11 @@ proc pkg_checksum_gen () {
 
 proc pkg_verify (pkg) {
     ### Verify package checksums against the stored checksums file.
+    # Prefer arch-specific checksums (checksums.aarch64, checksums.x86_64).
+    var _arch_ck = "${repo_dir}/checksums.${sys_arch%%-*}"
+    var _ckfile = "${repo_dir}/checksums"
+    if test -f $_arch_ck { setvar _ckfile = _arch_ck }
+
     log $repo_name "Verifying sources"
 
     pkg_checksum_gen >/dev/null
@@ -1288,7 +1293,7 @@ proc pkg_verify (pkg) {
         }
 
         setvar idx += 1
-    } < "${repo_dir}/checksums"
+    } < $_ckfile
 }
 
 proc pkg_conflicts (pkg) {

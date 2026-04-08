@@ -2,30 +2,24 @@
 set -e
 dest="$1"
 
+# Detect musl target triple from architecture.
+MUSL_TARGET="$(uname -m)-linux-musl"
+
 # Static build targeting musl — no glibc/libstdc++ runtime deps.
 # Replace system cc/c++ with musl-targeting wrappers.
 # oils passes -std=c++11 to CC for .c files, so the wrapper forces
 # c++ mode only when compiling (not linking).
-cat > /usr/bin/cc <<'EOF'
+cat > /usr/bin/cc <<EOF
 #!/bin/sh
 compile=false
-for a in "$@"; do case "$a" in -c) compile=true;; esac; done
-if $compile; then
-    exec zig c++ -target aarch64-linux-musl -xc++ "$@"
+for a in "\$@"; do case "\$a" in -c) compile=true;; esac; done
+if \$compile; then
+    exec zig c++ -target $MUSL_TARGET -xc++ "\$@"
 else
-    exec zig c++ -target aarch64-linux-musl "$@"
+    exec zig c++ -target $MUSL_TARGET "\$@"
 fi
 EOF
-cat > /usr/bin/c++ <<'EOF'
-#!/bin/sh
-compile=false
-for a in "$@"; do case "$a" in -c) compile=true;; esac; done
-if $compile; then
-    exec zig c++ -target aarch64-linux-musl -xc++ "$@"
-else
-    exec zig c++ -target aarch64-linux-musl "$@"
-fi
-EOF
+cp /usr/bin/cc /usr/bin/c++
 chmod +x /usr/bin/cc /usr/bin/c++
 
 LDFLAGS='' ./configure --without-readline

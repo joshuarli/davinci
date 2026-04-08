@@ -1,10 +1,10 @@
 # Build a custom minimal Linux kernel for Kominka Linux.
 # Starts from tinyconfig + kernel.config fragment.
-# Produces an uncompressed Image (ARM64) suitable for vfkit direct boot.
+# Supports both ARM64 and x86_64 via Docker --platform.
 #
 # Usage:
 #   docker build -t kominka-kernel -f Dockerfile.linux .
-#   docker run --rm -v "$(pwd)":/out kominka-kernel
+#   docker build --platform linux/amd64 -t kominka-kernel-amd64 -f Dockerfile.linux .
 
 FROM debian:bookworm-slim AS builder
 
@@ -24,19 +24,27 @@ RUN curl -fLo /tmp/linux.tar.xz "$KERNEL_URL" && \
 
 WORKDIR /linux
 
-# tinyconfig only depends on kernel source — cached across config edits.
 RUN make tinyconfig
 
-# kernel.config changes during development; only invalidates merge + build.
+# Select kernel config based on architecture.
 COPY kernel.config /tmp/kernel.config
-RUN scripts/kconfig/merge_config.sh -m .config /tmp/kernel.config && \
+COPY kernel-x86_64.config /tmp/kernel-x86_64.config
+RUN case "$(uname -m)" in \
+        x86_64) cp /tmp/kernel-x86_64.config /tmp/active.config ;; \
+        *)      cp /tmp/kernel.config /tmp/active.config ;; \
+    esac && \
+    scripts/kconfig/merge_config.sh -m .config /tmp/active.config && \
     make olddefconfig
 
-RUN make -j"$(nproc)" Image
+# Build and copy to /Image regardless of architecture.
+RUN case "$(uname -m)" in \
+        x86_64) make -j"$(nproc)" bzImage && cp arch/x86/boot/bzImage /Image ;; \
+        *)      make -j"$(nproc)" Image   && cp arch/arm64/boot/Image /Image ;; \
+    esac
 
 FROM debian:bookworm-slim
 
-COPY --from=builder /linux/arch/arm64/boot/Image /Image
+COPY --from=builder /Image /Image
 COPY --from=builder /linux/.config /kernel-config
 
 CMD cat /Image > /out/Image && cat /kernel-config > /out/kernel-config && \
