@@ -40,7 +40,7 @@ RUN sed -i 's|^root:!:|root::|' /etc/shadow
 
 # Enable services for live environment.
 RUN mkdir -p /var/service && \
-    for svc in mdev syslogd getty-hvc0 udhcpc; do \
+    for svc in mdev syslogd getty-hvc0 udhcpc ntpd; do \
         [ -d /etc/sv/$svc ] && ln -sf "/etc/sv/$svc" "/var/service/$svc"; \
     done
 
