@@ -1,7 +1,7 @@
 # Build a bootable Kominka Linux installer disk image.
 #
 # Uses kominka:core as the rootfs base, adds e2fsprogs + dosfstools
-# from R2, kernel from kominka-kernel, and the install script.
+# via pm, kernel from kominka-kernel, and the install script.
 # No Debian — all tools from Kominka packages.
 #
 # Requires: kominka:core, kominka-kernel images.
@@ -14,11 +14,20 @@ FROM kominka-kernel AS kernel-image
 
 FROM kominka:core AS rootfs
 
-ARG R2=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev/aarch64-linux-gnu
+COPY tests/fixtures/repo /packages
+
+ENV KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
+    KOMINKA_PATH=/packages \
+    KOMINKA_COMPRESS=gz \
+    KOMINKA_COLOR=0 \
+    KOMINKA_PROMPT=0 \
+    KOMINKA_FORCE=1 \
+    KOMINKA_INSECURE=1 \
+    LOGNAME=root \
+    HOME=/root
 
 # Add filesystem tools for the installer.
-RUN wget --no-check-certificate -qO- "$R2/e2fsprogs@1.46.4-3.tar.gz" | tar xzf - -C / && \
-    wget --no-check-certificate -qO- "$R2/dosfstools@4.2-1.tar.gz" | tar xzf - -C /
+RUN pm i liveiso
 
 # Kernel — lives on the rootfs so install.sh can access it.
 COPY --from=kernel-image /Image /usr/share/kominka/Image
@@ -38,7 +47,6 @@ RUN mkdir -p /var/service && \
 
 RUN echo "kominka-installer" > /etc/hostname
 
-# Build the disk image with busybox tools (fdisk, losetup, mount, cpio).
 COPY build_iso.sh /build_iso.sh
 
 CMD sh /build_iso.sh
