@@ -16,8 +16,6 @@ all_pkgs="
     runit
     boringssl
     curl
-    e2fsprogs
-    dosfstools
     opendoas
     ysh
 "

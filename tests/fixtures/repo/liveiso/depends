@@ -1,0 +1,8 @@
+core
+e2fsprogs
+dosfstools
+linux
+# TODO: grub or systemd-boot (EFI bootloader)
+# TODO: util-linux (fdisk/sfdisk for partitioning)
+# TODO: squashfs-tools (compressed live rootfs)
+# TODO: cpio (initramfs generation)
