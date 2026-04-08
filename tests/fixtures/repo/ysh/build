@@ -1,0 +1,15 @@
+#!/bin/sh
+set -e
+dest="$1"
+CC="${CC:-cc}"
+CXX="${CXX:-c++}"
+
+# oils finds its own compiler; just disable readline (and ncurses).
+# Clear LDFLAGS to avoid picking up chroot glibc linker scripts.
+LDFLAGS='' ./configure --without-readline
+LDFLAGS='' _build/oils.sh
+
+mkdir -p "${dest}/usr/local/bin"
+cp _bin/cxx-opt-sh/oils-for-unix "${dest}/usr/local/bin/oils-for-unix"
+ln -s oils-for-unix "${dest}/usr/local/bin/osh"
+ln -s oils-for-unix "${dest}/usr/local/bin/ysh"

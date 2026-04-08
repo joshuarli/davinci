@@ -1,32 +1,13 @@
 # Minimal Kominka base image (FROM scratch).
 #
-# Stage 1: Build ysh interpreter
-# Stage 2: Install core packages from R2 binary mirror into a chroot
-# Stage 3: Copy the chroot into a scratch image
+# Stage 1: Install core + ysh packages from R2 binary mirror
+# Stage 2: Strip dev artifacts, copy into scratch image
 #
 # Usage:
 #   docker build -t kominka:core -f Dockerfile.base .
 #   docker run --rm -it kominka:core /bin/sh
 
-FROM debian:bookworm-slim AS ysh-builder
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential libreadline-dev curl ca-certificates tar && \
-    rm -rf /var/lib/apt/lists/*
-
-RUN curl -fLo /tmp/oils.tar.gz \
-        https://oils.pub/download/oils-for-unix-0.37.0.tar.gz && \
-    cd /tmp && tar xzf oils.tar.gz && \
-    cd oils-for-unix-* && \
-    ./configure && \
-    _build/oils.sh && \
-    ./install
-
 FROM debian:bookworm-slim AS pkg-builder
-
-COPY --from=ysh-builder /usr/local/bin/oils-for-unix /usr/local/bin/oils-for-unix
-RUN ln -s oils-for-unix /usr/local/bin/osh && \
-    ln -s oils-for-unix /usr/local/bin/ysh
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     coreutils findutils grep sed gawk diffutils \
@@ -34,6 +15,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gzip bzip2 xz-utils tar \
     patch && \
     rm -rf /var/lib/apt/lists/*
+
+# ysh is needed to run pm; extract pre-built binary from R2.
+RUN curl -fL https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev/aarch64-linux-gnu/ysh@0.37.0-1.tar.gz | \
+    tar xzf - -C /
 
 COPY tests/fixtures/repo /packages
 
@@ -60,19 +45,20 @@ RUN chmod +x /usr/bin/pm
 COPY tests/build_core.sh /home/kominka/build_core.sh
 RUN chmod +x /home/kominka/build_core.sh && sh /home/kominka/build_core.sh
 
-# Install ysh into the chroot so the target image has it.
-# Copy ysh binary and its runtime shared libraries (libreadline, libtinfo, libstdc++, libgcc_s).
-RUN mkdir -p /kominka-root/usr/local/bin && \
-    cp /usr/local/bin/oils-for-unix /kominka-root/usr/local/bin/oils-for-unix && \
-    ln -s oils-for-unix /kominka-root/usr/local/bin/osh && \
-    ln -s oils-for-unix /kominka-root/usr/local/bin/ysh && \
-    for lib in libreadline.so.8 libtinfo.so.6 libstdc++.so.6 libgcc_s.so.1; do \
+# Copy libstdc++ and libgcc_s from host — ysh's only non-glibc runtime deps.
+RUN for lib in libstdc++.so.6 libgcc_s.so.1; do \
         src=$(find /lib /usr/lib -name "$lib" 2>/dev/null | head -1); \
         [ -n "$src" ] && cp "$src" /kominka-root/usr/lib/; \
     done
 
 # Install pm into the chroot.
 RUN cp /usr/bin/pm /kominka-root/usr/bin/pm
+
+# Strip dev artifacts for a lean runtime image.
+RUN rm -rf /kominka-root/usr/include \
+           /kominka-root/usr/lib/*.a \
+           /kominka-root/usr/lib/pkgconfig && \
+    find /kominka-root/usr/lib/gconv -name '*.so' ! -name 'UTF*' ! -name 'UNICODE*' -delete 2>/dev/null; true
 
 FROM scratch
 

@@ -19,6 +19,7 @@ all_pkgs="
     e2fsprogs
     dosfstools
     opendoas
+    ysh
 "
 
 if [ $# -gt 0 ]; then
