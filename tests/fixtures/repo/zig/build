@@ -29,7 +29,11 @@ for a in "$@"; do
         *) files="$files $a" ;;
     esac
 done
-for f in $files; do zig objcopy $flags "$f" "$f" 2>/dev/null || true; done
+for f in $files; do
+    cp "$f" "$f.bak"
+    zig objcopy $flags "$f" "$f" 2>/dev/null || { cp "$f.bak" "$f"; }
+    rm -f "$f.bak"
+done
 STRIPEOF
 # nm — tiny ELF symbol lister (needed by libtool).
 "$dest/usr/bin/zig" cc -o "$dest/usr/bin/nm" nm.c

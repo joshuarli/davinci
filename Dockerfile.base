@@ -1,51 +1,39 @@
 # Minimal Kominka base image (FROM scratch).
 #
-# Stage 1: Bootstrap core packages from R2 using curl+tar (the only Debian deps).
-# Stage 2: Copy into scratch image.
+# Bootstrap: busybox:latest (4MB static) provides wget+tar to pull
+# Kominka packages from R2. No Debian, no glibc, no TLS library.
 #
 # Usage:
 #   docker build -t kominka:core -f Dockerfile.base .
 #   docker run --rm -it kominka:core /bin/sh
 
-FROM debian:bookworm-slim AS pkg-builder
+FROM busybox:latest AS bootstrap
 
 ARG R2=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev/aarch64-linux-gnu
 
-# Bare minimum from Debian: download and extract.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl ca-certificates tar gzip && \
-    rm -rf /var/lib/apt/lists/*
-
-# Install all core packages from R2 binary tarballs.
+# Pull core packages from R2 with busybox wget (no TLS verification).
 RUN mkdir -p /kominka-root/var/db/kominka/installed /kominka-root/var/db/kominka/choices && \
     for pkg in \
-        glibc@2.38-3 \
         baselayout@1-8 \
+        glibc@2.38-3 \
         busybox@1.34.1-2 \
         baseinit@1.0.3-1 \
         runit@2.1.2-1 \
         boringssl@0.20260327.0-6 \
         curl@7.80.0-5 \
         opendoas@6.8.1-1 \
-        ysh@0.37.0-1; \
+        ysh@0.37.0-2; \
     do \
         echo "=== $pkg ===" && \
-        curl -fL "$R2/$pkg.tar.gz" | tar xzf - -C /kominka-root; \
+        wget --no-check-certificate -qO- "$R2/$pkg.tar.gz" | tar xzf - -C /kominka-root; \
     done
 
-# Copy libstdc++ and libgcc_s — ysh's only non-glibc runtime deps.
-RUN for lib in libstdc++.so.6 libgcc_s.so.1; do \
-        src=$(find /lib /usr/lib -name "$lib" 2>/dev/null | head -1); \
-        [ -n "$src" ] && cp "$src" /kominka-root/usr/lib/; \
-    done
-
-# Install pm.
 COPY pm.ysh /kominka-root/usr/bin/pm
 RUN chmod +x /kominka-root/usr/bin/pm
 
 FROM scratch
 
-COPY --from=pkg-builder /kominka-root /
+COPY --from=bootstrap /kominka-root /
 
 ENV PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin \
     HOME=/root \

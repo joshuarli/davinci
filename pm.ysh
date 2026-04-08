@@ -17,6 +17,7 @@ var KOMINKA_FORCE = ''
 var KOMINKA_CHOICE = ''
 var KOMINKA_DEBUG = ''
 var KOMINKA_STRIP = ''
+var KOMINKA_INSECURE = ''
 var KOMINKA_HOOK = ''
 var KOMINKA_TMPDIR = ''
 var KOMINKA_KEEPLOG = ''
@@ -589,7 +590,16 @@ proc pkg_source (pkg, checksum_mode='') {
 proc pkg_source_url (dest, url, fatal='y') {
     log $repo_name "Downloading $url"
 
-    try { $cmd_get -fLo $dest $url }
+    case (cmd_get) {
+        */curl {
+            var curl_args = ['-fLo', dest, url]
+            if (KOMINKA_INSECURE === '1') { setvar curl_args = ['-kfLo', dest, url] }
+            try { $cmd_get @curl_args }
+        }
+        */wget {
+            try { $cmd_get --no-check-certificate -qO $dest $url }
+        }
+    }
     if failed {
         rm -f $dest
         if (fatal === 'y') {
@@ -1617,7 +1627,16 @@ proc pkg_install_all (...pkgs) {
         # Start all downloads silently in background.
         var pids = {}
         for pkg in (dl_names) {
-            fork { $cmd_get -sfLo $[dests[pkg]] $[urls[pkg]] }
+            case (cmd_get) {
+                */curl {
+                    if (KOMINKA_INSECURE === '1') {
+                        fork { $cmd_get -ksfLo $[dests[pkg]] $[urls[pkg]] }
+                    } else {
+                        fork { $cmd_get -sfLo $[dests[pkg]] $[urls[pkg]] }
+                    }
+                }
+                */wget { fork { $cmd_get --no-check-certificate -qO $[dests[pkg]] $[urls[pkg]] } }
+            }
             setvar pids[pkg] = $!
         }
 
@@ -2113,6 +2132,7 @@ proc main (...argv) {
     setglobal KOMINKA_CHOICE    = ENV => get("KOMINKA_CHOICE", "")
     setglobal KOMINKA_DEBUG     = ENV => get("KOMINKA_DEBUG", "")
     setglobal KOMINKA_STRIP     = ENV => get("KOMINKA_STRIP", "")
+    setglobal KOMINKA_INSECURE  = ENV => get("KOMINKA_INSECURE", "")
     setglobal KOMINKA_HOOK      = ENV => get("KOMINKA_HOOK", "")
     setglobal KOMINKA_TMPDIR    = ENV => get("KOMINKA_TMPDIR", "")
     setglobal KOMINKA_KEEPLOG   = ENV => get("KOMINKA_KEEPLOG", "")
@@ -2177,8 +2197,8 @@ proc main (...argv) {
     setglobal cmd_sha = $(_discover_tool $KOMINKA_CHK openssl sha256sum sha256 shasum digest)
     if (cmd_sha === '') { die "No sha256 utility found" }
 
-    setglobal cmd_get = $(_discover_tool $KOMINKA_GET curl)
-    if (cmd_get === '') { die "curl not found" }
+    setglobal cmd_get = $(_discover_tool $KOMINKA_GET curl wget)
+    if (cmd_get === '') { die "No download tool found (curl, wget)" }
 
     setglobal time_str = $(date +%Y-%m-%d-%H:%M)
 

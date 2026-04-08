@@ -7,7 +7,12 @@ cp -a zig "${dest}/usr/bin/"
 cp -a lib "${dest}/usr/lib/zig"
 
 # cc/c++ wrappers using native target (system glibc).
-write -- '#!/bin/sh' 'exec zig cc "$@"'  > "${dest}/usr/bin/cc"
+# cc detects c++ flags (-std=c++*) and upgrades to zig c++ automatically.
+# Some build systems (oils) pass -std=c++11 to CC instead of CXX.
+write -- '#!/bin/sh
+mode=cc
+for a in "$@"; do case "$a" in -std=c++*) mode="c++";; esac; done
+exec zig $mode "$@"' > "${dest}/usr/bin/cc"
 write -- '#!/bin/sh' 'exec zig c++ "$@"' > "${dest}/usr/bin/c++"
 # ld — zig's bundled lld, exposed directly.
 write -- '#!/bin/sh' 'exec zig ld.lld "$@"' > "${dest}/usr/bin/ld"
@@ -31,7 +36,11 @@ for a in "$@"; do
         *) files="$files $a" ;;
     esac
 done
-for f in $files; do zig objcopy $flags "$f" "$f" 2>/dev/null || true; done' > "${dest}/usr/bin/strip"
+for f in $files; do
+    cp "$f" "$f.bak"
+    zig objcopy $flags "$f" "$f" 2>/dev/null || { cp "$f.bak" "$f"; }
+    rm -f "$f.bak"
+done' > "${dest}/usr/bin/strip"
 # nm — tiny ELF symbol lister (needed by libtool).
 "${dest}/usr/bin/zig" cc -o "${dest}/usr/bin/nm" nm.c
 chmod +x "${dest}/usr/bin/cc" "${dest}/usr/bin/c++" "${dest}/usr/bin/ld" \

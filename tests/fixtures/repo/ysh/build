@@ -1,11 +1,33 @@
 #!/bin/sh
 set -e
 dest="$1"
-CC="${CC:-cc}"
-CXX="${CXX:-c++}"
 
-# oils finds its own compiler; just disable readline (and ncurses).
-# Clear LDFLAGS to avoid picking up chroot glibc linker scripts.
+# Static build targeting musl — no glibc/libstdc++ runtime deps.
+# Replace system cc/c++ with musl-targeting wrappers.
+# oils passes -std=c++11 to CC for .c files, so the wrapper forces
+# c++ mode only when compiling (not linking).
+cat > /usr/bin/cc <<'EOF'
+#!/bin/sh
+compile=false
+for a in "$@"; do case "$a" in -c) compile=true;; esac; done
+if $compile; then
+    exec zig c++ -target aarch64-linux-musl -xc++ "$@"
+else
+    exec zig c++ -target aarch64-linux-musl "$@"
+fi
+EOF
+cat > /usr/bin/c++ <<'EOF'
+#!/bin/sh
+compile=false
+for a in "$@"; do case "$a" in -c) compile=true;; esac; done
+if $compile; then
+    exec zig c++ -target aarch64-linux-musl -xc++ "$@"
+else
+    exec zig c++ -target aarch64-linux-musl "$@"
+fi
+EOF
+chmod +x /usr/bin/cc /usr/bin/c++
+
 LDFLAGS='' ./configure --without-readline
 LDFLAGS='' _build/oils.sh
 
