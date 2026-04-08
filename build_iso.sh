@@ -22,7 +22,7 @@ trap cleanup EXIT
 kernel_mb=$(( $(stat -c%s /usr/share/kominka/Image) / 1048576 + 1 ))
 efi_mb=$(( kernel_mb + 4 ))
 [ "$efi_mb" -lt 34 ] && efi_mb=34
-rootfs_mb=$(du -sm / --exclude=/proc --exclude=/sys --exclude=/dev --exclude=/out --exclude=/mnt | awk '{print $1}')
+rootfs_mb=$(du -sm /bin /etc /lib /sbin /usr /var /root 2>/dev/null | awk '{s+=$1} END{print s}')
 root_mb=$(( rootfs_mb * 120 / 100 + 4 ))
 img_mb=$(( 1 + efi_mb + root_mb + 1 ))
 
