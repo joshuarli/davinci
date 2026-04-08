@@ -1,2 +1,2 @@
-https://go.dev/dl/goVERSION.linux-arm64.tar.gz
+https://go.dev/dl/goVERSION.linux-GOARCH.tar.gz
 files/go.sh

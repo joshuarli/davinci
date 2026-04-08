@@ -197,11 +197,20 @@ proc fnr_vars (input) {
     ### Substitute VERSION/RELEASE/MAJOR/MINOR/PATCH/IDENT/PACKAGE in a source line.
     # For each keyword: protect \KEYWORD → sentinel, replace KEYWORD → value, restore.
     setglobal _fnr_val = input
+    # ARCH: GNU name (aarch64, x86_64). GOARCH: Go/kernel name (arm64, amd64).
+    var _arch = ${sys_arch%%-*}
+    var _goarch = _arch
+    case (_arch) {
+        aarch64 { setvar _goarch = 'arm64' }
+        x86_64  { setvar _goarch = 'amd64' }
+    }
+
     var subs = {
         VERSION: repo_ver, RELEASE: repo_rel,
         MAJOR: repo_parts['major'], MINOR: repo_parts['minor'],
         PATCH: repo_parts['patch'], IDENT: repo_parts['ident'],
         PACKAGE: repo_name,
+        GOARCH: _goarch, ARCH: _arch,
     }
     for key, val in (subs) {
         _fnr_step "\\\\$key" ' '
