@@ -407,6 +407,62 @@ class RemoveDependentTests:
         )
 
 
+class UpdateTests:
+    """Test that pm U detects and applies release bumps."""
+
+    def test_upgrade_detects_release_bump(self):
+        """Bump release 1 -> 2 in repo; pm U should report it."""
+        repo = self.create_repo_pkg("upgpkg", version="1.0 1")
+        # Build and install v1.0-1.
+        self.pm("b", "upgpkg")
+        self.pm("i", "upgpkg", env_override={"KOMINKA_FORCE": "1"})
+        # Verify installed.
+        r = self.pm("l")
+        self.assertIn("upgpkg 1.0-1", r.stdout)
+        # Bump release in repo.
+        (repo / "version").write_text("1.0 2\n")
+        # pm U should detect the update.
+        r = self.pm("U", env_override={"KOMINKA_PROMPT": "0"})
+        combined = r.stdout + r.stderr
+        self.assertIn("upgpkg 1.0-1 => 1.0-2", combined)
+
+    def test_upgrade_applies_release_bump(self):
+        """After pm U, installed version should reflect the new release."""
+        repo = self.create_repo_pkg("relup", version="2.0 1")
+        self.pm("b", "relup")
+        self.pm("i", "relup", env_override={"KOMINKA_FORCE": "1"})
+        # Bump release.
+        (repo / "version").write_text("2.0 2\n")
+        self.pm("U", env_override={"KOMINKA_PROMPT": "0"})
+        r = self.pm("l")
+        self.assertIn("relup 2.0-2", r.stdout)
+
+    def test_upgrade_no_change_when_current(self):
+        """If installed == repo version, pm U should report nothing."""
+        self.create_repo_pkg("curpkg", version="1.0 1")
+        self.pm("b", "curpkg")
+        self.pm("i", "curpkg", env_override={"KOMINKA_FORCE": "1"})
+        r = self.pm("U", env_override={"KOMINKA_PROMPT": "0"})
+        combined = r.stdout + r.stderr
+        self.assertNotIn("=>", combined)
+
+    def test_upgrade_detects_version_bump(self):
+        """Bump upstream version 1.0 -> 2.0; pm U should report it."""
+        repo = self.create_repo_pkg("verbump", version="1.0 1")
+        self.pm("b", "verbump")
+        self.pm("i", "verbump", env_override={"KOMINKA_FORCE": "1"})
+        (repo / "version").write_text("2.0 1\n")
+        r = self.pm("U", env_override={"KOMINKA_PROMPT": "0"})
+        combined = r.stdout + r.stderr
+        self.assertIn("verbump 1.0-1 => 2.0-1", combined)
+
+
+@unittest.skipUnless(HAS_YSH, "ysh interpreter not found")
+class YSH_UpdateTests(CheapPMTestCase, UpdateTests):
+    PM_INTERPRETER = YSH
+    PM_SCRIPT = PM_YSH
+
+
 @unittest.skipUnless(HAS_YSH, "ysh interpreter not found")
 class YSH_HelpTests(CheapPMTestCase, HelpTests):
     PM_INTERPRETER = YSH
