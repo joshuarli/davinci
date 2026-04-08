@@ -52,12 +52,11 @@ $(( efi_end + 1 ))
 w
 FDISK
 
-# Calculate partition offsets from fdisk output.
-eval "$(busybox fdisk -l "$IMG" 2>/dev/null | busybox awk '/\.img[12]/{
-    gsub(/\*/, ""); n=split($0,a);
-    if (++i==1) printf "P1_START=%s\nP1_END=%s\n", a[2], a[3];
-    else printf "P2_START=%s\nP2_END=%s\n", a[2], a[3];
-}')"
+# Partition offsets — we know the layout because we just created it.
+P1_START=2048
+P1_END=$efi_end
+P2_START=$(( efi_end + 1 ))
+P2_END=$(( img_mb * 2048 - 1 ))
 
 efi_off=$((P1_START * 512))
 efi_size=$(( (P1_END - P1_START + 1) * 512 ))
