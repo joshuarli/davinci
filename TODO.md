@@ -2,8 +2,6 @@
 
 ## Bugs
 
-- **flex**: stage1flex crashes with SIGPIPE when built with zig cc.
-  May be a zig signal handling issue with self-bootstrapping builds.
 - **strip**: zig objcopy can't `--strip-all` on shared libs or static
   musl binaries. Wrapper backs up and restores on failure. Binaries
   are larger than necessary.
