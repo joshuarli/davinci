@@ -71,8 +71,11 @@ LOOP_EFI=$(losetup -f) && losetup -o "$efi_off" "$LOOP_EFI" "$IMG"
 LOOP_ROOT=$(losetup -f) && losetup -o "$root_off" "$LOOP_ROOT" "$IMG"
 
 echo "==> Formatting partitions"
-mkfs.vfat -F32 -n KOMINKA_EFI "$LOOP_EFI"
-mkfs.ext4 -q -m 0 -L KOMINKA_ROOT "$LOOP_ROOT"
+# Pass explicit size since busybox losetup has no --sizelimit.
+efi_blocks=$(( efi_size / 1024 ))
+root_blocks=$(( root_size / 4096 ))
+mkfs.vfat -F32 -n KOMINKA_EFI -S 512 -s 1 "$LOOP_EFI" "$efi_blocks"
+mkfs.ext4 -q -m 0 -L KOMINKA_ROOT -b 4096 "$LOOP_ROOT" "$root_blocks"
 
 echo "==> Mounting"
 mount "$LOOP_ROOT" "$MNT"
