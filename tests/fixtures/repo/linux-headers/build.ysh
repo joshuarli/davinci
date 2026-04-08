@@ -7,7 +7,7 @@ make HOSTCC=$CC headers
 
 # The headers require rsync for installation. This does the equivalent
 # using find, mkdir and cp.
-find usr/include -name '*.h' -type f | while read -r file {
-    mkdir -p "${dest}/${file%/*}"
-    cp -f $file "${dest}/${file}"
+busybox find usr/include -name '*.h' -type f | while read -r file {
+    busybox mkdir -p "${dest}/${file%/*}"
+    busybox cp -f $file "${dest}/${file}"
 }

@@ -3,7 +3,7 @@
 make PREFIX=/usr
 make PREFIX=/usr install
 
-mkdir -p "$1/usr/bin"
+busybox mkdir -p "$1/usr/bin"
 
 # shellcheck disable=2086
 # shellcheck disable=2086

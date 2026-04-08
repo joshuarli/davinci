@@ -7,13 +7,13 @@ echo "${CC:-cc} -O2 -Wall -D_GNU_SOURCE -Wno-implicit-function-declaration -Wno-
 echo "${CC:-cc} -s"        > src/conf-ld
 
 # runit defaults to -static; remove it for dynamic linking.
-sed -i 's/ -static//g' src/Makefile
+busybox sed -i 's/ -static//g' src/Makefile
 
 # Build using runit's own build system.
 package/compile
 
 # Install supervision binaries.
-mkdir -p "$1/usr/bin"
+busybox mkdir -p "$1/usr/bin"
 for bin in chpst runsv runsvdir sv svlogd; do
-    cp -f "command/$bin" "$1/usr/bin/"
+    busybox cp -f "command/$bin" "$1/usr/bin/"
 done

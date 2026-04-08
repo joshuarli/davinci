@@ -2217,6 +2217,7 @@ proc main (...argv) {
     # CPU count for parallel make.
     try { setglobal _nproc = $(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4) }
 
+
     # Discover tools via fallback chains.
     setglobal cmd_su = $(_discover_tool $KOMINKA_SU ssu sudo doas su)
     if (cmd_su === '') { setglobal cmd_su = 'su' }

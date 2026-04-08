@@ -8,7 +8,7 @@ export CFLAGS="$CFLAGS -Wno-error -Wno-int-conversion -Wno-implicit-function-dec
 
 # Fix gnulib compat: replace all K&R-style zero-arg prototypes that
 # conflict with strict POSIX declarations in modern libc headers.
-find . \( -name '*.c' -o -name '*.h' \) -exec sed -i \
+busybox find . \( -name '*.c' -o -name '*.h' \) -exec sed -i \
     -e 's/extern char \*getenv ();/\/* getenv *\//' \
     -e 's/^extern int getopt ();/\/* getopt *\//' \
     {} +

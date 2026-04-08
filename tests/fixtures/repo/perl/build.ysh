@@ -44,12 +44,12 @@ make
 make install
 
 # Remove unneeded files.
-find "${dest}" -name '*.pod'       -exec rm -f {} +
-find "${dest}" -name .packlist     -exec rm -f {} +
-find "${dest}" -name 'README*'     -exec rm -f {} +
-find "${dest}" -name 'TODO*'       -exec rm -f {} +
-find "${dest}" -name 'Change*'     -exec rm -f {} +
-find "${dest}" -name '*.bs'        -exec rm -f {} +
-find "${dest}" -name '*.0' -type f -exec rm -f {} +
+busybox find "${dest}" -name '*.pod'       -exec rm -f {} +
+busybox find "${dest}" -name .packlist     -exec rm -f {} +
+busybox find "${dest}" -name 'README*'     -exec rm -f {} +
+busybox find "${dest}" -name 'TODO*'       -exec rm -f {} +
+busybox find "${dest}" -name 'Change*'     -exec rm -f {} +
+busybox find "${dest}" -name '*.bs'        -exec rm -f {} +
+busybox find "${dest}" -name '*.0' -type f -exec rm -f {} +
 
-find "${dest}/usr/lib" -type f -exec chmod 644 {} \;
+busybox find "${dest}/usr/lib" -type f -exec chmod 644 {} \;

@@ -8,16 +8,16 @@ cmake -GNinja -B build \
     -DCMAKE_CXX_COMPILER="${CXX:-c++}"
 ninja -C build
 
-mkdir -p "$1/usr/lib/pkgconfig" "$1/usr/include" "$1/etc/ssl"
+busybox mkdir -p "$1/usr/lib/pkgconfig" "$1/usr/include" "$1/etc/ssl"
 
-cp -r include/openssl "$1/usr/include/"
-cp build/libssl.so "$1/usr/lib/"
-cp build/libcrypto.so "$1/usr/lib/"
+busybox cp -r include/openssl "$1/usr/include/"
+busybox cp build/libssl.so "$1/usr/lib/"
+busybox cp build/libcrypto.so "$1/usr/lib/"
 
-cp -f update-certdata.sh "$1/etc/ssl"
+busybox cp -f update-certdata.sh "$1/etc/ssl"
 
 # pkg-config files for curl and other consumers.
-cat > "$1/usr/lib/pkgconfig/libssl.pc" <<EOF
+busybox cat > "$1/usr/lib/pkgconfig/libssl.pc" <<EOF
 prefix=/usr
 libdir=\${prefix}/lib
 includedir=\${prefix}/include
@@ -29,7 +29,7 @@ Libs: -L\${libdir} -lssl -lcrypto
 Cflags: -I\${includedir}
 EOF
 
-cat > "$1/usr/lib/pkgconfig/libcrypto.pc" <<EOF
+busybox cat > "$1/usr/lib/pkgconfig/libcrypto.pc" <<EOF
 prefix=/usr
 libdir=\${prefix}/lib
 includedir=\${prefix}/include
@@ -41,7 +41,7 @@ Libs: -L\${libdir} -lcrypto
 Cflags: -I\${includedir}
 EOF
 
-cat > "$1/usr/lib/pkgconfig/openssl.pc" <<EOF
+busybox cat > "$1/usr/lib/pkgconfig/openssl.pc" <<EOF
 prefix=/usr
 
 Name: openssl

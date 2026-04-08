@@ -10,6 +10,6 @@ var dest = ARGV[0]
 make
 make DESTDIR=$dest install
 
-ln -s flex "${dest}/usr/bin/lex"
+busybox ln -s flex "${dest}/usr/bin/lex"
 
-rm -rf "${dest}/usr/share/doc"
+busybox rm -rf "${dest}/usr/share/doc"

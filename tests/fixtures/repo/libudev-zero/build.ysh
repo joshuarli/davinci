@@ -9,7 +9,7 @@ var CPPFLAGS = ENV => get("CPPFLAGS", "")
 make PREFIX=/usr
 make PREFIX=/usr install
 
-mkdir -p "${dest}/usr/bin"
+busybox mkdir -p "${dest}/usr/bin"
 
 $CC $LDFLAGS $CFLAGS $CPPFLAGS \
     -o "${dest}/usr/bin/libudev-zero-helper" contrib/helper.c

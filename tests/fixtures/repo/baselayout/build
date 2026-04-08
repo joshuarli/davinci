@@ -1,6 +1,6 @@
 #!/bin/sh -e
 
-mkdir -m 755 \
+busybox mkdir -m 755 \
     "$1/boot" \
     "$1/dev" \
     "$1/etc" \
@@ -33,32 +33,32 @@ mkdir -m 755 \
     "$1/var/service" \
     "$1/var/spool"
 
-mkdir -m 555 \
+busybox mkdir -m 555 \
     "$1/proc" \
     "$1/sys"
 
-mkdir -m 0750 \
+busybox mkdir -m 0750 \
     "$1/root"
 
-mkdir -m 1777 \
+busybox mkdir -m 1777 \
     "$1/tmp" \
     "$1/var/tmp" \
     "$1/var/spool/mail"
 
-ln -sf usr/bin "$1/bin"
-ln -sf usr/bin "$1/sbin"
-ln -sf bin     "$1/usr/sbin"
-ln -sf usr/lib "$1/lib"
-ln -sf usr/lib "$1/lib64"
+busybox ln -sf usr/bin "$1/bin"
+busybox ln -sf usr/bin "$1/sbin"
+busybox ln -sf bin     "$1/usr/sbin"
+busybox ln -sf usr/lib "$1/lib"
+busybox ln -sf usr/lib "$1/lib64"
 
-ln -sf lib               "$1/usr/lib64"
-ln -sf spool/mail        "$1/var/mail"
-ln -sf ../run            "$1/var/run"
-ln -sf ../run/lock       "$1/var/lock"
-ln -sf /proc/self/mounts "$1/etc/mtab"
+busybox ln -sf lib               "$1/usr/lib64"
+busybox ln -sf spool/mail        "$1/var/mail"
+busybox ln -sf ../run            "$1/var/run"
+busybox ln -sf ../run/lock       "$1/var/lock"
+busybox ln -sf /proc/self/mounts "$1/etc/mtab"
 
-cp -f ./* "$1/etc"
+busybox cp -f ./* "$1/etc"
 
-chmod 600 \
+busybox chmod 600 \
     "$1/etc/crypttab" \
     "$1/etc/shadow"

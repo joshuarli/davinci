@@ -6,7 +6,7 @@ dest="$1"
 # Replace system cc/c++ with musl-targeting wrappers.
 # oils passes -std=c++11 to CC for .c files, so the wrapper forces
 # c++ mode only when compiling (not linking).
-cat > /usr/bin/cc <<'EOF'
+busybox cat > /usr/bin/cc <<'EOF'
 #!/bin/sh
 compile=false
 for a in "$@"; do case "$a" in -c) compile=true;; esac; done
@@ -16,7 +16,7 @@ else
     exec zig c++ -target aarch64-linux-musl "$@"
 fi
 EOF
-cat > /usr/bin/c++ <<'EOF'
+busybox cat > /usr/bin/c++ <<'EOF'
 #!/bin/sh
 compile=false
 for a in "$@"; do case "$a" in -c) compile=true;; esac; done
@@ -26,12 +26,12 @@ else
     exec zig c++ -target aarch64-linux-musl "$@"
 fi
 EOF
-chmod +x /usr/bin/cc /usr/bin/c++
+busybox chmod +x /usr/bin/cc /usr/bin/c++
 
 LDFLAGS='' ./configure --without-readline
 LDFLAGS='' _build/oils.sh
 
-mkdir -p "${dest}/usr/local/bin"
-cp _bin/cxx-opt-sh/oils-for-unix "${dest}/usr/local/bin/oils-for-unix"
-ln -s oils-for-unix "${dest}/usr/local/bin/osh"
-ln -s oils-for-unix "${dest}/usr/local/bin/ysh"
+busybox mkdir -p "${dest}/usr/local/bin"
+busybox cp _bin/cxx-opt-sh/oils-for-unix "${dest}/usr/local/bin/oils-for-unix"
+busybox ln -s oils-for-unix "${dest}/usr/local/bin/osh"
+busybox ln -s oils-for-unix "${dest}/usr/local/bin/ysh"

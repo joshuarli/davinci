@@ -6,7 +6,7 @@ var CC = ENV => get("CC", "cc")
 var srcdir = $(pwd)
 
 # glibc must be built outside of its source tree.
-mkdir -p glibc-build
+busybox mkdir -p glibc-build
 cd glibc-build
 
 ../configure \
@@ -33,11 +33,11 @@ case (ARCH) {
     x86_64  { setvar ldso = 'ld-linux-x86-64.so.2' }
 }
 
-mkdir -p "${dest}/usr/bin"
-ln -sf "/usr/lib/${ldso}" "${dest}/usr/bin/ldd"
+busybox mkdir -p "${dest}/usr/bin"
+busybox ln -sf "/usr/lib/${ldso}" "${dest}/usr/bin/ldd"
 
 # Install BSD compatibility headers (from source directory).
-cp -f "${srcdir}/cdefs.h" "${srcdir}/queue.h" "${srcdir}/tree.h" \
+busybox cp -f "${srcdir}/cdefs.h" "${srcdir}/queue.h" "${srcdir}/tree.h" \
     "${dest}/usr/include/sys"
 
 # Install getconf and getent.

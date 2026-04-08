@@ -1,7 +1,7 @@
 #!/bin/sh -e
 
 # glibc must be built outside of its source tree.
-mkdir -p glibc-build
+busybox mkdir -p glibc-build
 cd glibc-build
 
 ../configure \
@@ -29,11 +29,11 @@ case $ARCH in
     x86_64)  LDSO=ld-linux-x86-64.so.2 ;;
 esac
 
-mkdir -p "$1/usr/bin"
-ln -sf "/usr/lib/$LDSO" "$1/usr/bin/ldd"
+busybox mkdir -p "$1/usr/bin"
+busybox ln -sf "/usr/lib/$LDSO" "$1/usr/bin/ldd"
 
 # Install BSD compatibility headers.
-cp -f ../cdefs.h ../queue.h ../tree.h \
+busybox cp -f ../cdefs.h ../queue.h ../tree.h \
     "$1/usr/include/sys"
 
 # Install getconf and getent.

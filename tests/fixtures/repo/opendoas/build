@@ -11,6 +11,6 @@ BINGRP="$(id -g)" \
 make
 make DESTDIR="$1" install
 
-mkdir -p "$1/etc"
-cp -f doas.conf "$1/etc"
-chmod 600 "$1/etc/doas.conf"
+busybox mkdir -p "$1/etc"
+busybox cp -f doas.conf "$1/etc"
+busybox chmod 600 "$1/etc/doas.conf"

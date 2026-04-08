@@ -1,7 +1,7 @@
 #!/bin/sh -e
 
 
-cat > config.mak <<EOF
+busybox cat > config.mak <<EOF
 NO_GETTEXT=YesPlease
 NO_SVN_TESTS=YesPlease
 NO_TCLTK=YesPlease
@@ -26,6 +26,6 @@ make DESTDIR="$1" install
 
 # Install manpages if downloaded.
 if [ -d man ]; then
-    mkdir -p "$1/usr/share/man"
-    cp -Rf man "$1/usr/share/"
+    busybox mkdir -p "$1/usr/share/man"
+    busybox cp -Rf man "$1/usr/share/"
 fi

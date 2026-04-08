@@ -2,9 +2,9 @@
 
 var dest = ARGV[0]
 
-mkdir -p "${dest}/usr/bin" "${dest}/usr/lib"
-cp -a zig "${dest}/usr/bin/"
-cp -a lib "${dest}/usr/lib/zig"
+busybox mkdir -p "${dest}/usr/bin" "${dest}/usr/lib"
+busybox cp -a zig "${dest}/usr/bin/"
+busybox cp -a lib "${dest}/usr/lib/zig"
 
 # cc/c++ wrappers using native target (system glibc).
 # cc detects c++ flags (-std=c++*) and upgrades to zig c++ automatically.
@@ -37,12 +37,12 @@ for a in "$@"; do
     esac
 done
 for f in $files; do
-    cp "$f" "$f.bak"
-    zig objcopy $flags "$f" "$f" 2>/dev/null || { cp "$f.bak" "$f"; }
-    rm -f "$f.bak"
+    busybox cp "$f" "$f.bak"
+    zig objcopy $flags "$f" "$f" 2>/dev/null || { busybox cp "$f.bak" "$f"; }
+    busybox rm -f "$f.bak"
 done' > "${dest}/usr/bin/strip"
 # nm — tiny ELF symbol lister (needed by libtool).
 "${dest}/usr/bin/zig" cc -o "${dest}/usr/bin/nm" nm.c
-chmod +x "${dest}/usr/bin/cc" "${dest}/usr/bin/c++" "${dest}/usr/bin/ld" \
+busybox chmod +x "${dest}/usr/bin/cc" "${dest}/usr/bin/c++" "${dest}/usr/bin/ld" \
          "${dest}/usr/bin/ar" "${dest}/usr/bin/ranlib" "${dest}/usr/bin/objcopy" \
          "${dest}/usr/bin/strip"
