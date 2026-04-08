@@ -2,6 +2,11 @@
 
 var dest = ARGV[0]
 var CC = ENV => get("CC", "cc")
+# HOSTCC builds host tools (fixdep, etc.) that run during the build.
+# Use system gcc when available — zig-compiled host tools crash under QEMU.
+var HOSTCC = CC
+try { command -v gcc >/dev/null 2>&1 }
+if ! failed { setvar HOSTCC = 'gcc' }
 
 for patch in @[glob('patch/*.patch')] {
     patch -p1 < $patch
@@ -36,7 +41,7 @@ if (cc_ver => contains('clang')) {
 
 # SKIP_STRIP=y: busybox Makefile uses strip -o (output to new file),
 # which our strip doesn't support. pm's pkg_strip runs after build.
-make HOSTCC=$CC SKIP_STRIP=y
+make HOSTCC=$HOSTCC SKIP_STRIP=y
 make CONFIG_PREFIX="${dest}/usr" install
 
 # Rename the binary temporarily.
@@ -44,7 +49,7 @@ mv "${dest}/usr/bin/busybox" "${dest}/usr/bin/busybox-nosuid"
 
 # Build and install suid busybox.
 cp -f .config-suid .config
-make HOSTCC=$CC SKIP_STRIP=y
+make HOSTCC=$HOSTCC SKIP_STRIP=y
 make CONFIG_PREFIX="${dest}/usr" install
 
 # Aptly name the busybox binaries.
