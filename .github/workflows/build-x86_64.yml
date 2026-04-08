@@ -3,33 +3,28 @@ name: Build x86_64 packages
 on:
   workflow_dispatch:
 
-env:
-  R2: https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev
-  PM_ENV: >-
-    KOMINKA_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev
-    KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev
-    KOMINKA_PATH=/packages KOMINKA_ROOT=/kominka-root
-    KOMINKA_COMPRESS=gz KOMINKA_COLOR=0 KOMINKA_PROMPT=0
-    KOMINKA_STRIP=0 KOMINKA_FORCE=1 LOGNAME=root HOME=/root
-
 jobs:
-  # Base image with Debian glibc + zig + ysh. Reused by all package jobs.
-  base:
+  # Build only the packages that failed or are missing from R2.
+  # Successful packages from previous runs are already uploaded.
+  build-missing:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build base image
+      - name: Build missing x86_64 packages
         run: |
-          docker build -f - -t kominka:base . <<'DEOF'
+          docker build -f - -t kominka:fixup . <<'DEOF'
           FROM debian:bookworm-slim
+
           RUN apt-get update && apt-get install -y --no-install-recommends \
               build-essential curl ca-certificates tar gzip bzip2 xz-utils \
               make patch git && rm -rf /var/lib/apt/lists/*
+
           RUN curl -fLo /tmp/oils.tar.gz \
                   https://oils.pub/download/oils-for-unix-0.37.0.tar.gz && \
               cd /tmp && tar xzf oils.tar.gz && cd oils-for-unix-* && \
               ./configure --without-readline && _build/oils.sh && ./install
+
           COPY tests/fixtures/repo /packages
           RUN find /packages -name build -exec chmod +x {} + && \
               find /packages -name post-install -exec chmod +x {} +
@@ -38,7 +33,14 @@ jobs:
               chown -R root:root /kominka-root
           COPY pm.ysh /usr/bin/pm
           RUN chmod +x /usr/bin/pm
-          # glibc from Debian.
+
+          ENV KOMINKA_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
+              KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
+              KOMINKA_PATH=/packages KOMINKA_ROOT=/kominka-root \
+              KOMINKA_COMPRESS=gz KOMINKA_COLOR=0 KOMINKA_PROMPT=0 \
+              KOMINKA_STRIP=0 KOMINKA_FORCE=1 LOGNAME=root HOME=/root
+
+          # glibc from Debian — package it as a tarball.
           RUN mkdir -p /kominka-root/usr/lib && \
               for lib in libc.so.6 libm.so.6 libdl.so.2 libpthread.so.0 \
                          librt.so.1 libresolv.so.2 libnss_dns.so.2 \
@@ -52,63 +54,37 @@ jobs:
               mkdir -p /kominka-root/var/db/kominka/installed/glibc && \
               echo "2.38 3" > /kominka-root/var/db/kominka/installed/glibc/version && \
               printf '#!/bin/sh\n:\n' > /kominka-root/var/db/kominka/installed/glibc/build && \
-              chmod +x /kominka-root/var/db/kominka/installed/glibc/build
+              chmod +x /kominka-root/var/db/kominka/installed/glibc/build && \
+              cd /kominka-root && tar czf /root/.cache/kominka/bin/glibc@2.38-3.tar.gz \
+                  ./usr/lib/ ./var/db/kominka/installed/glibc/
+
+          # Install zig and deps from R2 (already built).
+          RUN pm i zig linux-headers make zlib boringssl
+          ENV PATH=/kominka-root/usr/bin:$PATH
+
           # Fake perl.
           RUN mkdir -p /kominka-root/var/db/kominka/installed/perl && \
               echo "999 1" > /kominka-root/var/db/kominka/installed/perl/version
+
+          # Build the 4 failed packages.
+          RUN pm b curl && pm i curl
+          RUN pm b opendoas || true
+          RUN pm b git && pm i git
+          RUN pm b ysh
           DEOF
 
-      - name: Build zig
+      - name: Extract tarballs
         run: |
-          docker run --name zig-build kominka:base sh -c \
-            'env ${{ env.PM_ENV }} pm b zig && env ${{ env.PM_ENV }} pm i zig'
           mkdir -p artifacts
-          docker cp zig-build:/root/.cache/kominka/bin/. artifacts/
-          docker commit zig-build kominka:with-zig
-          docker rm zig-build
-
-      - name: Build linux-headers
-        run: |
-          docker run --name lh-build kominka:with-zig sh -c \
-            'export PATH=/kominka-root/usr/bin:$PATH && env ${{ env.PM_ENV }} pm b linux-headers && env ${{ env.PM_ENV }} pm i linux-headers'
-          docker cp lh-build:/root/.cache/kominka/bin/. artifacts/
-          docker commit lh-build kominka:with-toolchain-base
-          docker rm lh-build
-
-      - name: Build core packages
-        run: |
-          docker run --name core-build kominka:with-toolchain-base sh -c '
-            export PATH=/kominka-root/usr/bin:$PATH
-            for pkg in baselayout busybox baseinit runit zlib boringssl curl \
-                       ca-certificates opendoas make; do
-              echo "=== $pkg ==="
-              env ${{ env.PM_ENV }} pm b "$pkg" && env ${{ env.PM_ENV }} pm i "$pkg" \
-                || echo "FAILED: $pkg"
-            done
-          '
-          docker cp core-build:/root/.cache/kominka/bin/. artifacts/
-          docker commit core-build kominka:with-core
-          docker rm core-build
-
-      - name: Build toolchain packages
-        run: |
-          docker run --name tool-build kominka:with-core sh -c '
-            export PATH=/kominka-root/usr/bin:$PATH
-            for pkg in samurai cmake go bzip2 xz pkgconf m4 bison git ysh; do
-              echo "=== $pkg ==="
-              env ${{ env.PM_ENV }} pm b "$pkg" && env ${{ env.PM_ENV }} pm i "$pkg" \
-                || echo "FAILED: $pkg"
-            done
-          '
-          docker cp tool-build:/root/.cache/kominka/bin/. artifacts/
-          docker rm tool-build
-
-      - name: List results
-        run: ls -lhS artifacts/*.tar.gz
+          docker create --name fixup kominka:fixup true
+          docker cp fixup:/root/.cache/kominka/bin/. artifacts/
+          docker rm fixup
+          echo "=== Results ==="
+          ls -lhS artifacts/*.tar.gz
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: x86_64-packages
+          name: x86_64-missing-packages
           path: artifacts/*.tar.gz
           retention-days: 30

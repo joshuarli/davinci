@@ -7,4 +7,4 @@ initramfs.img
 kominka-installer.img
 target.img
 .wrangler
-
+x86_64-packages/

@@ -19,7 +19,10 @@ else
     exec zig c++ -target $MUSL_TARGET "\$@"
 fi
 EOF
-cp /usr/bin/cc /usr/bin/c++
+cat > /usr/bin/c++ <<EOF2
+#!/bin/sh
+exec zig c++ -target $MUSL_TARGET -xc++ "\$@"
+EOF2
 chmod +x /usr/bin/cc /usr/bin/c++
 
 LDFLAGS='' ./configure --without-readline
