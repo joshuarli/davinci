@@ -589,14 +589,7 @@ proc pkg_source (pkg, checksum_mode='') {
 proc pkg_source_url (dest, url, fatal='y') {
     log $repo_name "Downloading $url"
 
-    var dl_args = []
-    case (cmd_get) {
-        */aria2c | */axel { setvar dl_args = ['-o'] }
-        */curl            { setvar dl_args = ['-fLo'] }
-        */wget | */wget2  { setvar dl_args = ['-O'] }
-    }
-
-    try { $cmd_get @dl_args $dest $url }
+    try { $cmd_get -fLo $dest $url }
     if failed {
         rm -f $dest
         if (fatal === 'y') {
@@ -619,7 +612,18 @@ proc pkg_source_git (dest, url) {
     git remote set-url origin "${url%[#@]*}" 2>/dev/null \
         || git remote add origin "${url%[#@]*}"
 
-    git fetch --depth=1 --filter=blob:none origin $com
+    # Partial clone (--filter + --depth) avoids downloading full history.
+    # Some servers (e.g. Googlesource) reject these options, so fall back.
+    var fetch_args = ['--depth=1', '--filter=blob:none', 'origin']
+    if (com !== '') { call fetch_args->append(com) }
+
+    try { git fetch @fetch_args }
+    if failed {
+        war $repo_name "Partial clone rejected, retrying full fetch"
+        var fallback = ['origin']
+        if (com !== '') { call fallback->append(com) }
+        git fetch @fallback
+    }
     git reset --hard FETCH_HEAD
 }
 
@@ -780,11 +784,8 @@ proc pkg_clean_dev (pkg) {
     for f in @[glob("${pd}/usr/lib/*.a")]  { rm -f $f }
     for f in @[glob("${pd}/usr/lib/*.la")] { rm -f $f }
 
-    # pkgconfig — only needed at build time.
-    rm -rf "${pd}/usr/lib/pkgconfig" "${pd}/usr/share/pkgconfig"
-
-    # Headers — belong in a -dev split (not yet implemented).
-    rm -rf "${pd}/usr/include"
+    # pkgconfig and headers are kept — needed by packages that build
+    # against this library.  Will move to -dev splits later.
 
     # Info pages, man pages, doc — not useful in a minimal system.
     rm -rf "${pd}/usr/share/info" "${pd}/usr/share/man" "${pd}/usr/share/doc"
@@ -1162,6 +1163,7 @@ proc pkg_build (pkg) {
 
     {
         AR="${AR:-ar}" \
+        MAKEFLAGS="${MAKEFLAGS:--j${_nproc}}" \
         CC="${CC:-cc}" \
         CXX="${CXX:-c++}" \
         NM="${NM:-nm}" \
@@ -1566,6 +1568,113 @@ proc pkg_installable (pkg, depends_file) {
     }
 }
 
+proc _fmt_bytes (n) {
+    ### Format byte count to human-readable. Sets _res.
+    if (n >= 1048576) {
+        setglobal _res = "$[n / 1048576]MB"
+    } elif (n >= 1024) {
+        setglobal _res = "$[n / 1024]KB"
+    } else {
+        setglobal _res = "${n}B"
+    }
+}
+
+proc pkg_install_all (...pkgs) {
+    ### Download all packages in parallel, then install sequentially.
+    if (len(pkgs) <= 1) {
+        for pkg in (pkgs) { pkg_install $pkg }
+        return
+    }
+
+    # Resolve which packages need downloading.
+    var urls = {}
+    var dests = {}
+    var dl_names = []
+    for pkg in (pkgs) {
+        case (pkg) { *.tar.* { continue } }
+        pkg_find_version $pkg
+
+        var _name = "${pkg}@${repo_ver}-${repo_rel}.tar.${KOMINKA_COMPRESS}"
+        var _dest = "${bin_dir}/${_name}"
+
+        # Already cached locally — skip.
+        if test -f $_dest { continue }
+        var _found = false
+        for f in @[glob("${bin_dir}/${pkg}@${repo_ver}-${repo_rel}.tar.*")] {
+            setvar _found = true
+        }
+        if (_found) { continue }
+
+        if (KOMINKA_BIN_MIRROR !== '') {
+            var _url = "${KOMINKA_BIN_MIRROR}/${sys_arch}/${_name}"
+            setvar urls[pkg] = _url
+            setvar dests[pkg] = _dest
+            call dl_names->append(pkg)
+        }
+    }
+
+    if (len(urls) > 0) {
+        # Start all downloads silently in background.
+        var pids = {}
+        for pkg in (dl_names) {
+            fork { $cmd_get -sfLo $[dests[pkg]] $[urls[pkg]] }
+            setvar pids[pkg] = $!
+        }
+
+        # Poll file sizes and display progress until all complete.
+        var done = {}
+        var n_done = 0
+        var n_total = len(dl_names)
+        while (n_done < n_total) {
+            var parts = []
+            for pkg in (dl_names) {
+                if (pkg in done) { continue }
+
+                # Check if process finished.
+                var alive = true
+                try { kill -0 $[pids[pkg]] 2>/dev/null }
+                if failed { setvar alive = false }
+
+                var sz = 0
+                if test -f $[dests[pkg]] {
+                    try { setvar sz = $(wc -c < $[dests[pkg]]) }
+                }
+                _fmt_bytes $sz
+
+                if (alive) {
+                    call parts->append("${pkg} ${_res}")
+                } else {
+                    # Reap the process.
+                    try { wait $[pids[pkg]] }
+                    if failed {
+                        printf '\n' >&2
+                        rm -f $[dests[pkg]]
+                        die $pkg "Download failed"
+                    }
+                    call parts->append("${pkg} ${_res} ok")
+                    setvar done[pkg] = true
+                    setvar n_done += 1
+                }
+            }
+
+            var line = ''
+            for p in (parts) {
+                if (line !== '') {
+                    setvar line = "${line} | ${p}"
+                } else {
+                    setvar line = p
+                }
+            }
+            printf '\r\e[K%s' "-> ${line}" >&2
+            if (n_done < n_total) { sleep 0.3 }
+        }
+        printf '\n' >&2
+    }
+
+    # Install sequentially — file installations can race on shared dirs.
+    for pkg in (pkgs) { pkg_install $pkg }
+}
+
 proc pkg_install (pkg) {
     ### Install a built package tarball.
 
@@ -1912,7 +2021,7 @@ proc args (action='', ...pkgs) {
         c | checksum     { for pkg in (pkgs) { pkg_checksum $pkg } }
         d | download     { for pkg in (pkgs) { pkg_source $pkg } }
         H | help-ext     { pkg_help_ext @pkgs }
-        i | install      { for pkg in (pkgs) { pkg_install $pkg } }
+        i | install      { pkg_install_all @pkgs }
         l | list         { pkg_list_version @pkgs }
         r | remove       { for pkg in (redro) { pkg_remove $pkg } }
         s | search       { for pkg in (pkgs) { pkg_find $pkg all } }
@@ -2055,6 +2164,9 @@ proc main (...argv) {
         die "POSIX requires LOGNAME be set"
     }
 
+    # CPU count for parallel make.
+    try { setglobal _nproc = $(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4) }
+
     # Discover tools via fallback chains.
     setglobal cmd_su = $(_discover_tool $KOMINKA_SU ssu sudo doas su)
     if (cmd_su === '') { setglobal cmd_su = 'su' }
@@ -2065,8 +2177,8 @@ proc main (...argv) {
     setglobal cmd_sha = $(_discover_tool $KOMINKA_CHK openssl sha256sum sha256 shasum digest)
     if (cmd_sha === '') { die "No sha256 utility found" }
 
-    setglobal cmd_get = $(_discover_tool $KOMINKA_GET aria2c curl wget wget2)
-    if (cmd_get === '') { die "No download utility found (aria2c, axel, curl, wget, wget2)" }
+    setglobal cmd_get = $(_discover_tool $KOMINKA_GET curl)
+    if (cmd_get === '') { die "curl not found" }
 
     setglobal time_str = $(date +%Y-%m-%d-%H:%M)
 

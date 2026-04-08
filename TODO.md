@@ -68,6 +68,8 @@ from our own repos.
 - Build linux/amd64 (x86_64) installer ISO
 - All packages currently tested on aarch64 only — need x86_64 build+test pass
 - Kernel config for x86_64 (`kernel-x86_64.config`)
+- `go` package source URL is hardcoded to `linux-arm64` — needs `ARCH`
+  substitution in pm's `fnr_vars` or per-arch source files
 
 ## Installer
 

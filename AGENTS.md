@@ -1,8 +1,23 @@
 # davinci
 
-A project to build a complete Linux distribution using the Kominka package manager
-(`pm`), with the eventual goal of porting the package manager to YSH and
-building an installer ISO. The YSH port (`pm.ysh`) is in progress.
+A project to build a self-hosting Linux distribution using the Kominka package
+manager (`pm.ysh`). The goal is a system that can build itself from source
+using only its own packages — no external toolchain, no host compiler.
+
+## Core Principle: Minimal Software
+
+Always reach for the most minimal implementation. Every dependency is a
+liability — a longer bootstrap chain, a larger image, more attack surface.
+Before adding a dependency, ask: can we solve this with 50 lines of C?
+
+Examples:
+- samurai (1 C file) instead of ninja (needs python)
+- zig (1 binary) instead of gcc + binutils + ld (3 complex packages)
+- Custom nm.c (50 lines) instead of binutils (massive dep chain)
+- opendoas (700 LOC) instead of sudo (200k LOC)
+
+This directly serves the self-hosting goal: fewer deps = shorter path to
+building everything from our own repos. See `CLEANROOM.md` for the strategy.
 
 ## Repository Structure
 
@@ -246,3 +261,9 @@ Build fixes applied to vendored packages for zig cc (clang/lld) compatibility:
   `grep` doesn't prefix filenames in output, breaking `IFS=: read` parsing
   in `pkg_conflicts`. Tests work around this by ensuring multiple packages
   are installed first.
+- **PATH ordering in Docker builds**: Kominka binaries (curl, git) that
+  link against `libssl.so`/`libcrypto.so` will **hang at 100% CPU** if
+  found before Debian's on PATH. The host dynamic linker finds the libs
+  on disk but can't initialize them in the host context, causing a busy
+  spin instead of a clean error. Always put Kominka bins AFTER Debian's:
+  `PATH=$PATH:/kominka-root/usr/bin` (not the reverse). See `CLEANROOM.md`.

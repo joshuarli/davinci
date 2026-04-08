@@ -10,15 +10,40 @@ system C/C++ compiler.
 The entire OS is built inside Docker containers on macOS, producing a bootable
 disk image that runs under vfkit (or on real ARM64 hardware via EFISTUB).
 
+## Design Principles
+
+**Always reach for the most minimal software.** When choosing between
+implementations, prefer the smallest, simplest one that does the job:
+
+- **samurai** over ninja (single C file, no python dependency)
+- **zig** over gcc+binutils+ld (one binary replaces an entire toolchain)
+- **busybox** over GNU coreutils (one binary, ~300 applets)
+- **opendoas** over sudo (700 lines vs 200,000+)
+- **runit** over systemd (PID 1 is ~600 lines of C)
+- **Custom nm.c** over binutils (50 lines vs a full binutils build chain)
+
+This isn't minimalism for its own sake — fewer dependencies mean a shorter
+path to self-hosting, faster builds, smaller images, and less attack surface.
+Every external dependency is a liability. Before adding one, ask: can we
+write 50 lines of C instead? See `CLEANROOM.md` for the self-hosting strategy.
+
 ## Base System
 
 ### Compiler Toolchain
 
 Kominka uses **Zig** as its C/C++ compiler toolchain. The `zig` package
-installs `zig cc` and provides `cc`/`c++` wrapper scripts that invoke it.
-Zig's bundled clang + lld replaces the traditional gcc + binutils + ld chain,
-eliminating the GCC bootstrap problem. All packages are dynamically linked
-against glibc (no static linking — zig's lld doesn't support static glibc).
+provides the entire compilation toolchain in a single binary:
+
+- `cc` / `c++` — C/C++ compiler (zig cc, clang-based)
+- `ld` — linker (lld, reports as GNU ld for autotools compatibility)
+- `ar` / `ranlib` — archiver
+- `nm` — symbol lister (custom minimal ELF parser, ~50 lines of C)
+- `objcopy` — object copy/transform
+
+This replaces gcc + binutils + ld — three complex packages with deep
+dependency chains — with one self-contained binary plus thin wrappers.
+All packages are dynamically linked against glibc (no static linking —
+zig's lld doesn't support static glibc).
 
 ### Core Packages
 
@@ -31,11 +56,10 @@ The `core` metapackage depends on the minimal boot/network/pm packages:
 | busybox | Core userspace: init, sh, getty, mount, fsck, mdev, udhcpc, coreutils, and ~300 other applets |
 | baseinit | Init framework: rc.boot, rc.shutdown, rc.lib, kpow, kall |
 | runit | Service supervision: runsvdir, runsv, sv |
-| boringssl | TLS library (used by curl) |
-| curl | HTTP client |
-| e2fsprogs | ext4 filesystem tools (fsck.ext4, mkfs.ext4, etc.) |
-| dosfstools | FAT filesystem tools (mkfs.vfat, fsck.fat) |
+| boringssl | TLS library (shared, used by curl and git) |
+| curl | HTTP client and library |
 | opendoas | Privilege escalation (sudo alternative) |
+| ysh | Shell and scripting language (runs pm) |
 
 The `build-essential` metapackage adds compiler/build tools:
 

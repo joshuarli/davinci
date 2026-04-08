@@ -8,3 +8,8 @@ m4
 make
 bison
 flex
+samurai
+cmake
+go
+git
+pkgconf

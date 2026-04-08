@@ -457,6 +457,44 @@ class UpdateTests:
         self.assertIn("verbump 1.0-1 => 2.0-1", combined)
 
 
+class ParallelInstallTests:
+    """Test that pm i with multiple packages installs all of them."""
+
+    def test_multi_install_all_present(self):
+        """pm i pkg1 pkg2 pkg3 should install all three."""
+        self.create_repo_pkg("alpha", version="1.0 1")
+        self.create_repo_pkg("bravo", version="2.0 1")
+        self.create_repo_pkg("charlie", version="3.0 1")
+        self.pm("b", "alpha")
+        self.pm("b", "bravo")
+        self.pm("b", "charlie")
+        self.pm("i", "alpha", "bravo", "charlie",
+                env_override={"KOMINKA_FORCE": "1"})
+        r = self.pm("l")
+        self.assertIn("alpha", r.stdout)
+        self.assertIn("bravo", r.stdout)
+        self.assertIn("charlie", r.stdout)
+
+    def test_multi_install_files_correct(self):
+        """Each package's files should land in the rootfs."""
+        self.create_repo_pkg("foo", version="1.0 1")
+        self.create_repo_pkg("bar", version="1.0 1")
+        self.pm("b", "foo")
+        self.pm("b", "bar")
+        self.pm("i", "foo", "bar",
+                env_override={"KOMINKA_FORCE": "1"})
+        self.assertTrue(
+            (self.kominka_root / "usr/bin/foo").exists())
+        self.assertTrue(
+            (self.kominka_root / "usr/bin/bar").exists())
+
+
+@unittest.skipUnless(HAS_YSH, "ysh interpreter not found")
+class YSH_ParallelInstallTests(CheapPMTestCase, ParallelInstallTests):
+    PM_INTERPRETER = YSH
+    PM_SCRIPT = PM_YSH
+
+
 @unittest.skipUnless(HAS_YSH, "ysh interpreter not found")
 class YSH_UpdateTests(CheapPMTestCase, UpdateTests):
     PM_INTERPRETER = YSH

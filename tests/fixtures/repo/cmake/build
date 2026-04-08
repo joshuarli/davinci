@@ -1,0 +1,10 @@
+#!/bin/sh
+# cmake — bootstrap build using bundled dependencies.
+# No --system-* flags: uses bundled curl, expat, zlib, bzip2, etc.
+# This avoids needing those as separate Kominka packages for the initial bootstrap.
+set -e
+dest=$1
+
+./configure --prefix=/usr --parallel="$(nproc)" -- -DCMAKE_USE_OPENSSL=OFF
+make -j"$(nproc)"
+make DESTDIR="$dest" install

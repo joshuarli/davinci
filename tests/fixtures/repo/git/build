@@ -21,7 +21,11 @@ EOF
     ac_cv_snprintf_returns_bogus=no \
     ac_cv_fread_reads_directories=yes
 
-make LIBS="$(curl-config --static-libs) libgit.a xdiff/lib.a -lz"
+make LIBS="-lcurl -lssl -lcrypto libgit.a xdiff/lib.a -lz"
 make install
 
-cp -Rf man "$1/usr/share/man"
+# Install manpages if downloaded.
+if [ -d man ]; then
+    mkdir -p "$1/usr/share/man"
+    cp -Rf man "$1/usr/share/"
+fi

@@ -26,13 +26,12 @@ else
     pkgs=$all_pkgs
 fi
 
-for pkg in $pkgs; do
-    echo "=== Installing: $pkg"
-    pm i "$pkg" 2>&1 | tail -3
-done
+# shellcheck disable=SC2086
+echo "=== Installing core packages ==="
+pm i $pkgs
 
 # Remove fake host-provided entries before listing.
-for fake in cmake go ninja perl; do
+for fake in cmake go; do
     rm -rf "$KOMINKA_ROOT/var/db/kominka/installed/$fake"
 done
 

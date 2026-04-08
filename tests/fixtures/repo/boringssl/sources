@@ -1,2 +1,2 @@
-git+https://boringssl.googlesource.com/boringssl
+https://github.com/google/boringssl/releases/download/VERSION/boringssl-VERSION.tar.gz
 files/update-certdata.sh
