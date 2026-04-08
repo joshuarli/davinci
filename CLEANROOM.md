@@ -103,12 +103,19 @@ Key changes made:
 - pm: wget fallback, KOMINKA_INSECURE for cert-less environments
 - zig: strip wrapper with backup/restore, nm (50-line C ELF parser)
 
-### Phase 4: Boot from own foundation
+### Phase 4: Boot from own foundation (DONE)
 
-Build the live ISO using only Kominka-built packages. Requires:
-- Linux kernel build (already exists in `Dockerfile.linux`)
-- Bootloader (grub or EFISTUB — kernel already supports EFISTUB)
-- Integration: `Dockerfile.iso` uses `kominka:build` instead of Debian
+`Dockerfile.iso` produces a bootable installer disk image using
+only Kominka packages. `kominka:core` + `pm i liveiso` + kernel.
+`build_iso.sh` uses busybox fdisk/losetup/mount/cpio + Kominka's
+mkfs.ext4/mkfs.vfat. No Debian.
+
+Pipeline: `make iso` → 161MB installer image.
+
+Infrastructure consolidated to 3 Dockerfiles:
+- `Dockerfile` — multi-target: `kominka:core` (57MB) + `kominka:build` (941MB)
+- `Dockerfile.linux` — kernel build
+- `Dockerfile.iso` — installer image (FROM kominka:core)
 
 ## Gaps and workarounds
 
