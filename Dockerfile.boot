@@ -1,7 +1,7 @@
 # Multi-stage build: ysh -> Kominka packages -> disk image builder
 #
 # Stage 1: Build ysh from source
-# Stage 2: Build Kominka rootfs (all core packages) with pm.ysh
+# Stage 2: Install pre-built Kominka packages from R2 binary mirror
 # Stage 3: Assemble GPT disk image (rootfs only, no kernel)
 #
 # Kernel is built separately via Dockerfile.linux.
@@ -30,16 +30,12 @@ COPY --from=ysh-builder /usr/local/bin/oils-for-unix /usr/local/bin/oils-for-uni
 RUN ln -s oils-for-unix /usr/local/bin/osh && \
     ln -s oils-for-unix /usr/local/bin/ysh
 
+# Only need curl for downloading pre-built binaries.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     coreutils findutils grep sed gawk diffutils \
-    curl git ca-certificates openssl \
-    build-essential gcc g++ libc6-dev linux-libc-dev \
-    make patch bison flex m4 texinfo \
-    cmake ninja-build golang pkg-config \
-    perl gzip bzip2 xz-utils zlib1g-dev libzstd-dev \
-    automake autoconf python3 \
-    libgmp-dev libmpfr-dev libmpc-dev \
-    tar && \
+    curl ca-certificates \
+    gzip bzip2 xz-utils tar \
+    patch && \
     rm -rf /var/lib/apt/lists/*
 
 COPY tests/fixtures/repo /packages
@@ -49,17 +45,9 @@ RUN find /packages -name build -exec chmod +x {} + && \
 
 RUN mkdir -p /kominka-root/var/db/kominka/installed /kominka-root/var/db/kominka/choices
 
-# Register host-provided build tools so pm's dependency resolution
-# finds them as already installed.
-RUN for pkg in cmake go ninja glibc perl; do \
-      mkdir -p "/kominka-root/var/db/kominka/installed/$pkg" && \
-      echo "0 0" > "/kominka-root/var/db/kominka/installed/$pkg/version"; \
-    done
 
-# Add /kominka-root/usr/bin to PATH so packages built earlier
-# (e.g. m4, make) are available to later builds (e.g. bison).
-ENV PATH=/kominka-root/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
-    KOMINKA_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
+ENV KOMINKA_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
+    KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
     KOMINKA_PATH=/packages \
     KOMINKA_ROOT=/kominka-root \
     KOMINKA_COMPRESS=gz \
@@ -68,22 +56,15 @@ ENV PATH=/kominka-root/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
     KOMINKA_STRIP=0 \
     KOMINKA_FORCE=1 \
     LOGNAME=root \
-    HOME=/root \
-    CC=gcc \
-    CXX=g++ \
-    PKG_CONFIG_PATH=/kominka-root/usr/lib/pkgconfig \
-    CFLAGS="-O2 -I/kominka-root/usr/include" \
-    CXXFLAGS="-O2 -I/kominka-root/usr/include" \
-    CPPFLAGS="-I/kominka-root/usr/include" \
-    LDFLAGS="-L/kominka-root/usr/lib"
+    HOME=/root
 
 WORKDIR /home/kominka
 
-# pm.ysh last — changes most often, only invalidates the build step.
+# pm.ysh last — changes most often, only invalidates the install step.
 COPY pm.ysh /usr/bin/pm
 RUN chmod +x /usr/bin/pm
 
-# Build all core packages in dependency order.
+# Install all core packages from pre-built binaries.
 COPY tests/build_core.sh /home/kominka/build_core.sh
 RUN chmod +x /home/kominka/build_core.sh && sh /home/kominka/build_core.sh
 

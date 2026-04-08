@@ -53,6 +53,18 @@
 #include <netinet/ether.h>
 #include <netinet/in.h>
 
+/* strlcpy is a BSD function not provided by glibc. */
+static size_t strlcpy(char *dst, const char *src, size_t siz)
+{
+	size_t len = strlen(src);
+	if (siz) {
+		size_t n = (len >= siz) ? siz - 1 : len;
+		memcpy(dst, src, n);
+		dst[n] = '\0';
+	}
+	return len;
+}
+
 enum {
 	RV_OK		= 0,
 	RV_USAGE	= 1,

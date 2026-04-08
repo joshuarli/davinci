@@ -40,6 +40,13 @@
 #include <unistd.h>
 #include <string.h>
 
+#ifndef LONG_BIT
+#define LONG_BIT (sizeof(long) * CHAR_BIT)
+#endif
+#ifndef WORD_BIT
+#define WORD_BIT (sizeof(int) * CHAR_BIT)
+#endif
+
 struct conf_variable {
 	const char *name;
 	enum { SYSCONF, CONFSTR, PATHCONF, CONSTANT, UCONSTANT, NUM_TYPES } type;

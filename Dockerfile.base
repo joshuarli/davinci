@@ -1,0 +1,85 @@
+# Minimal Kominka base image (FROM scratch).
+#
+# Stage 1: Build ysh interpreter
+# Stage 2: Install core packages from R2 binary mirror into a chroot
+# Stage 3: Copy the chroot into a scratch image
+#
+# Usage:
+#   docker build -t kominka:core -f Dockerfile.base .
+#   docker run --rm -it kominka:core /bin/sh
+
+FROM debian:bookworm-slim AS ysh-builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential libreadline-dev curl ca-certificates tar && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN curl -fLo /tmp/oils.tar.gz \
+        https://oils.pub/download/oils-for-unix-0.37.0.tar.gz && \
+    cd /tmp && tar xzf oils.tar.gz && \
+    cd oils-for-unix-* && \
+    ./configure && \
+    _build/oils.sh && \
+    ./install
+
+FROM debian:bookworm-slim AS pkg-builder
+
+COPY --from=ysh-builder /usr/local/bin/oils-for-unix /usr/local/bin/oils-for-unix
+RUN ln -s oils-for-unix /usr/local/bin/osh && \
+    ln -s oils-for-unix /usr/local/bin/ysh
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    coreutils findutils grep sed gawk diffutils \
+    curl ca-certificates \
+    gzip bzip2 xz-utils tar \
+    patch && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY tests/fixtures/repo /packages
+
+RUN find /packages -name build -exec chmod +x {} + && \
+    find /packages -name post-install -exec chmod +x {} +
+
+RUN mkdir -p /kominka-root/var/db/kominka/installed /kominka-root/var/db/kominka/choices
+
+ENV KOMINKA_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
+    KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
+    KOMINKA_PATH=/packages \
+    KOMINKA_ROOT=/kominka-root \
+    KOMINKA_COMPRESS=gz \
+    KOMINKA_COLOR=0 \
+    KOMINKA_PROMPT=0 \
+    KOMINKA_STRIP=0 \
+    KOMINKA_FORCE=1 \
+    LOGNAME=root \
+    HOME=/root
+
+COPY pm.ysh /usr/bin/pm
+RUN chmod +x /usr/bin/pm
+
+COPY tests/build_core.sh /home/kominka/build_core.sh
+RUN chmod +x /home/kominka/build_core.sh && sh /home/kominka/build_core.sh
+
+# Install ysh into the chroot so the target image has it.
+# Copy ysh binary and its runtime shared libraries (libreadline, libtinfo, libstdc++, libgcc_s).
+RUN mkdir -p /kominka-root/usr/local/bin && \
+    cp /usr/local/bin/oils-for-unix /kominka-root/usr/local/bin/oils-for-unix && \
+    ln -s oils-for-unix /kominka-root/usr/local/bin/osh && \
+    ln -s oils-for-unix /kominka-root/usr/local/bin/ysh && \
+    for lib in libreadline.so.8 libtinfo.so.6 libstdc++.so.6 libgcc_s.so.1; do \
+        src=$(find /lib /usr/lib -name "$lib" 2>/dev/null | head -1); \
+        [ -n "$src" ] && cp "$src" /kominka-root/usr/lib/; \
+    done
+
+# Install pm into the chroot.
+RUN cp /usr/bin/pm /kominka-root/usr/bin/pm
+
+FROM scratch
+
+COPY --from=pkg-builder /kominka-root /
+
+ENV PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin \
+    HOME=/root \
+    LOGNAME=root
+
+CMD ["/bin/sh"]

@@ -18,17 +18,12 @@ COPY --from=ysh-builder /usr/local/bin/oils-for-unix /usr/local/bin/oils-for-uni
 RUN ln -s oils-for-unix /usr/local/bin/osh && \
     ln -s oils-for-unix /usr/local/bin/ysh
 
-# pm runtime dependencies.
+# pm runtime dependencies (no build tools — packages are pre-built binaries).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     coreutils findutils grep sed gawk diffutils \
-    curl git ca-certificates \
-    build-essential gcc g++ libc6-dev linux-libc-dev \
-    make patch bison flex m4 texinfo \
-    cmake ninja-build golang pkg-config \
-    perl gzip bzip2 xz-utils zlib1g-dev libzstd-dev \
-    automake autoconf python3 \
-    libgmp-dev libmpfr-dev libmpc-dev \
-    tar && \
+    curl ca-certificates \
+    gzip bzip2 xz-utils tar \
+    patch && \
     rm -rf /var/lib/apt/lists/*
 
 # Install pm.ysh.
@@ -43,14 +38,9 @@ RUN find /packages -name post-install -exec chmod +x {} +
 
 RUN mkdir -p /kominka-root/var/db/kominka/installed /kominka-root/var/db/kominka/choices
 
-# Register host-provided build tools so the package manager's dependency
-# resolution finds them as already installed.
-RUN for pkg in cmake go ninja glibc; do \
-      mkdir -p "/kominka-root/var/db/kominka/installed/$pkg" && \
-      echo "0 0" > "/kominka-root/var/db/kominka/installed/$pkg/version"; \
-    done
 
 ENV KOMINKA_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
+    KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
     KOMINKA_PATH=/packages \
     KOMINKA_ROOT=/kominka-root \
     KOMINKA_COMPRESS=gz \
@@ -59,14 +49,7 @@ ENV KOMINKA_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
     KOMINKA_STRIP=0 \
     KOMINKA_FORCE=1 \
     LOGNAME=root \
-    HOME=/root \
-    CC=gcc \
-    CXX=g++ \
-    PKG_CONFIG_PATH=/kominka-root/usr/lib/pkgconfig \
-    CFLAGS="-O2 -I/kominka-root/usr/include" \
-    CXXFLAGS="-O2 -I/kominka-root/usr/include" \
-    CPPFLAGS="-I/kominka-root/usr/include" \
-    LDFLAGS="-L/kominka-root/usr/lib"
+    HOME=/root
 
 WORKDIR /home/kominka
 

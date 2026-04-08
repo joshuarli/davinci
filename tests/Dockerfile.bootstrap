@@ -1,21 +1,11 @@
 FROM debian:bookworm-slim
 
-# Minimal seed: only what's needed to compile C and run pm.
-#
-# Debian base: sh, tar, sed, awk, grep, find, diff,
-#   sha256sum, cp, mv, ln, mkdir, rm, cat, head, tail, sort, od, etc.
-# gcc + binutils: C compiler, assembler, linker, strip, readelf
-# libc6-dev: libc headers + crt startup files
-# linux-libc-dev: kernel headers (needed by glibc and busybox builds)
-# make: build system (11 of 16 packages use it)
-# patch: busybox build script applies patches
-# cmake, ninja-build, golang: boringssl build system
-# bzip2, xz-utils: decompression for source tarballs (.tar.bz2, .tar.xz)
+# Minimal seed: only what's needed to run pm and download binaries.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc binutils libc6-dev linux-libc-dev \
-    make patch \
-    cmake ninja-build golang pkg-config \
-    bzip2 xz-utils && \
+    coreutils findutils grep sed gawk diffutils \
+    curl ca-certificates \
+    gzip bzip2 xz-utils tar \
+    patch && \
     rm -rf /var/lib/apt/lists/*
 
 # Install pm.
@@ -31,17 +21,9 @@ RUN find /packages -name post-install -exec chmod +x {} +
 # Create the chroot target.
 RUN mkdir -p /kominka-root/var/db/kominka/installed /kominka-root/var/db/kominka/choices
 
-# Register host-provided build tools so the package manager's dependency
-# resolution finds them as already installed.
-RUN for pkg in cmake go ninja glibc; do \
-      mkdir -p "/kominka-root/var/db/kominka/installed/$pkg" && \
-      echo "0 0" > "/kominka-root/var/db/kominka/installed/$pkg/version"; \
-    done
 
-# Add /kominka-root/usr/bin to PATH so that packages built earlier in the
-# bootstrap (e.g. m4, make) are available to later builds (e.g. bison).
-ENV PATH=/kominka-root/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
-    KOMINKA_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
+ENV KOMINKA_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
+    KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
     KOMINKA_PATH=/packages \
     KOMINKA_ROOT=/kominka-root \
     KOMINKA_COMPRESS=gz \
@@ -50,11 +32,7 @@ ENV PATH=/kominka-root/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
     KOMINKA_STRIP=0 \
     KOMINKA_FORCE=1 \
     LOGNAME=root \
-    HOME=/root \
-    CC=gcc \
-    PKG_CONFIG_PATH=/kominka-root/usr/lib/pkgconfig \
-    CPPFLAGS="-I/kominka-root/usr/include" \
-    LDFLAGS="-L/kominka-root/usr/lib"
+    HOME=/root
 
 WORKDIR /home/kominka
 
