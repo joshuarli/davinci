@@ -1,87 +1,28 @@
 # TODO
 
-## Packaged but not yet building in Docker
+## Bugs
 
-These packages are defined in `tests/fixtures/repo/` with sources downloaded
-but get SIGTERM'd during Docker build. Need to debug — possibly OrbStack
-resource limits or a pm interaction issue. Build individually with:
-`sh build_core.sh e2fsprogs`
+- **flex**: stage1flex crashes with SIGPIPE when built with zig cc.
+  May be a zig signal handling issue with self-bootstrapping builds.
+- **strip**: zig objcopy can't `--strip-all` on shared libs or static
+  musl binaries. Wrapper backs up and restores on failure. Binaries
+  are larger than necessary.
 
-- e2fsprogs (ext4 tools — fsck.ext4, mkfs.ext4)
-- dosfstools (FAT tools — mkfs.vfat, fsck.fat)
-- opendoas (privilege escalation, sudo alternative)
-- pkgconf (pkg-config implementation)
-- strace (syscall tracer)
-- perl (scripting language, build dep for many packages)
-- sqlite (embedded database)
-- libudev-zero (minimal libudev without systemd)
+## Packaging
 
-## Deferred packages
-
-Build system / scripting:
-- python (hoping to replace with `uv` for Python tooling)
-- meson (requires python or samurai)
-- samurai (ninja-compatible build tool in C)
-- ninja (alternative to samurai)
-- libffi (dependency of python)
-
-Console tools:
-- ncurses (needed by vim, mutt, and TUI programs)
-- vim (text editor — needs ncurses)
-- openssh (remote access — needs openssl)
-- mandoc + man-pages (documentation)
-- bkeymaps (console keyboard layouts)
-- gnupg1 (package/commit signing)
-- ccache (faster rebuilds when self-hosting)
-- mdevd (better hotplug daemon than busybox mdev)
-- zstd (compression, increasingly used for tarballs)
-
-## Self-hosting the build toolchain
-
-To build all packages from Kominka's own repos (no Debian host tools):
-
-1. **go** — needed by BoringSSL code generation. Self-bootstraps from source
-   with a prior Go release; package the bootstrap binary first.
-2. **cmake** — needed by BoringSSL. Large C++ project; may need an older
-   cmake or a bootstrap binary to build the first time.
-3. **uv** — Rust-based Python package manager. Use to bootstrap Python
-   without packaging CPython directly.
-4. **python** (via uv) — needed by ninja/meson.
-5. **ninja** — needed by BoringSSL (cmake -GNinja). Alternative: samurai
-   (ninja-compatible, pure C, no python dep — much easier to bootstrap).
-6. **samurai** — consider as a ninja replacement; trivial to build (single
-   C file, no deps beyond libc).
-
-Shortest path: samurai instead of ninja (skip python entirely for this),
-then go and cmake. That gives us everything to build BoringSSL and curl
-from our own repos.
-
-## Binary distribution
-
-- R2 bucket authentication for `mirror.py upload-bin` (currently uses wrangler login)
-- `pm i` dependency resolution for binary-only installs (currently installs one
-  package at a time; deps must be installed manually in order)
-- Cross-architecture builds (build amd64 packages on aarch64 and vice versa)
+- CA certificates package (currently using `KOMINKA_INSECURE=1`)
+- openssh (remote access)
+- ncurses + vim (text editing)
+- zstd (compression, increasingly common for tarballs)
 
 ## Multi-architecture
 
-- Build linux/amd64 (x86_64) installer ISO
-- All packages currently tested on aarch64 only — need x86_64 build+test pass
-- Kernel config for x86_64 (`kernel-x86_64.config`)
-- `go` package source URL is hardcoded to `linux-arm64` — needs `ARCH`
-  substitution in pm's `fnr_vars` or per-arch source files
-
-## Installer
-
-- ~~User creation prompt during install~~ (done — install.sh)
-- Test installer user creation end-to-end
-
-## linux-headers
-
-Roll into the linux kernel package — it already has the full source, so
-`make headers` comes for free. No need for a separate linux-headers package.
+- x86_64 installer ISO and package builds
+- `go` package source URL hardcoded to `linux-arm64` — needs ARCH
+  substitution in pm or per-arch source files
+- Kernel config for x86_64
 
 ## System
 
 - `hwclock --hctosys` in rc.boot for hardware clock sync
-- Consider switching /bin/sh from osh to busybox ash (osh has compat issues with POSIX scripts)
+- Roll linux-headers into the linux kernel package
