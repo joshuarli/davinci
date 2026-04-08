@@ -824,7 +824,7 @@ proc pkg_clean_dev (pkg) {
 
 proc pkg_strip (pkg) {
     ### Strip package binaries and libraries.
-    if test -f "${mak_dir}/${pkg}/nostrip" {
+    if test -f "${mak_dir}/${pkg}/nostrip" || test -f "${repo_dir}/nostrip" {
         return
     }
     if (KOMINKA_STRIP === '0') {
@@ -1184,6 +1184,8 @@ proc pkg_build (pkg) {
         MAKEFLAGS="${MAKEFLAGS:--j${_nproc}}" \
         CC="${CC:-cc}" \
         CXX="${CXX:-c++}" \
+        CFLAGS="${CFLAGS:--O2 -DNDEBUG}" \
+        CXXFLAGS="${CXXFLAGS:--O2 -DNDEBUG}" \
         NM="${NM:-nm}" \
         RANLIB="${RANLIB:-ranlib}" \
         DESTDIR="${pkg_dir}/${pkg}" \

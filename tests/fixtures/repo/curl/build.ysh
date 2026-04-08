@@ -1,6 +1,8 @@
 #!/usr/local/bin/ysh
 
 var dest = ARGV[0]
+var _kr = ENV => get("KOMINKA_ROOT", "")
+var ssl_prefix = "${_kr}/usr"
 
 ./configure \
     --prefix=/usr \
@@ -10,7 +12,7 @@ var dest = ARGV[0]
     --disable-manual \
     --disable-ldap \
     --disable-ares \
-    --with-openssl \
+    --with-openssl=$ssl_prefix \
     --with-pic \
     --with-ca-fallback \
     --without-librtmp \

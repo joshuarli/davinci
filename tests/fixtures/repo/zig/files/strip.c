@@ -50,25 +50,21 @@ static size_t strip64(unsigned char *base, size_t sz) {
         }
     }
 
-    /* Find the end of the last LOAD segment — everything after is strippable. */
+    /* Find the truncation point: end of last non-stripped section or LOAD segment. */
     size_t end = 0;
     for (int i = 0; i < eh->e_phnum; i++) {
-        if (ph[i].p_type == 1 /* PT_LOAD */) {
-            size_t seg_end = ph[i].p_offset + ph[i].p_filesz;
-            if (seg_end > end) end = seg_end;
-        }
+        size_t seg_end = ph[i].p_offset + ph[i].p_filesz;
+        if (seg_end > end) end = seg_end;
     }
-
-    /* Keep the section header table if it's within the LOAD range. */
+    for (int i = 0; i < eh->e_shnum; i++) {
+        if (sh[i].sh_type == SHT_NOBITS) continue;
+        if (sh[i].sh_size == 0) continue;
+        size_t sec_end = sh[i].sh_offset + sh[i].sh_size;
+        if (sec_end > end) end = sec_end;
+    }
+    /* Keep section header table. */
     size_t sh_end = eh->e_shoff + eh->e_shnum * sizeof(Elf64_Shdr);
-    if (sh_end > end) {
-        /* Section headers are after LOAD segments — remove them. */
-        eh->e_shoff = 0;
-        eh->e_shnum = 0;
-        eh->e_shstrndx = 0;
-    } else {
-        end = sh_end;
-    }
+    if (sh_end > end) end = sh_end;
 
     return end > 0 ? end : sz;
 }

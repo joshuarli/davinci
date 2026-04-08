@@ -8,7 +8,7 @@
     --disable-manual \
     --disable-ldap \
     --disable-ares \
-    --with-openssl \
+    --with-openssl="${KOMINKA_ROOT:-}/usr" \
     --with-pic \
     --with-ca-fallback \
     --without-librtmp \
