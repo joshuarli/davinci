@@ -1,2 +1,2 @@
-/home/kominka/sources/opendoas/opendoas-6.8.1.tar.gz
+upstream:https://github.com/Duncaen/OpenDoas/releases/download/vVERSION/opendoas-VERSION.tar.xz
 files/doas.conf

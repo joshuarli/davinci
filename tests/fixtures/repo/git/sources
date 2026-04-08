@@ -1,2 +1,2 @@
-/home/kominka/sources/git/git-2.34.1.tar.xz
-/home/kominka/sources/git/git-manpages-2.34.1.tar.xz man
+upstream:https://mirrors.edge.kernel.org/pub/software/scm/git/git-VERSION.tar.xz
+upstream:https://mirrors.edge.kernel.org/pub/software/scm/git/git-manpages-VERSION.tar.xz man

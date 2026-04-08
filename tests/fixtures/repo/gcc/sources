@@ -1,5 +1,5 @@
-/home/kominka/sources/gcc/gcc-11.2.0.tar.xz gcc
-/home/kominka/sources/gcc/gmp-6.2.1.tar.xz gcc/gmp
-/home/kominka/sources/gcc/mpfr-4.1.0.tar.xz gcc/mpfr
-/home/kominka/sources/gcc/mpc-1.2.1.tar.gz gcc/mpc
+upstream:https://gcc.gnu.org/pub/gcc/releases/gcc-VERSION/gcc-VERSION.tar.xz gcc
+upstream:https://ftp.gnu.org/gnu/gmp/gmp-6.2.1.tar.xz gcc/gmp
+upstream:https://ftp.gnu.org/gnu/mpfr/mpfr-4.1.0.tar.xz gcc/mpfr
+upstream:https://ftp.gnu.org/gnu/mpc/mpc-1.2.1.tar.gz gcc/mpc
 files/c99

@@ -1,4 +1,4 @@
-/home/kominka/sources/busybox/busybox-1.34.1.tar.bz2
+upstream:https://busybox.net/downloads/busybox-VERSION.tar.bz2
 patches/adduser-no-setgid.patch patch
 patches/fsck-resolve-uuid.patch patch
 patches/modprobe-kernel-version.patch patch

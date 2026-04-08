@@ -7,3 +7,5 @@ vmlinuz
 initramfs.img
 kominka-installer.img
 target.img
+.wrangler
+

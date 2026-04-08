@@ -1,4 +1,4 @@
-/home/kominka/sources/grub/grub-2.06.tar.xz grub-pc
-/home/kominka/sources/grub/grub-2.06.tar.xz grub-efi
+upstream:https://ftp.gnu.org/gnu/grub/grub-VERSION.tar.xz grub-pc
+upstream:https://ftp.gnu.org/gnu/grub/grub-VERSION.tar.xz grub-efi
 files/grub.default
 files/help2man

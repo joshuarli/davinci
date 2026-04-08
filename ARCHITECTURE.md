@@ -27,7 +27,6 @@ The installed rootfs contains 23 packages built from source:
 | runit | Service supervision: runsvdir, runsv, sv |
 | boringssl | TLS library (static, used by curl) |
 | curl | HTTP client |
-| pigz | Parallel gzip |
 | bison, flex | Parser generators (needed to build GCC) |
 | e2fsprogs | ext4 filesystem tools (fsck.ext4, mkfs.ext4, etc.) |
 | dosfstools | FAT filesystem tools (mkfs.vfat, fsck.fat) |

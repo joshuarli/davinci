@@ -174,11 +174,11 @@ The project builds a bootable Kominka Linux disk image and can boot it in a VM:
 
 ## Vendored Packages
 
-All 20 packages from the upstream repo core are vendored:
+All packages from the upstream repo core are vendored:
 
-**Built and tested (16 packages)**:
+**Built and tested (15 packages)**:
 baselayout, baseinit, busybox, glibc, linux-headers, bzip2, xz, zlib,
-pigz, bison, flex, m4, make, curl, boringssl, pm
+bison, flex, m4, make, curl, boringssl, pm
 
 **Vendored but not built** (too complex for the Debian cross-build env):
 binutils, gcc, git, grub
@@ -241,7 +241,6 @@ Build fixes applied to vendored packages for Debian compatibility:
   libc headers; sed'd out at build time. Added `-Wno-error -Wno-int-conversion`.
 - **openssl**: Changed target from `linux-x86_64` to `linux-generic64`.
   Removed `perl` from depends (Debian provides it).
-- **pigz**: Upstream URL dead; uses GitHub archive. Checksums updated.
 - **zlib**: Old version removed from zlib.net; uses fossils mirror.
 - **kominka**: Removed `git` dependency (not needed for the simple file-copy build).
 - **git, binutils, gcc, grub**: Not built — too complex for cross-build

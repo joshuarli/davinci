@@ -144,7 +144,7 @@ class TestBuildBaseSystem(DockerYSHPMTestCase):
     ALL_PACKAGES = [
         "baseinit", "baselayout", "bison", "busybox", "bzip2",
         "curl", "flex", "kominka", "linux-headers", "m4", "make",
-        "glibc", "boringssl", "pigz", "xz", "zlib",
+        "glibc", "boringssl", "xz", "zlib",
     ]
 
     def test_00_search_all_packages(self):
@@ -224,11 +224,6 @@ class TestBuildBaseSystem(DockerYSHPMTestCase):
         r = self.pm("l")
         self.assertIn("curl", r.stdout)
 
-    def test_13_build_pigz(self):
-        self.pm_build("pigz")
-        r = self.pm("l")
-        self.assertIn("pigz", r.stdout)
-
     def test_14_build_bison(self):
         self.pm_build("bison")
         r = self.pm("l")
@@ -263,13 +258,13 @@ class TestBuildBaseSystem(DockerYSHPMTestCase):
 
     def test_93_remove_and_reinstall(self):
         """Removing and reinstalling a leaf package should work."""
-        r = self.pm("l", "pigz", check=False)
+        r = self.pm("l", "bzip2", check=False)
         if r.returncode != 0:
-            self.skipTest("pigz not installed")
-        self.pm("r", "pigz")
-        r = self.pm("l", "pigz", check=False)
+            self.skipTest("bzip2 not installed")
+        self.pm("r", "bzip2")
+        r = self.pm("l", "bzip2", check=False)
         self.assertNotEqual(r.returncode, 0)
-        self.pm("i", "pigz")
+        self.pm("i", "bzip2")
 
     def test_94_all_artifacts_produced(self):
         """Every package should have a built tarball in the cache."""

@@ -21,7 +21,6 @@ all_pkgs="
     baseinit
     boringssl
     curl
-    pigz
     bison
     flex
     runit

@@ -459,6 +459,7 @@ proc pkg_source_resolve (pkg, src, dest='', quiet='') {
     setglobal _res = ''
     setglobal _des = ''
     setglobal _fnr_val = ''
+    setglobal _src_kind = ''
 
     # Skip comments.
     case (src) {
@@ -466,6 +467,12 @@ proc pkg_source_resolve (pkg, src, dest='', quiet='') {
     }
 
     var clean_src = ${src%"${src##*[!/]}"}
+
+    # Strip mirror:/upstream: prefix.
+    case (clean_src) {
+        mirror:*   { setglobal _src_kind = 'mirror';   setvar clean_src = ${clean_src#mirror:} }
+        upstream:* { setglobal _src_kind = 'upstream'; setvar clean_src = ${clean_src#upstream:} }
+    }
 
     fnr_vars $clean_src
 
@@ -557,7 +564,16 @@ proc pkg_source (pkg, checksum_mode='') {
                 var src_type = ${_res%%+*}
                 var src_prefix = "${src_type}+"
                 var src_url = ${_res##$src_prefix}
-                "pkg_source_${src_type}" $_des $src_url
+
+                if (_src_kind === 'mirror') {
+                    try { pkg_source_url $_des $src_url 'n' }
+                    if failed {
+                        war $repo_name "Mirror unavailable, will try upstream"
+                        continue
+                    }
+                } else {
+                    "pkg_source_${src_type}" $_des $src_url
+                }
             }
         }
 
@@ -565,7 +581,7 @@ proc pkg_source (pkg, checksum_mode='') {
     } < "${repo_dir}/sources"
 }
 
-proc pkg_source_url (dest, url) {
+proc pkg_source_url (dest, url, fatal='y') {
     log $repo_name "Downloading $url"
 
     var dl_args = []
@@ -578,7 +594,10 @@ proc pkg_source_url (dest, url) {
     try { $cmd_get @dl_args $dest $url }
     if failed {
         rm -f $dest
-        die $repo_name "Failed to download $url"
+        if (fatal === 'y') {
+            die $repo_name "Failed to download $url"
+        }
+        return 1
     }
 }
 
@@ -647,6 +666,9 @@ proc pkg_extract (pkg) {
         try { read -r src dest }
         if (src === '' and _status !== 0) { break }
         pkg_source_resolve $pkg $src $dest >/dev/null
+
+        # Mirror lines are download hints only; the upstream line extracts.
+        if (_src_kind === 'mirror') { continue }
 
         if (_res !== '') {
             mkcd "${mak_dir}/${pkg}/${dest}"
@@ -1161,6 +1183,9 @@ proc pkg_checksum_gen () {
         try { read -r src dest }
         if (src === '' and _status !== 0) { break }
         pkg_source_resolve $repo_name $src $dest >/dev/null
+
+        # Mirror lines share content with their upstream counterpart.
+        if (_src_kind === 'mirror') { continue }
 
         var _res_stripped = ${_res##git+*}
         case (_res_stripped) {

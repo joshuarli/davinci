@@ -100,12 +100,6 @@ phase2() {
         echo "baselayout rebuilt successfully inside chroot"
 
         echo ""
-        echo "--- chroot: rebuild test (pigz, uses $CC) ---"
-        pm b pigz
-        pm i pigz
-        echo "pigz rebuilt successfully inside chroot"
-
-        echo ""
         echo "Phase 2 complete: chroot is functional"
 CHROOT_EOF
 
