@@ -42,11 +42,12 @@ jobs:
 
           # glibc from Debian — package it as a tarball.
           RUN mkdir -p /kominka-root/usr/lib && \
-              for lib in libc.so.6 libm.so.6 libdl.so.2 libpthread.so.0 \
-                         librt.so.1 libresolv.so.2 libnss_dns.so.2 \
-                         libnss_files.so.2 libcrypt.so.1; do \
-                  [ -f "/lib/x86_64-linux-gnu/$lib" ] && \
-                  cp -a "/lib/x86_64-linux-gnu/$lib" /kominka-root/usr/lib/; \
+              for lib in /lib/x86_64-linux-gnu/libc.so* /lib/x86_64-linux-gnu/libm.so* \
+                         /lib/x86_64-linux-gnu/libdl.so* /lib/x86_64-linux-gnu/libpthread.so* \
+                         /lib/x86_64-linux-gnu/librt.so* /lib/x86_64-linux-gnu/libresolv.so* \
+                         /lib/x86_64-linux-gnu/libnss_dns.so* /lib/x86_64-linux-gnu/libnss_files.so* \
+                         /lib/x86_64-linux-gnu/libcrypt.so*; do \
+                  [ -f "$lib" ] && cp -a "$lib" /kominka-root/usr/lib/ || true; \
               done && \
               cp -a /lib64/ld-linux-x86-64.so.2 /kominka-root/usr/lib/ && \
               ln -sf usr/lib /kominka-root/lib && \
