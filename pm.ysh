@@ -702,6 +702,9 @@ proc pkg_depends (pkg, mode='', filter='', chain='', dep_type='') {
     ### Resolve all dependencies, deepest first.
     if (pkg in deps_seen) { return }
 
+    # Skip build-only deps when installing (not building).
+    if (order_mode === 'install' and dep_type === 'make') { return }
+
     # Filter out non-explicit, already installed packages.
     if (filter !== '' and mode === '' and not (pkg in explicit_seen)) {
         if test -d "${sys_db}/${pkg}" { return }
@@ -753,6 +756,8 @@ proc pkg_depends (pkg, mode='', filter='', chain='', dep_type='') {
     setglobal deps_seen[pkg] = true
 }
 
+var order_mode = 'raw'
+
 proc pkg_order (...pkgs) {
     ### Order a list of packages based on dependence.
     setglobal order = []
@@ -769,14 +774,17 @@ proc pkg_order (...pkgs) {
                 }
             }
             *[/]* { die "Not a package ($pkg)" }
-            *     { pkg_depends $pkg raw }
+            *     { pkg_depends $pkg $order_mode }
         }
     }
 
-    # Filter: keep only packages that were explicitly requested.
+    # Include deps that aren't installed yet, plus all explicit packages.
     for pkg in (deps) {
         var base = ${pkg##$ppwd/}
         if (contains(pkgs, pkg) or contains(pkgs, base)) {
+            call order->append(pkg)
+            call redro->insert(0, pkg)
+        } elif ! test -d "${sys_db}/${base}" {
             call order->append(pkg)
             call redro->insert(0, pkg)
         }
@@ -1604,6 +1612,9 @@ proc pkg_install_all (...pkgs) {
         case (pkg) { *.tar.* { continue } }
         pkg_find_version $pkg
 
+        # Metapackages (no sources) don't have tarballs to download.
+        if ! test -s "${repo_dir}/sources" { continue }
+
         var _name = "${pkg}@${repo_ver}-${repo_rel}.tar.${KOMINKA_COMPRESS}"
         var _dest = "${bin_dir}/${_name}"
 
@@ -1707,7 +1718,22 @@ proc pkg_install (pkg) {
         }
         * {
             try { pkg_cache $pkg }
-            if failed { die $pkg "Not yet built" }
+            if failed {
+                # Metapackage — no sources, no tarball. Just register as installed.
+                pkg_find_version $pkg
+                if ! test -s "${repo_dir}/sources" {
+                    mkdir -p "${sys_db}/${pkg}"
+                    cp -f "${repo_dir}/version" "${sys_db}/${pkg}/"
+                    test -f "${repo_dir}/depends" && cp -f "${repo_dir}/depends" "${sys_db}/${pkg}/"
+                    cp -f "${repo_dir}/build" "${sys_db}/${pkg}/" 2>/dev/null || \
+                        printf '#!/bin/sh\n:\n' > "${sys_db}/${pkg}/build"
+                    chmod +x "${sys_db}/${pkg}/build"
+                    true > "${sys_db}/${pkg}/manifest"
+                    log $pkg "Registered metapackage"
+                    return
+                }
+                die $pkg "Not yet built"
+            }
             setglobal _pkg = pkg
         }
     }
@@ -1994,6 +2020,10 @@ proc args (action='', ...pkgs) {
                 }
             }
 
+            case (action) {
+                i | install { setglobal order_mode = 'install' }
+                *           { setglobal order_mode = 'raw' }
+            }
             pkg_order @pkgs
             setvar pkgs = order
         }

@@ -7,7 +7,6 @@ xz
 m4
 make
 bison
-flex
 samurai
 cmake
 go
