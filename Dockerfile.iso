@@ -1,35 +1,44 @@
 # Build a bootable Kominka Linux installer disk image.
-# The image boots to a live Kominka environment with an install script.
-# dd the output to a USB drive and boot via UEFI.
 #
-# Requires kominka-boot and kominka-kernel images (make build && make kernel).
+# Uses kominka:core as the rootfs base, adds e2fsprogs + dosfstools
+# from R2, kernel from kominka-kernel, and the install script.
+# No Debian — all tools from Kominka packages.
+#
+# Requires: kominka:core, kominka-kernel images.
 #
 # Usage:
 #   docker build -t kominka-iso -f Dockerfile.iso .
 #   docker run --rm --privileged -v "$(pwd)":/out kominka-iso
 
-FROM kominka-boot AS boot-image
 FROM kominka-kernel AS kernel-image
 
-FROM debian:bookworm-slim
+FROM kominka:core AS rootfs
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    e2fsprogs dosfstools gdisk util-linux \
-    cpio gzip && \
-    rm -rf /var/lib/apt/lists/*
+ARG R2=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev/aarch64-linux-gnu
 
-# Stable layers first: ysh binary + libs (pinned oils version).
-COPY --from=boot-image /ysh-bin/oils-for-unix /ysh-bin/oils-for-unix
-COPY --from=boot-image /ysh-libs/ /ysh-libs/
+# Add filesystem tools for the installer.
+RUN wget --no-check-certificate -qO- "$R2/e2fsprogs@1.46.4-3.tar.gz" | tar xzf - -C / && \
+    wget --no-check-certificate -qO- "$R2/dosfstools@4.2-1.tar.gz" | tar xzf - -C /
 
-# Kernel changes when kernel.config changes.
-COPY --from=kernel-image /Image /boot/Image
+# Kernel — lives on the rootfs so install.sh can access it.
+COPY --from=kernel-image /Image /usr/share/kominka/Image
 
-# Rootfs changes when packages or pm.ysh change.
-COPY --from=boot-image /rootfs /rootfs
+# Installer script.
+COPY install.sh /usr/bin/pm-install
+RUN chmod +x /usr/bin/pm-install
 
-# Scripts change most often during dev.
-COPY install.sh /install.sh
+# Allow root login with no password (installer).
+RUN sed -i 's|^root:!:|root::|' /etc/shadow
+
+# Enable services for live environment.
+RUN mkdir -p /var/service && \
+    for svc in mdev syslogd getty-hvc0 udhcpc; do \
+        [ -d /etc/sv/$svc ] && ln -sf "/etc/sv/$svc" "/var/service/$svc"; \
+    done
+
+RUN echo "kominka-installer" > /etc/hostname
+
+# Build the disk image with busybox tools (fdisk, losetup, mount, cpio).
 COPY build_iso.sh /build_iso.sh
 
 CMD sh /build_iso.sh
