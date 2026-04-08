@@ -27,5 +27,5 @@ var install_args = [
 ]
 
 for p in (:| debugfs e2fsck lib/e2p lib/et lib/ext2fs lib/ss misc resize scrub |) {
-    make -C $p @install_args install
+    make -C $p DESTDIR=$dest @install_args install
 }

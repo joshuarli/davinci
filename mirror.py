@@ -1,33 +1,24 @@
 #!/usr/bin/env python3
-"""Download upstream sources and upload them to a Cloudflare R2 mirror.
+"""Manage Cloudflare R2 mirrors for source and binary packages.
 
-Workflow:
-    # Download upstream sources, skip what's already in R2
+Source mirror workflow:
     mirror.py repo download -u https://pub-XXX.r2.dev
-
-    # Upload local files to R2, skip what's already there
     mirror.py repo upload -b kominka-sources -u https://pub-XXX.r2.dev
-
-    # Or do both in one pass
     mirror.py repo sync -b kominka-sources -u https://pub-XXX.r2.dev
-
-    # Verify local files against repo checksums
     mirror.py repo verify
 
-R2 bucket setup (one-time):
-    wrangler login
-    wrangler r2 bucket create kominka-sources
-    # Then enable public access in the Cloudflare dashboard:
-    #   R2 > kominka-sources > Settings > Public Access > Allow Access
-    # Note the public URL (e.g. https://pub-<id>.r2.dev)
+Binary package upload:
+    mirror.py upload-bin -d ~/.cache/kominka/bin -b bucket -u https://pub-XXX.r2.dev
 
-Downloads go to a temporary directory by default (auto-cleaned after
-successful sync). Use -o to override. R2 object keys are <package>/<filename>.
+R2 keys:
+    Sources:  <package>/<filename>
+    Binaries: <arch>/<package>@<ver>-<rel>.tar.<compress>
 """
 
 import argparse
 import hashlib
 import os
+import platform
 import re
 import shutil
 import subprocess
@@ -530,10 +521,81 @@ def cmd_verify(args):
     return 1 if fail else 0
 
 
+def detect_arch():
+    """Map platform.machine() to GNU triplet."""
+    m = platform.machine()
+    return {
+        "aarch64": "aarch64-linux-gnu",
+        "arm64": "aarch64-linux-gnu",
+        "x86_64": "x86_64-linux-gnu",
+    }.get(m, m)
+
+
+def cmd_upload_bin(args):
+    """Upload binary package tarballs to R2 under <arch>/<tarball>."""
+    bin_dir = os.path.expanduser(args.bindir)
+    bucket = args.bucket
+    public_url = args.public_url
+    arch = args.arch or detect_arch()
+    packages = set(args.package) if args.package else None
+
+    if not os.path.isdir(bin_dir):
+        print(f"error: binary cache not found: {bin_dir}", file=sys.stderr)
+        return 1
+
+    if not args.dry_run:
+        require_wrangler()
+
+    tarballs = sorted(f for f in os.listdir(bin_dir)
+                      if "@" in f and ".tar." in f)
+    if not tarballs:
+        print("no binary tarballs found")
+        return 0
+
+    ok = 0
+    skip = 0
+    fail = 0
+
+    try:
+        for filename in tarballs:
+            pkg_name = filename.split("@")[0]
+            if packages and pkg_name not in packages:
+                continue
+
+            key = f"{arch}/{filename}"
+            filepath = os.path.join(bin_dir, filename)
+            print(f"{arch}/{filename}")
+
+            if os.path.getsize(filepath) == 0:
+                print(f"  skipping 0-byte file", file=sys.stderr)
+                fail += 1
+                continue
+
+            if public_url and not args.force and remote_exists(public_url, key):
+                print(f"  exists in bucket")
+                skip += 1
+                continue
+
+            if args.dry_run:
+                print(f"  would upload -> {key}")
+                ok += 1
+            elif r2_put(bucket, key, filepath):
+                ok += 1
+            else:
+                fail += 1
+    except KeyboardInterrupt:
+        print("\ninterrupted", file=sys.stderr)
+        fail += 1
+
+    print(f"\n{ok} uploaded, {skip} already in bucket, {fail} failed")
+    return 1 if fail else 0
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("repo", help="path to the package repo (e.g. tests/fixtures/repo)")
+    p.add_argument("repo", nargs="?",
+                   help="path to the package repo (e.g. tests/fixtures/repo)")
     p.add_argument("-o", "--outdir",
                    help="output directory for downloads (default: auto tmpdir)")
     p.add_argument("-p", "--package", action="append", default=[],
@@ -562,8 +624,26 @@ def main():
 
     sub.add_parser("verify", help="verify downloads against repo checksums")
 
+    ub = sub.add_parser("upload-bin", help="upload binary tarballs to R2")
+    ub.add_argument("-d", "--bindir", default="~/.cache/kominka/bin",
+                    help="binary tarball directory (default: ~/.cache/kominka/bin)")
+    ub.add_argument("-b", "--bucket", required=True, help="R2 bucket name")
+    ub.add_argument("-u", "--public-url",
+                    help="public R2 URL — skip tarballs already in bucket")
+    ub.add_argument("-a", "--arch", help="architecture (default: auto-detect)")
+    ub.add_argument("-n", "--dry-run", action="store_true")
+    ub.add_argument("-f", "--force", action="store_true",
+                    help="re-upload even if already in bucket")
+
     args = p.parse_args()
     cmd = args.command
+
+    if cmd == "upload-bin":
+        sys.exit(cmd_upload_bin(args))
+
+    # Source mirror commands require repo.
+    if not args.repo:
+        p.error("repo is required for source mirror commands")
 
     # Default outdir to a temporary directory.
     tmp_dir = None

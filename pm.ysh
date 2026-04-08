@@ -25,6 +25,8 @@ var KOMINKA_ELF = ''
 var KOMINKA_CHK = ''
 var KOMINKA_GET = ''
 var KOMINKA_MIRROR = ''
+var KOMINKA_BIN_MIRROR = ''
+var KOMINKA_ARCH = ''
 var _KOMINKA_LVL = 0
 var CC = ''
 var CXX = ''
@@ -47,6 +49,7 @@ var cmd_get = ''
 
 var sys_db = ''
 var sys_ch = ''
+var sys_arch = ''
 var pkg_db = ''
 var cho_db = ''
 
@@ -445,6 +448,15 @@ proc pkg_cache (pkg) {
     for f in @[glob("${bin_dir}/${pkg}@${repo_ver}-${repo_rel}.tar.*")] {
         setglobal tar_file = f
         return 0
+    }
+
+    # Try remote binary mirror.
+    if (KOMINKA_BIN_MIRROR !== '') {
+        var _remote_name = "${pkg}@${repo_ver}-${repo_rel}.tar.${KOMINKA_COMPRESS}"
+        var _remote_url = "${KOMINKA_BIN_MIRROR}/${sys_arch}/${_remote_name}"
+        setglobal tar_file = "${bin_dir}/${_remote_name}"
+        try { pkg_source_url $tar_file $_remote_url 'n' }
+        if ! failed { return 0 }
     }
 
     return 1
@@ -1849,6 +1861,8 @@ proc args (action='', ...pkgs) {
                         KOMINKA_CHOICE="${KOMINKA_CHOICE:-}" \
                         KOMINKA_COLOR="${KOMINKA_COLOR:-}" \
                         KOMINKA_TMPDIR="${KOMINKA_TMPDIR:-}" \
+                        KOMINKA_BIN_MIRROR="${KOMINKA_BIN_MIRROR:-}" \
+                        KOMINKA_ARCH="${KOMINKA_ARCH:-}" \
                         KOMINKA_PID="$KOMINKA_PID" \
                         _KOMINKA_LVL="$_KOMINKA_LVL" \
                         $0 $action @pkgs
@@ -1965,7 +1979,9 @@ proc main (...argv) {
     setglobal KOMINKA_ELF       = ENV => get("KOMINKA_ELF", "")
     setglobal KOMINKA_CHK       = ENV => get("KOMINKA_CHK", "")
     setglobal KOMINKA_GET       = ENV => get("KOMINKA_GET", "")
-    setglobal KOMINKA_MIRROR    = ENV => get("KOMINKA_MIRROR", "")
+    setglobal KOMINKA_MIRROR      = ENV => get("KOMINKA_MIRROR", "")
+    setglobal KOMINKA_BIN_MIRROR  = ENV => get("KOMINKA_BIN_MIRROR", "")
+    setglobal KOMINKA_ARCH        = ENV => get("KOMINKA_ARCH", "")
     var _lvl_str = ENV => get("_KOMINKA_LVL", "0") => trim()
     if (_lvl_str === '') { setvar _lvl_str = "0" }
     setglobal _KOMINKA_LVL = int(_lvl_str)
@@ -1990,6 +2006,18 @@ proc main (...argv) {
 
     if (KOMINKA_COMPRESS === '') { setglobal KOMINKA_COMPRESS = 'gz' }
     setglobal KOMINKA_PID = ${KOMINKA_PID:-$$}
+
+    # Architecture detection for binary package mirror.
+    if (KOMINKA_ARCH !== '') {
+        setglobal sys_arch = KOMINKA_ARCH
+    } else {
+        var _uname = $(uname -m)
+        case (_uname) {
+            aarch64 { setglobal sys_arch = 'aarch64-linux-gnu' }
+            x86_64  { setglobal sys_arch = 'x86_64-linux-gnu' }
+            *       { setglobal sys_arch = _uname }
+        }
+    }
 
     if (LOGNAME === '') {
         die "POSIX requires LOGNAME be set"

@@ -36,6 +36,19 @@ Console tools:
 - mdevd (better hotplug daemon than busybox mdev)
 - zstd (compression, increasingly used for tarballs)
 
+## Binary distribution
+
+- R2 bucket authentication for `mirror.py upload-bin` (currently uses wrangler login)
+- `pm i` dependency resolution for binary-only installs (currently installs one
+  package at a time; deps must be installed manually in order)
+- Cross-architecture builds (build amd64 packages on aarch64 and vice versa)
+
+## Multi-architecture
+
+- Build linux/amd64 (x86_64) installer ISO
+- All packages currently tested on aarch64 only — need x86_64 build+test pass
+- Kernel config for x86_64 (`kernel-x86_64.config`)
+
 ## Installer
 
 - ~~User creation prompt during install~~ (done — install.sh)

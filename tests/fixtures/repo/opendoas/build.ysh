@@ -13,7 +13,7 @@ env BINOWN=$uid BINGRP=$gid \
     --without-pam
 
 make
-make install
+make DESTDIR=$dest install
 
 mkdir -p "${dest}/etc"
 cp -f doas.conf "${dest}/etc"
