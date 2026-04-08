@@ -34,7 +34,8 @@ truncate -s "${img_mb}M" "$IMG"
 # MBR partition table: partition 1 = EFI (type 0xEF), partition 2 = Linux.
 # busybox fdisk with scripted input.
 efi_end=$(( efi_mb * 2048 + 2047 ))
-fdisk "$IMG" <<FDISK
+# busybox fdisk warns about ioctl on regular files — harmless.
+fdisk "$IMG" <<FDISK || true
 o
 n
 p
