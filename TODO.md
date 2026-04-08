@@ -36,6 +36,26 @@ Console tools:
 - mdevd (better hotplug daemon than busybox mdev)
 - zstd (compression, increasingly used for tarballs)
 
+## Self-hosting the build toolchain
+
+To build all packages from Kominka's own repos (no Debian host tools):
+
+1. **go** — needed by BoringSSL code generation. Self-bootstraps from source
+   with a prior Go release; package the bootstrap binary first.
+2. **cmake** — needed by BoringSSL. Large C++ project; may need an older
+   cmake or a bootstrap binary to build the first time.
+3. **uv** — Rust-based Python package manager. Use to bootstrap Python
+   without packaging CPython directly.
+4. **python** (via uv) — needed by ninja/meson.
+5. **ninja** — needed by BoringSSL (cmake -GNinja). Alternative: samurai
+   (ninja-compatible, pure C, no python dep — much easier to bootstrap).
+6. **samurai** — consider as a ninja replacement; trivial to build (single
+   C file, no deps beyond libc).
+
+Shortest path: samurai instead of ninja (skip python entirely for this),
+then go and cmake. That gives us everything to build BoringSSL and curl
+from our own repos.
+
 ## Binary distribution
 
 - R2 bucket authentication for `mirror.py upload-bin` (currently uses wrangler login)
