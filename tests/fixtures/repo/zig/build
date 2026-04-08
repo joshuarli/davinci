@@ -1,0 +1,11 @@
+#!/bin/sh -e
+dest=$1
+
+mkdir -p "$dest/usr/bin" "$dest/usr/lib"
+cp -a zig "$dest/usr/bin/"
+cp -a lib "$dest/usr/lib/zig"
+
+# cc/c++ wrappers using native target (system glibc).
+printf '#!/bin/sh\nexec zig cc "$@"\n'  > "$dest/usr/bin/cc"
+printf '#!/bin/sh\nexec zig c++ "$@"\n' > "$dest/usr/bin/c++"
+chmod +x "$dest/usr/bin/cc" "$dest/usr/bin/c++"

@@ -4,7 +4,6 @@ BINOWN="$(id -u)" \
 BINGRP="$(id -g)" \
 ./configure \
     --prefix=/usr \
-    --enable-static \
     --with-shadow \
     --with-timestamp \
     --without-pam

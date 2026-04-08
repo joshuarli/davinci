@@ -72,6 +72,8 @@ ENV PATH=/kominka-root/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
     CC=gcc \
     CXX=g++ \
     PKG_CONFIG_PATH=/kominka-root/usr/lib/pkgconfig \
+    CFLAGS="-O2 -I/kominka-root/usr/include" \
+    CXXFLAGS="-O2 -I/kominka-root/usr/include" \
     CPPFLAGS="-I/kominka-root/usr/include" \
     LDFLAGS="-L/kominka-root/usr/lib"
 

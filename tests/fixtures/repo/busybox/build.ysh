@@ -24,6 +24,14 @@ if (cc_ver => contains('clang')) {
     var sed3 = "${_pre3}${CC}&g"
     sed $sed3 Makefile.flags > _
     mv -f _ Makefile.flags
+
+    # Strip linker flags unsupported by lld (zig's linker).
+    sed -e 's/-Wl,--warn-common//g' \
+        -e 's/-Wl,-Map,[^ ]*//g' \
+        -e 's/-Wl,--verbose//g' \
+        scripts/trylink > _
+    mv -f _ scripts/trylink
+    chmod +x scripts/trylink
 }
 
 # Build and install regular busybox.

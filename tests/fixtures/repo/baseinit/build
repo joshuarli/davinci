@@ -19,6 +19,6 @@ sed -i '/fsck -ATat/s/^/command -v fsck.ext4 >\/dev\/null 2>\&1 \&\& /' "$1/usr/
 # Disable warning as CFLAGS must work this way.
 # shellcheck disable=2086
 for bin in kpow kall; do
-    "$CC" -o "$1/usr/bin/$bin" "bin/$bin.c" $CFLAGS -static
+    "$CC" -o "$1/usr/bin/$bin" "bin/$bin.c" $CFLAGS
     cp -f "bin/$bin.c" "$1/usr/share/doc/kominka/init/$bin.c"
 done

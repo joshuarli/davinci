@@ -16,15 +16,15 @@ var dest = ARGV[0]
 
 make
 
-var install_args = :|
-    MKDIR_P=mkdir -p
-    BLKID_MAN=
-    BLKID_PROG=
-    FINDFS_LINK=
-    FINDFS_MAN=
-    UMANPAGES=chattr.1 lsattr.1
-    UPROGS=chattr lsattr
-|
+var install_args = [
+    'MKDIR_P=mkdir -p',
+    'BLKID_MAN=',
+    'BLKID_PROG=',
+    'FINDFS_LINK=',
+    'FINDFS_MAN=',
+    'UMANPAGES=chattr.1 lsattr.1',
+    'UPROGS=chattr lsattr',
+]
 
 for p in (:| debugfs e2fsck lib/e2p lib/et lib/ext2fs lib/ss misc resize scrub |) {
     make -C $p @install_args install

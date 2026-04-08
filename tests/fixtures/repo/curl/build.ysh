@@ -2,11 +2,6 @@
 
 var dest = ARGV[0]
 
-# Upstream recently broke static linking. This sed call adds -all-static to
-# the curl command's compilation (keeping libraries intact).
-sed 's/\(curl_LDADD =\)/\1 -all-static/' src/Makefile.in > _
-mv -f _ src/Makefile.in
-
 ./configure \
     --prefix=/usr \
     --enable-ipv6 \

@@ -1,0 +1,10 @@
+core
+zig
+linux-headers
+zlib
+bzip2
+xz
+m4
+make
+bison
+flex

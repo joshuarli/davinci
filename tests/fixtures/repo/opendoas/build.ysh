@@ -8,7 +8,6 @@ var gid = $(id -g)
 env BINOWN=$uid BINGRP=$gid \
 ./configure \
     --prefix=/usr \
-    --enable-static \
     --with-shadow \
     --with-timestamp \
     --without-pam

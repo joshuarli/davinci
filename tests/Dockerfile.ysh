@@ -63,6 +63,8 @@ ENV KOMINKA_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
     CC=gcc \
     CXX=g++ \
     PKG_CONFIG_PATH=/kominka-root/usr/lib/pkgconfig \
+    CFLAGS="-O2 -I/kominka-root/usr/include" \
+    CXXFLAGS="-O2 -I/kominka-root/usr/include" \
     CPPFLAGS="-I/kominka-root/usr/include" \
     LDFLAGS="-L/kominka-root/usr/lib"
 

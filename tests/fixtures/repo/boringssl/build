@@ -1,6 +1,10 @@
 #!/bin/sh -e
 
-cmake -GNinja -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+cmake -GNinja -B build \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DBUILD_TESTING=OFF \
+    -DCMAKE_C_COMPILER="${CC:-cc}" \
+    -DCMAKE_CXX_COMPILER="${CXX:-c++}"
 ninja -C build
 
 mkdir -p "$1/usr/lib/pkgconfig" "$1/usr/include" "$1/usr/bin" "$1/etc/ssl"

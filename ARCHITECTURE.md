@@ -4,42 +4,50 @@
 
 Kominka Linux is a minimal Linux distribution built with a YSH package manager
 (`pm.ysh`). The system boots on ARM64 (aarch64) using a custom minimal kernel,
-busybox for core userspace, and glibc as the C library.
+busybox for core userspace, glibc as the C library, and `zig cc` as the
+system C/C++ compiler.
 
 The entire OS is built inside Docker containers on macOS, producing a bootable
 disk image that runs under vfkit (or on real ARM64 hardware via EFISTUB).
 
 ## Base System
 
-The installed rootfs contains 23 packages built from source:
+### Compiler Toolchain
+
+Kominka uses **Zig** as its C/C++ compiler toolchain. The `zig` package
+installs `zig cc` and provides `cc`/`c++` wrapper scripts that invoke it.
+Zig's bundled clang + lld replaces the traditional gcc + binutils + ld chain,
+eliminating the GCC bootstrap problem. All packages are dynamically linked
+against glibc (no static linking — zig's lld doesn't support static glibc).
+
+### Core Packages
+
+The `core` metapackage depends on the minimal boot/network/pm packages:
 
 | Package | Role |
 |---------|------|
 | baselayout | FHS directory structure, `/etc` config files, symlinks (`/bin -> /usr/bin`, `/lib -> /usr/lib`) |
 | glibc | C library (host-provided during bootstrap, package exists for self-hosting) |
-| linux-headers | Kernel headers for building C programs |
-| zlib | Compression library (dependency of curl, busybox) |
-| bzip2, xz | Source tarball decompression |
-| m4 | Macro processor (dependency of bison) |
-| make | Build system |
 | busybox | Core userspace: init, sh, getty, mount, fsck, mdev, udhcpc, coreutils, and ~300 other applets |
 | baseinit | Init framework: rc.boot, rc.shutdown, rc.lib, kpow, kall |
 | runit | Service supervision: runsvdir, runsv, sv |
-| boringssl | TLS library (static, used by curl) |
+| boringssl | TLS library (used by curl) |
 | curl | HTTP client |
-| bison, flex | Parser generators (needed to build GCC) |
 | e2fsprogs | ext4 filesystem tools (fsck.ext4, mkfs.ext4, etc.) |
 | dosfstools | FAT filesystem tools (mkfs.vfat, fsck.fat) |
 | opendoas | Privilege escalation (sudo alternative) |
-| pkgconf | Compiler/linker flag configuration (pkg-config) |
-| strace | System call tracer for debugging |
-| perl | Scripting language (build dependency for many packages) |
-| sqlite | Embedded SQL database |
-| libudev-zero | Minimal libudev implementation (no systemd) |
 
-A `core` metapackage depends on the essential system packages.
-Additional packages (binutils, gcc, git, grub) are vendored but not built
-during the default bootstrap.
+The `build-essential` metapackage adds compiler/build tools:
+
+| Package | Role |
+|---------|------|
+| zig | C/C++ compiler (zig cc), linker (lld), and `cc`/`c++` wrappers |
+| linux-headers | Kernel headers for building C programs |
+| zlib | Compression library (dependency of curl) |
+| bzip2, xz | Source tarball decompression |
+| m4 | Macro processor (dependency of bison) |
+| make | Build system |
+| bison, flex | Parser generators |
 
 ## Filesystem Layout
 
@@ -137,10 +145,10 @@ and respawned processes.
 - `rc.lib` — shared functions: `log`, `mnt`, `mounted`, `sos`, `run_hook`, `random_seed`
 - Hook system: drop scripts in `/etc/rc.d/` with `.boot`, `.pre.shutdown`, or `.post.shutdown` suffix
 
-**kpow** (C, static): Calls `reboot(2)` to power off or reboot. Used at the
+**kpow** (C): Calls `reboot(2)` to power off or reboot. Used at the
 end of rc.shutdown as an init-agnostic shutdown method.
 
-**kall** (C, static): Sends a signal to all processes except PID 1 and its own
+**kall** (C): Sends a signal to all processes except PID 1 and its own
 session. Replacement for `killall5`.
 
 ## Service Management

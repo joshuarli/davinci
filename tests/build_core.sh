@@ -11,28 +11,23 @@ SUMS=/kominka-root/artifact-checksums
 
 all_pkgs="
     baselayout
-    zlib
-    bzip2
-    xz
-    m4
-    make
     busybox
     baseinit
+    runit
+    zlib
     boringssl
     curl
-    bison
-    flex
-    runit
+    e2fsprogs
+    dosfstools
+    opendoas
 "
 
 # Excluded from default build:
 #   glibc — host Debian provides it; building from source is slow.
-#   binutils, gcc — require long compile times. Pass explicitly.
 #   kominka, git, grub — need upstream sources not in the container.
-#   core — metapackage; dependencies are built individually above.
-#   e2fsprogs, dosfstools, opendoas, pkgconf, strace, perl, sqlite,
-#   libudev-zero — packaged but not yet building (SIGTERM in Docker).
-#   Pass explicitly to test: sh build_core.sh e2fsprogs
+#   core, build-essential — metapackages; deps are built individually.
+#   Build-essential packages (zig, linux-headers, bzip2, xz, m4, make,
+#   bison, flex) built on demand as dependencies.
 
 if [ $# -gt 0 ]; then
     pkgs="$*"
@@ -41,6 +36,15 @@ else
 fi
 
 : > "$SUMS"
+
+# Bootstrap zig (prebuilt binary) and switch to zig cc for all builds.
+echo "================================================================"
+echo "=== Bootstrapping zig cc"
+echo "================================================================"
+pm b zig 2>&1 | tail -3
+pm i zig 2>&1 | tail -1
+export PATH="$KOMINKA_ROOT/usr/bin:$PATH"
+export CC=cc CXX=c++
 
 for pkg in $pkgs; do
     echo "================================================================"

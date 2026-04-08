@@ -7,7 +7,7 @@ var LDFLAGS = ENV => get("LDFLAGS", "")
 
 # CC is passed as a make variable (string), not as positional args.
 make CC="$CC $CFLAGS -fPIC $LDFLAGS" -f Makefile-libbz2_so
-make CC="$CC $CFLAGS -static -fPIC $LDFLAGS" bzip2
+make CC="$CC $CFLAGS -fPIC $LDFLAGS" bzip2
 
 mkdir -p \
     "${dest}/usr/bin" \

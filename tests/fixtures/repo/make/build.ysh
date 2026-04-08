@@ -2,7 +2,7 @@
 
 var dest = ARGV[0]
 var CFLAGS = ENV => get("CFLAGS", "")
-setglobal ENV.CFLAGS = "${CFLAGS} -static -Wno-error -Wno-int-conversion -Wno-implicit-function-declaration"
+setglobal ENV.CFLAGS = "${CFLAGS} -Wno-error -Wno-int-conversion -Wno-implicit-function-declaration"
 
 ./configure \
     --prefix=/usr \

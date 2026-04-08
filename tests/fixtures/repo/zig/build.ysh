@@ -1,0 +1,12 @@
+#!/usr/local/bin/ysh
+
+var dest = ARGV[0]
+
+mkdir -p "${dest}/usr/bin" "${dest}/usr/lib"
+cp -a zig "${dest}/usr/bin/"
+cp -a lib "${dest}/usr/lib/zig"
+
+# cc/c++ wrappers using native target (system glibc).
+write -- '#!/bin/sh' 'exec zig cc "$@"'  > "${dest}/usr/bin/cc"
+write -- '#!/bin/sh' 'exec zig c++ "$@"' > "${dest}/usr/bin/c++"
+chmod +x "${dest}/usr/bin/cc" "${dest}/usr/bin/c++"

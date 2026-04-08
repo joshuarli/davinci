@@ -40,7 +40,7 @@ CONFIG_FEATURE_SYSLOG=y
 #
 # Build Options
 #
-CONFIG_STATIC=y
+# CONFIG_STATIC is not set
 # CONFIG_PIE is not set
 # CONFIG_NOMMU is not set
 # CONFIG_BUILD_LIBBUSYBOX is not set
@@ -54,7 +54,7 @@ CONFIG_EXTRA_LDFLAGS=""
 CONFIG_EXTRA_LDLIBS=""
 CONFIG_USE_PORTABLE_CODE=y
 # CONFIG_STACK_OPTIMIZATION_386 is not set
-CONFIG_STATIC_LIBGCC=y
+# CONFIG_STATIC_LIBGCC is not set
 
 #
 # Installation Options ("make install" behavior)

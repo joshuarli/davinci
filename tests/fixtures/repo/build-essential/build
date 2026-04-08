@@ -1,0 +1,3 @@
+#!/bin/sh -e
+# Metapackage — no build step. Dependencies are pulled in via 'depends'.
+:

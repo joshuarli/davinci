@@ -171,13 +171,18 @@ The project builds a bootable Kominka Linux disk image and can boot it in a VM:
 
 All packages from the upstream repo core are vendored:
 
-**Built and tested (15 packages)**:
-baselayout, baseinit, busybox, glibc, linux-headers, bzip2, xz, zlib,
-bison, flex, m4, make, curl, boringssl, pm
+**Core packages (built and tested)**:
+baselayout, baseinit, busybox, glibc, boringssl, curl, e2fsprogs,
+dosfstools, opendoas, runit
 
-**Vendored but not built** (too complex for the Debian cross-build env):
-binutils, gcc, git, grub
+**Build-essential packages (built and tested)**:
+zig, linux-headers, zlib, bzip2, xz, m4, make, bison, flex
 
+**Other packages (vendored, not in default build)**:
+git, grub, pkgconf, strace, perl, sqlite, libudev-zero, kominka
+
+All packages are compiled with `zig cc` (clang-based, bundled with Zig).
+No static linking — all binaries dynamically link against glibc.
 Source tarballs are downloaded at build time from the R2 mirror
 (`KOMINKA_MIRROR`) or upstream URLs.
 
@@ -223,19 +228,20 @@ KOMINKA_ROOT=/kominka-root pm l
 
 ## Known Issues and Build Fixes
 
-Build fixes applied to vendored packages for Debian compatibility:
+Build fixes applied to vendored packages for zig cc (clang/lld) compatibility:
 
 - **busybox**: CONFIG_TC disabled in `.config` (TC_CBQ_MAXPRIO removed in newer headers).
-  Source URL changed from git.busybox.net snapshot to busybox.net/downloads/.
-- **m4**: gnulib's `_GL_ATTRIBUTE_NODISCARD` redefined to empty (GCC compat).
-- **make**: gnulib K&R prototypes (`extern char *getenv ()`) conflict with strict
-  libc headers; sed'd out at build time. Added `-Wno-error -Wno-int-conversion`.
-- **openssl**: Changed target from `linux-x86_64` to `linux-generic64`.
-  Removed `perl` from depends (Debian provides it).
-- **zlib**: Old version removed from zlib.net; uses fossils mirror.
-- **kominka**: Removed `git` dependency (not needed for the simple file-copy build).
-- **git, binutils, gcc, grub**: Not built — too complex for cross-build
-  (long compile times, complex dependencies).
+  Clang UB fix patch applied. Unsupported lld flags (`--warn-common`, `-Map`, `--verbose`)
+  stripped from `scripts/trylink`. Dynamically linked (CONFIG_STATIC=n).
+- **runit**: `-D_GNU_SOURCE` added for `setgroups()` declaration.
+  `-Wno-implicit-function-declaration -Wno-incompatible-pointer-types` for old C style.
+  `-static` removed from Makefile.
+- **m4**: gnulib's `_GL_ATTRIBUTE_NODISCARD` redefined to empty.
+- **make**: gnulib K&R prototypes sed'd out. Added `-Wno-error -Wno-int-conversion`.
+- **boringssl**: CMake explicitly told to use `$CC`/`$CXX` (prevents fallback to system g++).
+- **zlib**: Old version removed from zlib.net; uses fossils mirror. Must build with
+  `-O2` to avoid zig's default UBSan instrumentation at `-O0`.
+- **All packages**: Static linking removed (zig's lld cannot statically link glibc).
 - **pm alternatives bug**: When exactly one other package is installed,
   `grep` doesn't prefix filenames in output, breaking `IFS=: read` parsing
   in `pkg_conflicts`. Tests work around this by ensuring multiple packages
