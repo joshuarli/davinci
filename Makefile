@@ -11,14 +11,10 @@ REPO_FILES := $(wildcard tests/fixtures/repo/*/build*) \
               $(wildcard tests/fixtures/repo/*/sources) \
               $(wildcard tests/fixtures/repo/*/files/*)
 
-.PHONY: core build kernel iso boot boot-installer stop test clean
+.PHONY: core kernel iso boot boot-installer stop test clean
 
-# Docker image builds.
 core:
-	docker build -t kominka:core --target core .
-
-build:
-	docker build -t kominka:build --target build .
+	docker build -t kominka:core .
 
 kernel:
 	docker build -t $(KERNEL_IMAGE) -f Dockerfile.linux .
@@ -28,14 +24,12 @@ iso: core kernel
 	docker build -t $(INSTALLER_IMAGE) -f Dockerfile.iso .
 	docker run --rm --privileged -v "$(CURDIR)":/out $(INSTALLER_IMAGE)
 
-# Auto-build missing or stale artifacts.
 $(KERNEL): kernel.config Dockerfile.linux
 	$(MAKE) kernel
 
 $(INSTALLER_IMG): Dockerfile.iso build_iso.sh install.sh $(KERNEL) Dockerfile pm.ysh $(REPO_FILES)
 	$(MAKE) iso
 
-# Boot targets.
 boot: $(KERNEL) $(INSTALLER_IMG)
 	@command -v vfkit >/dev/null || { echo "error: vfkit required — brew install vfkit"; exit 1; }
 	-@pkill vfkit 2>/dev/null; sleep 0.5

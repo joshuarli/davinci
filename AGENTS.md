@@ -38,11 +38,10 @@ tests/
 ## Make Targets
 
 ```sh
-make core       # kominka:core  — 57MB base image (9 packages)
-make build      # kominka:build — 941MB self-hosting image (22 packages)
+make core       # kominka:core — 57MB base image (9 packages)
 make kernel     # ARM64 kernel Image
 make iso        # 161MB bootable installer disk image
-make test       # Run all tests (47 tests)
+make test       # Run all tests
 make boot       # Boot installer in vfkit VM
 ```
 
@@ -51,8 +50,8 @@ make boot       # Boot installer in vfkit VM
 **core** (metapackage → 9 runtime deps):
 baselayout, glibc, busybox, baseinit, runit, boringssl, curl, opendoas, ysh
 
-**build-essential** (metapackage → 14 runtime deps):
-core + zig, make, samurai, cmake, go, zlib, linux-headers, bzip2, xz,
+**build-essential** (metapackage → 13 runtime deps):
+core + zig, make, samurai, cmake, zlib, linux-headers, bzip2, xz,
 pkgconf, git, m4, bison
 
 **liveiso** (metapackage): core + e2fsprogs, dosfstools

@@ -1,15 +1,17 @@
 """Docker integration tests for Kominka images.
 
-These tests build real Docker images and verify they work.
 Slower than test_pm_cheap.py — run with: python3 -m pytest tests/test_docker.py -v
 """
 
+import os
 import subprocess
 import unittest
 
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+REPO = os.path.join(ROOT, "tests", "fixtures", "repo")
+
 
 def docker(*args, timeout=300):
-    """Run a docker command, return CompletedProcess."""
     return subprocess.run(
         ["docker", *args],
         capture_output=True, text=True, timeout=timeout,
@@ -17,7 +19,6 @@ def docker(*args, timeout=300):
 
 
 def docker_check(*args, timeout=300):
-    """Run a docker command, fail on non-zero exit."""
     r = docker(*args, timeout=timeout)
     if r.returncode != 0:
         raise AssertionError(
@@ -28,12 +29,11 @@ def docker_check(*args, timeout=300):
 
 
 class TestCoreImage(unittest.TestCase):
-    """Test kominka:core — the minimal base image."""
+    """Test kominka:core — the base image."""
 
     @classmethod
     def setUpClass(cls):
-        docker_check("build", "-t", "kominka:core", "--target", "core", ".",
-                      timeout=120)
+        docker_check("build", "-t", "kominka:core", ".", timeout=120)
 
     def test_pm_list(self):
         r = docker_check("run", "--rm", "kominka:core", "pm", "l")
@@ -51,8 +51,8 @@ class TestCoreImage(unittest.TestCase):
     def test_busybox_applets(self):
         r = docker_check("run", "--rm", "kominka:core",
                           "busybox", "--list")
-        for applet in ["gzip", "tar", "sh", "sed", "awk", "fdisk", "losetup",
-                       "cpio", "wget"]:
+        for applet in ["gzip", "tar", "sh", "sed", "awk", "fdisk",
+                        "losetup", "cpio", "wget"]:
             self.assertIn(applet, r.stdout, f"missing applet: {applet}")
 
     def test_curl_works(self):
@@ -64,31 +64,20 @@ class TestCoreImage(unittest.TestCase):
                     timeout=30)
         self.assertEqual(r.returncode, 0)
 
-
-class TestBuildImage(unittest.TestCase):
-    """Test kominka:build — the self-hosting toolchain image."""
-
-    @classmethod
-    def setUpClass(cls):
-        docker_check("build", "-t", "kominka:build", "--target", "build", ".",
-                      timeout=300)
-
-    def test_pm_list_has_toolchain(self):
-        r = docker_check("run", "--rm", "kominka:build", "pm", "l")
-        for pkg in ["zig", "make", "cmake", "samurai", "go", "git"]:
-            self.assertIn(pkg, r.stdout, f"missing package: {pkg}")
-
-    def test_build_zlib(self):
-        """Can build a package from source inside the image."""
+    def test_pm_install_package(self):
+        """pm can install an additional package from R2."""
         r = docker_check(
             "run", "--rm",
+            "-v", f"{REPO}:/packages",
+            "-e", "KOMINKA_PATH=/packages",
             "-e", "KOMINKA_FORCE=1",
-            "-e", "KOMINKA_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev",
             "-e", "KOMINKA_INSECURE=1",
-            "kominka:build", "pm", "b", "zlib",
-            timeout=120,
+            "-e", "KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev",
+            "kominka:core", "pm", "i", "e2fsprogs",
+            timeout=30,
         )
-        self.assertIn("Successfully created tarball", r.stderr + r.stdout)
+        combined = r.stdout + r.stderr
+        self.assertIn("Installed successfully", combined)
 
 
 if __name__ == "__main__":

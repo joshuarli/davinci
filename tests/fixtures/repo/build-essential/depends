@@ -9,6 +9,5 @@ make
 bison
 samurai
 cmake
-go
 git
 pkgconf

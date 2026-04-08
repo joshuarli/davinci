@@ -14,11 +14,11 @@ bootstrap, smaller images, less attack surface.
 | Image | Size | Contents |
 |-------|------|----------|
 | `kominka:core` | 57MB | 9 packages — minimal bootable system |
-| `kominka:build` | 941MB | 22 packages — full self-hosting toolchain |
 | `kominka-installer.img` | 161MB | Bootable installer (MBR: EFI + ext4) |
 
-All FROM scratch. Only external dependency: `busybox:latest` (4MB static
-musl) for the initial wget+tar bootstrap.
+FROM scratch. Only external dependency: `busybox:latest` (4MB static
+musl) for the initial wget+tar bootstrap. Install additional packages
+on top of core with `pm i build-essential`, `pm i liveiso`, etc.
 
 ## Compiler Toolchain
 
@@ -53,9 +53,8 @@ Everything else dynamically links against glibc.
 ## Build Pipeline
 
 ```
-Dockerfile (multi-target, FROM busybox:latest → FROM scratch)
-  ├── kominka:core   ← pm i core
-  └── kominka:build  ← pm i build-essential
+Dockerfile (FROM busybox:latest → FROM scratch)
+  └── kominka:core   ← pm i core
 
 Dockerfile.linux (FROM debian, kernel source)
   └── Image (ARM64 kernel, EFISTUB)
