@@ -5,7 +5,6 @@ and runs pm.ysh instead of the POSIX pm.
 
 Requires:
   - Docker daemon running
-  - Source tarballs downloaded (run ./download_sources.sh first)
 
 Usage:
   python3 -m pytest tests/test_docker_build_ysh.py -v --tb=short
@@ -52,12 +51,6 @@ def docker_exec(container, cmd, check=True):
 
 def setUpModule():
     """Build the Docker image once for all tests."""
-    sources = TESTS / "fixtures" / "sources"
-    if not any(sources.glob("*//*.tar.*")):
-        raise unittest.SkipTest(
-            "Source tarballs not downloaded. Run: cd tests && ./download_sources.sh"
-        )
-
     print(f"\nBuilding Docker image {IMAGE_NAME}...")
     r = subprocess.run(
         ["docker", "build", "-t", IMAGE_NAME, "-f", str(TESTS / "Dockerfile.ysh"), "."],
@@ -124,7 +117,9 @@ class TestChecksumVerification(DockerYSHPMTestCase):
 
     def test_checksum_mismatch_detected(self):
         """Corrupting a source should cause checksum failure."""
-        src = "/home/kominka/sources/zlib/zlib-1.2.11.tar.gz"
+        # Download zlib sources first so we have a cached copy to corrupt.
+        self.pm("d", "zlib")
+        src = "/root/.cache/kominka/sources/zlib/zlib-1.2.11.tar.gz"
         docker_exec(self.container, f"cp {src} {src}.bak")
         docker_exec(self.container, f"echo corrupt >> {src}")
         r = self.pm("b", "zlib", check=False)

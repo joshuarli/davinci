@@ -11,7 +11,6 @@ SUMS=/kominka-root/artifact-checksums
 
 all_pkgs="
     baselayout
-    linux-headers
     zlib
     bzip2
     xz

@@ -116,8 +116,7 @@ bootloader needed. After install, remove the USB and reboot.
 # Fast tests (no Docker)
 python3 -m pytest tests/test_pm_cheap.py -v
 
-# Full Docker build tests (download sources first)
-cd tests && ./download_sources.sh && cd ..
+# Full Docker build tests (sources downloaded from mirror at build time)
 python3 -m pytest tests/test_docker_build_ysh.py -v
 ```
 

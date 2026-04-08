@@ -23,22 +23,17 @@ tests/
   test_pm_cheap.py          # Fast tests (search, list, deps, checksum) — no Docker, no builds
   test_docker_build_ysh.py  # Full build tests using pm.ysh in Debian Docker (with ysh)
   Dockerfile.ysh            # Debian-based image with ysh + build toolchain (pm.ysh)
-  download_sources.sh       # Downloads upstream source tarballs to fixtures/sources/
-  localize_sources.sh       # Rewrites sources files to use local paths
   fixtures/
     repo/                   # Vendored Kominka package definitions (20 packages from the upstream repo)
       <package>/
         build               # Build script (POSIX shell, executable)
         build.ysh           # YSH build script (optional, preferred by pm.ysh)
         version             # "VERSION RELEASE" format
-        sources             # Source URLs/paths (localized to /home/kominka/sources/...)
+        sources             # Source URLs/paths (downloaded via KOMINKA_MIRROR or upstream)
         checksums           # SHA256 checksums, one per source line
         depends             # Dependencies (optional)
         patches/            # Patch files (optional)
         files/              # Config/data files (optional)
-    sources/                # Downloaded upstream tarballs (~263MB, gitignored)
-      <package>/
-        <tarball>
 ```
 
 ## How `pm` Works
@@ -183,8 +178,8 @@ bison, flex, m4, make, curl, boringssl, pm
 **Vendored but not built** (too complex for the Debian cross-build env):
 binutils, gcc, git, grub
 
-Sources files have been rewritten to point to local tarballs in
-`/home/kominka/sources/` (the path inside the Docker container).
+Source tarballs are downloaded at build time from the R2 mirror
+(`KOMINKA_MIRROR`) or upstream URLs.
 
 ## Running Tests
 
@@ -211,10 +206,6 @@ python3 -m unittest tests.test_pm -v
 These build actual Kominka core packages inside Debian Docker:
 
 ```sh
-# 1. Download source tarballs (once, ~263MB).
-cd tests && ./download_sources.sh
-
-# 2. Run the YSH pm.ysh build suite.
 python3 -m pytest tests/test_docker_build_ysh.py -v
 ```
 

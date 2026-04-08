@@ -24,6 +24,7 @@ var KOMINKA_SU = ''
 var KOMINKA_ELF = ''
 var KOMINKA_CHK = ''
 var KOMINKA_GET = ''
+var KOMINKA_MIRROR = ''
 var _KOMINKA_LVL = 0
 var CC = ''
 var CXX = ''
@@ -459,20 +460,12 @@ proc pkg_source_resolve (pkg, src, dest='', quiet='') {
     setglobal _res = ''
     setglobal _des = ''
     setglobal _fnr_val = ''
-    setglobal _src_kind = ''
-
     # Skip comments.
     case (src) {
         \#* { return }
     }
 
     var clean_src = ${src%"${src##*[!/]}"}
-
-    # Strip mirror:/upstream: prefix.
-    case (clean_src) {
-        mirror:*   { setglobal _src_kind = 'mirror';   setvar clean_src = ${clean_src#mirror:} }
-        upstream:* { setglobal _src_kind = 'upstream'; setvar clean_src = ${clean_src#upstream:} }
-    }
 
     fnr_vars $clean_src
 
@@ -565,15 +558,15 @@ proc pkg_source (pkg, checksum_mode='') {
                 var src_prefix = "${src_type}+"
                 var src_url = ${_res##$src_prefix}
 
-                if (_src_kind === 'mirror') {
-                    try { pkg_source_url $_des $src_url 'n' }
-                    if failed {
-                        war $repo_name "Mirror unavailable, will try upstream"
-                        continue
-                    }
-                } else {
-                    "pkg_source_${src_type}" $_des $src_url
+                if (src_type === 'url' and KOMINKA_MIRROR !== '') {
+                    var mirror_file = ${src_url##*/}
+                    var mirror_url = "${KOMINKA_MIRROR}/${pkg}/${mirror_file}"
+                    try { pkg_source_url $_des $mirror_url 'n' }
+                    if ! failed { continue }
+                    war $repo_name "Mirror unavailable, trying upstream"
                 }
+
+                "pkg_source_${src_type}" $_des $src_url
             }
         }
 
@@ -666,9 +659,6 @@ proc pkg_extract (pkg) {
         try { read -r src dest }
         if (src === '' and _status !== 0) { break }
         pkg_source_resolve $pkg $src $dest >/dev/null
-
-        # Mirror lines are download hints only; the upstream line extracts.
-        if (_src_kind === 'mirror') { continue }
 
         if (_res !== '') {
             mkcd "${mak_dir}/${pkg}/${dest}"
@@ -1183,9 +1173,6 @@ proc pkg_checksum_gen () {
         try { read -r src dest }
         if (src === '' and _status !== 0) { break }
         pkg_source_resolve $repo_name $src $dest >/dev/null
-
-        # Mirror lines share content with their upstream counterpart.
-        if (_src_kind === 'mirror') { continue }
 
         var _res_stripped = ${_res##git+*}
         case (_res_stripped) {
@@ -1978,6 +1965,7 @@ proc main (...argv) {
     setglobal KOMINKA_ELF       = ENV => get("KOMINKA_ELF", "")
     setglobal KOMINKA_CHK       = ENV => get("KOMINKA_CHK", "")
     setglobal KOMINKA_GET       = ENV => get("KOMINKA_GET", "")
+    setglobal KOMINKA_MIRROR    = ENV => get("KOMINKA_MIRROR", "")
     var _lvl_str = ENV => get("_KOMINKA_LVL", "0") => trim()
     if (_lvl_str === '') { setvar _lvl_str = "0" }
     setglobal _KOMINKA_LVL = int(_lvl_str)

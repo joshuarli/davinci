@@ -89,15 +89,15 @@ def find_packages(repo_dir):
 
 
 def parse_upstream_sources(sources_file):
-    """Yield raw upstream URLs from a sources file (prefix stripped)."""
+    """Yield remote URLs from a sources file."""
     with open(sources_file) as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
             src = line.split()[0]
-            if src.startswith("upstream:"):
-                yield src[len("upstream:"):]
+            if "://" in src:
+                yield src
 
 
 def load_checksums(pkg_dir):

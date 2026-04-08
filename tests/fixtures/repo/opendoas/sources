@@ -1,2 +1,2 @@
-upstream:https://github.com/Duncaen/OpenDoas/releases/download/vVERSION/opendoas-VERSION.tar.xz
+https://github.com/Duncaen/OpenDoas/releases/download/vVERSION/opendoas-VERSION.tar.xz
 files/doas.conf

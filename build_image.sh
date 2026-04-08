@@ -101,9 +101,6 @@ cat > "$ROOTFS/etc/inittab" <<'INITTAB'
 ::respawn:runsvdir -P /var/service
 INITTAB
 
-# Allow root login with no password (dev/VM use).
-sed -i 's|^root:!:|root::|' "$ROOTFS/etc/shadow"
-
 # Enable default services.
 mkdir -p "$ROOTFS/var/service"
 for svc in mdev syslogd getty-hvc0 udhcpc ntpd; do

@@ -41,6 +41,11 @@ Console tools:
 - ~~User creation prompt during install~~ (done — install.sh)
 - Test installer user creation end-to-end
 
+## linux-headers
+
+Roll into the linux kernel package — it already has the full source, so
+`make headers` comes for free. No need for a separate linux-headers package.
+
 ## System
 
 - `hwclock --hctosys` in rc.boot for hardware clock sync

@@ -22,9 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY pm.ysh /usr/bin/pm
 RUN chmod +x /usr/bin/pm
 
-# Copy in the vendored repo and sources.
 COPY tests/fixtures/repo /packages
-COPY tests/fixtures/sources /home/kominka/sources
 
 # Ensure build/post-install scripts are executable.
 RUN find /packages -name build -exec chmod +x {} +
@@ -43,6 +41,7 @@ RUN for pkg in cmake go ninja glibc; do \
 # Add /kominka-root/usr/bin to PATH so that packages built earlier in the
 # bootstrap (e.g. m4, make) are available to later builds (e.g. bison).
 ENV PATH=/kominka-root/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    KOMINKA_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
     KOMINKA_PATH=/packages \
     KOMINKA_ROOT=/kominka-root \
     KOMINKA_COMPRESS=gz \

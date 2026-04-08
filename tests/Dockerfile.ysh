@@ -35,10 +35,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY pm.ysh /usr/bin/pm
 RUN chmod +x /usr/bin/pm
 
-# Copy in the vendored repo and sources.
 # Repo at /packages so it can be volume-mounted for interactive use.
 COPY tests/fixtures/repo /packages
-COPY tests/fixtures/sources /home/kominka/sources
 
 RUN find /packages -name build -exec chmod +x {} +
 RUN find /packages -name post-install -exec chmod +x {} +
@@ -52,7 +50,8 @@ RUN for pkg in cmake go ninja glibc; do \
       echo "0 0" > "/kominka-root/var/db/kominka/installed/$pkg/version"; \
     done
 
-ENV KOMINKA_PATH=/packages \
+ENV KOMINKA_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
+    KOMINKA_PATH=/packages \
     KOMINKA_ROOT=/kominka-root \
     KOMINKA_COMPRESS=gz \
     KOMINKA_COLOR=0 \

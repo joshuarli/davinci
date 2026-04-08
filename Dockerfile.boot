@@ -42,8 +42,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tar && \
     rm -rf /var/lib/apt/lists/*
 
-# Sources (~263MB tarballs, rarely change) before repo and pm.ysh.
-COPY tests/fixtures/sources /home/kominka/sources
 COPY tests/fixtures/repo /packages
 
 RUN find /packages -name build -exec chmod +x {} + && \
@@ -61,6 +59,7 @@ RUN for pkg in cmake go ninja glibc perl; do \
 # Add /kominka-root/usr/bin to PATH so packages built earlier
 # (e.g. m4, make) are available to later builds (e.g. bison).
 ENV PATH=/kominka-root/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    KOMINKA_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
     KOMINKA_PATH=/packages \
     KOMINKA_ROOT=/kominka-root \
     KOMINKA_COMPRESS=gz \

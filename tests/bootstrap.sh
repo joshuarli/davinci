@@ -54,9 +54,7 @@ phase2() {
     chmod +x "$ROOT/usr/bin/pm"
 
     # Copy the repo into the chroot.
-    mkdir -p "$ROOT/home/kominka"
     cp -r /packages "$ROOT/packages"
-    cp -r /home/kominka/sources "$ROOT/home/kominka/sources"
 
     # Ensure build scripts are executable inside chroot.
     find "$ROOT/packages" -name build -exec chmod +x {} +
@@ -69,6 +67,7 @@ phase2() {
         export KOMINKA_PATH=/packages
         export KOMINKA_ROOT=/
         export KOMINKA_COMPRESS=gz
+        export KOMINKA_MIRROR=${KOMINKA_MIRROR:-}
         export KOMINKA_COLOR=0
         export KOMINKA_PROMPT=0
         export KOMINKA_FORCE=1
