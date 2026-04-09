@@ -21,7 +21,7 @@ RUN case "$(busybox uname -m)" in \
 # Get ysh (static musl binary — runs on any Linux, no glibc needed).
 RUN busybox mkdir -p /usr/local/bin && \
     ARCH=$(busybox cat /tmp/arch) && \
-    busybox wget --no-check-certificate -qO- "$R2_BASE/$ARCH/ysh@0.37.0-2.tar.gz" | \
+    busybox wget --no-check-certificate -qO- "$R2_BASE/$ARCH/ysh/0.37.0-2.tar.gz" | \
     busybox tar xzf - -C / ./usr/local/bin/
 
 # Install pm and package repo.

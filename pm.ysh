@@ -447,29 +447,47 @@ proc pkg_list_version (...pkgs) {
 
 proc pkg_upload (pkg) {
     ### Upload a built package tarball to R2.
-    # Layout: {arch}/{package}/{version}.tar.{compress}
-    pkg_find_version $pkg
+    # Layout: {arch}/{package}/{version}-{release}.tar.{compress}
+    # Accepts either a package name (looks in bin cache) or a tarball path.
+    var _tarball = ''
+    var _pkg = ''
 
-    var _tarball = "${bin_dir}/${pkg}@${repo_ver}-${repo_rel}.tar.${KOMINKA_COMPRESS}"
-    if ! test -f $_tarball {
-        # Try any compression.
-        for f in @[glob("${bin_dir}/${pkg}@${repo_ver}-${repo_rel}.tar.*")] {
-            setvar _tarball = f
+    case (pkg) {
+        *.tar.* {
+            # Direct tarball path: extract package name and version from filename.
+            if ! test -f $pkg { die "File '$pkg' does not exist" }
+            setvar _tarball = pkg
+            var _base = ${pkg##*/}
+            setvar _pkg = ${_base%%@*}
+            var _verrel = ${_base#*@}
+            setvar _verrel = ${_verrel%.tar.*}
         }
-    }
-    if ! test -f $_tarball {
-        die $pkg "No tarball found — build it first"
+        * {
+            # Package name: find tarball in bin cache.
+            pkg_find_version $pkg
+            setvar _pkg = pkg
+            setvar _tarball = "${bin_dir}/${pkg}@${repo_ver}-${repo_rel}.tar.${KOMINKA_COMPRESS}"
+            if ! test -f $_tarball {
+                for f in @[glob("${bin_dir}/${pkg}@${repo_ver}-${repo_rel}.tar.*")] {
+                    setvar _tarball = f
+                }
+            }
+            if ! test -f $_tarball {
+                die $pkg "No tarball found — build it first"
+            }
+            setvar _verrel = "${repo_ver}-${repo_rel}"
+        }
     }
 
     var bucket = KOMINKA_BUCKET
     if (bucket === '') { die "KOMINKA_BUCKET not set" }
 
     var _ext = ${_tarball##*.tar.}
-    var key = "${sys_arch}/${pkg}/${repo_ver}-${repo_rel}.tar.${_ext}"
+    var key = "${sys_arch}/${_pkg}/${_verrel}.tar.${_ext}"
 
-    log $pkg "Uploading ${_tarball##*/} -> ${key}"
+    log $_pkg "Uploading ${_tarball##*/} -> ${key}"
     wrangler r2 object put "${bucket}/${key}" --file=$_tarball --content-type=application/octet-stream --remote
-    log $pkg "Uploaded"
+    log $_pkg "Uploaded"
 }
 
 proc pkg_cache (pkg) {
