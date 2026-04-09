@@ -122,7 +122,7 @@ jobs:
       - name: Load and build
         run: |
           docker load < /tmp/base.tar.gz
-          # Install the curl we just built (not on R2 yet).
+          # Install curl we just built (not on R2 yet).
           docker create --name setup kominka:base true
           docker cp /tmp/curl/curl@7.80.0-5.tar.gz setup:/root/.cache/kominka/bin/
           docker commit setup kominka:with-curl
