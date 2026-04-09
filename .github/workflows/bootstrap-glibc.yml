@@ -1,0 +1,55 @@
+name: Bootstrap glibc
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build glibc
+        run: |
+          docker build -f - -t glibc-builder . <<'DEOF'
+          FROM debian:bookworm-slim
+          RUN apt-get update && apt-get install -y --no-install-recommends \
+              build-essential curl ca-certificates tar gzip bzip2 xz-utils \
+              make patch python3 gawk bison texinfo && \
+              rm -rf /var/lib/apt/lists/*
+          RUN curl -fLo /tmp/oils.tar.gz \
+                  https://oils.pub/download/oils-for-unix-0.37.0.tar.gz && \
+              cd /tmp && tar xzf oils.tar.gz && cd oils-for-unix-* && \
+              ./configure --without-readline && _build/oils.sh && ./install
+          COPY tests/fixtures/repo /packages
+          RUN find /packages -name build -exec chmod +x {} +
+          RUN mkdir -p /kominka-root/var/db/kominka/installed \
+                       /kominka-root/var/db/kominka/choices
+          COPY pm.ysh /usr/bin/pm
+          RUN chmod +x /usr/bin/pm
+          DEOF
+          docker run --name build glibc-builder sh -c '
+            KOMINKA_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
+            KOMINKA_PATH=/packages \
+            KOMINKA_ROOT=/kominka-root \
+            KOMINKA_COMPRESS=gz \
+            KOMINKA_COLOR=0 \
+            KOMINKA_PROMPT=0 \
+            KOMINKA_FORCE=1 \
+            LOGNAME=root \
+            HOME=/root \
+            pm b glibc'
+          mkdir -p out
+          docker cp "build:/root/.cache/kominka/bin/." out/
+          docker rm build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: glibc-${{ matrix.arch }}
+          path: out/*.tar.gz
