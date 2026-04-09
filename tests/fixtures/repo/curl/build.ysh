@@ -5,7 +5,7 @@ var _kr = ENV => get("KOMINKA_ROOT", "")
 var ssl_prefix = "${_kr}/usr"
 
 # Ensure configure can find headers and libraries in KOMINKA_ROOT.
-var _cflags = ENV => get("CFLAGS", "-O2 -DNDEBUG") ++ " -Wno-error"
+var _cflags = ENV => get("CFLAGS", "-O2 -DNDEBUG") ++ " -Wno-error -Wno-implicit-function-declaration"
 var _ldflags = ENV => get("LDFLAGS", "")
 if (_kr !== '' and _kr !== '/') {
     setvar _cflags = "${_cflags} -I${_kr}/usr/include"

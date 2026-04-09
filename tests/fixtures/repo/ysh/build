@@ -6,23 +6,13 @@ dest="$1"
 MUSL_TARGET="$(uname -m)-linux-musl"
 
 # Static build targeting musl — no glibc/libstdc++ runtime deps.
-# Replace system cc/c++ with musl-targeting wrappers.
-# oils passes -std=c++11 to CC for .c files, so the wrapper forces
-# c++ mode only when compiling (not linking).
+# oils is a C++ project that passes -std=c++11 to CC on .c files.
+# Both cc and c++ force -xc++ to treat all source as C++.
 cat > /usr/bin/cc <<EOF
 #!/bin/sh
-compile=false
-for a in "\$@"; do case "\$a" in -c) compile=true;; esac; done
-if \$compile; then
-    exec zig c++ -target $MUSL_TARGET -xc++ "\$@"
-else
-    exec zig c++ -target $MUSL_TARGET "\$@"
-fi
-EOF
-cat > /usr/bin/c++ <<EOF2
-#!/bin/sh
 exec zig c++ -target $MUSL_TARGET -xc++ "\$@"
-EOF2
+EOF
+cp /usr/bin/cc /usr/bin/c++
 chmod +x /usr/bin/cc /usr/bin/c++
 
 LDFLAGS='' ./configure --without-readline
