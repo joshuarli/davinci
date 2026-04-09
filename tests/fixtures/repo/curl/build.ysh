@@ -13,10 +13,7 @@ if test -f "${_kr}/usr/include/openssl/time.h" {
 }
 
 var _cflags = ENV => get("CFLAGS", "-O2 -DNDEBUG") ++ " -Wno-error"
-var _ldflags = ENV => get("LDFLAGS", "")
-if (_kr !== '' and _kr !== '/') {
-    setvar _ldflags = "${_ldflags} -L${_kr}/usr/lib"
-}
+var _ldflags = ENV => get("LDFLAGS", "") ++ " -L${_kr}/usr/lib"
 
 CFLAGS=$_cflags LDFLAGS=$_ldflags \
     PKG_CONFIG_PATH="${_kr}/usr/lib/pkgconfig" \
