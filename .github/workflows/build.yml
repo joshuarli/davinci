@@ -27,12 +27,12 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/kominka-core.tar.gz
-          key: kominka-core-${{ matrix.arch }}-${{ hashFiles('Dockerfile', 'pm.ysh', 'tests/fixtures/repo/**/version', 'tests/fixtures/repo/**/depends') }}
+          key: kominka-core-v2-${{ matrix.arch }}-${{ hashFiles('Dockerfile', 'pm.ysh', 'tests/fixtures/repo/**/version', 'tests/fixtures/repo/**/depends') }}
 
       - name: Build kominka:core
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
-          docker build -t kominka:core .
+          docker build --no-cache -t kominka:core .
           docker save kominka:core | gzip > /tmp/kominka-core.tar.gz
 
       - name: Load kominka:core
