@@ -4,18 +4,20 @@ var dest = ARGV[0]
 var _kr = ENV => get("KOMINKA_ROOT", "")
 var ssl_prefix = "${_kr}/usr"
 
-# curl 7.80.0 is missing #include <time.h> in altsvc.c — patch it.
-sed -i '1i #include <time.h>' lib/altsvc.c
+# BoringSSL ships openssl/time.h (a compat shim).  curl's configure adds
+# -isystem .../openssl which makes that file shadow the real <time.h>.
+# Move it aside so struct tm / time() are found in glibc's header.
+if test -f "${_kr}/usr/include/openssl/time.h" {
+    mv "${_kr}/usr/include/openssl/time.h" "${_kr}/usr/include/openssl/time.h.aside"
+}
 
 var _cflags = ENV => get("CFLAGS", "-O2 -DNDEBUG") ++ " -Wno-error"
-var _cppflags = "-I${_kr}/usr/include -D_GNU_SOURCE"
 var _ldflags = ENV => get("LDFLAGS", "")
 if (_kr !== '' and _kr !== '/') {
     setvar _ldflags = "${_ldflags} -L${_kr}/usr/lib"
 }
 
 CFLAGS=$_cflags LDFLAGS=$_ldflags \
-    CPPFLAGS=$_cppflags \
     PKG_CONFIG_PATH="${_kr}/usr/lib/pkgconfig" \
     ./configure \
     --prefix=/usr \

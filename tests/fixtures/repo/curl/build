@@ -1,16 +1,20 @@
 #!/bin/sh -e
 
-# curl 7.80.0 is missing #include <time.h> in altsvc.c — patch it.
-sed -i '1i #include <time.h>' lib/altsvc.c
-CFLAGS="${CFLAGS:--O2 -DNDEBUG} -Wno-error -D_GNU_SOURCE"
+# BoringSSL ships openssl/time.h (a compat shim).  curl's configure adds
+# -isystem .../openssl which makes that file shadow the real <time.h>.
+# Move it aside so struct tm / time() are found in glibc's header.
+if [ -f "${KOMINKA_ROOT}/usr/include/openssl/time.h" ]; then
+    mv "${KOMINKA_ROOT}/usr/include/openssl/time.h" \
+       "${KOMINKA_ROOT}/usr/include/openssl/time.h.aside"
+fi
+
+CFLAGS="${CFLAGS:--O2 -DNDEBUG} -Wno-error"
 LDFLAGS="${LDFLAGS:-}"
-CPPFLAGS=""
 
 if [ -n "$KOMINKA_ROOT" ] && [ "$KOMINKA_ROOT" != "/" ]; then
-    CPPFLAGS="-I${KOMINKA_ROOT}/usr/include"
     LDFLAGS="${LDFLAGS} -L${KOMINKA_ROOT}/usr/lib"
 fi
-export CFLAGS LDFLAGS CPPFLAGS
+export CFLAGS LDFLAGS
 
 ./configure \
     --prefix=/usr \
