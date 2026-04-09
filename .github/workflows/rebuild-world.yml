@@ -1,4 +1,4 @@
-name: Rebuild broken packages
+name: Rebuild broken x86_64 packages
 
 on:
   workflow_dispatch:
@@ -8,24 +8,36 @@ env:
 
 jobs:
   curl:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { arch: amd64, runner: ubuntu-latest }
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker build --no-cache -t kominka:core .
-      - run: |
-          docker run --name build \
-            -v "$PWD/tests/fixtures/repo:/packages:ro" \
-            -e KOMINKA_PATH=/packages -e KOMINKA_MIRROR=$R2 \
-            -e KOMINKA_BIN_MIRROR=$R2 -e KOMINKA_COMPRESS=gz \
-            -e KOMINKA_COLOR=0 -e KOMINKA_PROMPT=0 -e KOMINKA_FORCE=1 \
-            kominka:core sh -c 'pm i build-essential && pm b curl'
+      - name: Build curl from Debian bootstrap
+        run: |
+          docker build -f - -t builder . <<'DEOF'
+          FROM debian:bookworm-slim
+          RUN apt-get update && apt-get install -y --no-install-recommends \
+              build-essential curl ca-certificates tar gzip xz-utils && \
+              rm -rf /var/lib/apt/lists/*
+          RUN curl -fLo /tmp/oils.tar.gz \
+                  https://oils.pub/download/oils-for-unix-0.37.0.tar.gz && \
+              cd /tmp && tar xzf oils.tar.gz && cd oils-for-unix-* && \
+              ./configure --without-readline && _build/oils.sh && ./install
+          COPY tests/fixtures/repo /packages
+          RUN find /packages -name build -exec chmod +x {} +
+          RUN mkdir -p /kominka-root/var/db/kominka/installed \
+                       /kominka-root/var/db/kominka/choices
+          COPY pm.ysh /usr/bin/pm
+          RUN chmod +x /usr/bin/pm
+          ENV KOMINKA_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
+              KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
+              KOMINKA_PATH=/packages KOMINKA_ROOT=/ \
+              KOMINKA_COMPRESS=gz KOMINKA_COLOR=0 KOMINKA_PROMPT=0 \
+              KOMINKA_FORCE=1 LOGNAME=root HOME=/root
+          RUN pm i zig linux-headers make zlib boringssl
+          DEOF
+          docker run --name build builder sh -c 'pm b curl'
           mkdir -p out && docker cp "build:/root/.cache/kominka/bin/curl@7.80.0-5.tar.gz" out/ && docker rm build
       - uses: actions/upload-artifact@v4
         with:
-          name: curl-${{ matrix.arch }}
+          name: curl-amd64
           path: out/*.tar.gz
