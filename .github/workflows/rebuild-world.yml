@@ -7,29 +7,6 @@ env:
   R2: https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev
 
 jobs:
-  boringssl:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { arch: amd64, runner: ubuntu-latest }
-    runs-on: ${{ matrix.runner }}
-    steps:
-      - uses: actions/checkout@v4
-      - run: docker build --no-cache -t kominka:core .
-      - run: |
-          docker run --name build \
-            -v "$PWD/tests/fixtures/repo:/packages:ro" \
-            -e KOMINKA_PATH=/packages -e KOMINKA_MIRROR=$R2 \
-            -e KOMINKA_BIN_MIRROR=$R2 -e KOMINKA_COMPRESS=gz \
-            -e KOMINKA_COLOR=0 -e KOMINKA_PROMPT=0 -e KOMINKA_FORCE=1 \
-            kominka:core sh -c 'pm i build-essential && pm b boringssl'
-          mkdir -p out && docker cp "build:/root/.cache/kominka/bin/boringssl@0.20260327.0-6.tar.gz" out/ && docker rm build
-      - uses: actions/upload-artifact@v4
-        with:
-          name: boringssl-${{ matrix.arch }}
-          path: out/*.tar.gz
-
   curl:
     strategy:
       fail-fast: false
