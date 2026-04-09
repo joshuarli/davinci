@@ -2,6 +2,7 @@
 
 var dest = ARGV[0]
 var _kr = ENV => get("KOMINKA_ROOT", "")
+if (_kr === '/') { setvar _kr = '' }
 var ssl_prefix = "${_kr}/usr"
 
 # BoringSSL ships openssl/time.h (a compat shim).  curl's configure adds
