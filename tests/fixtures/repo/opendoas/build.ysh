@@ -1,6 +1,7 @@
 #!/usr/local/bin/ysh
 
 var dest = ARGV[0]
+var _kr = ENV => get("KOMINKA_ROOT", "")
 
 var uid = $(id -u)
 var gid = $(id -g)
@@ -15,7 +16,7 @@ env BINOWN=$uid BINGRP=$gid \
 # Use bison directly — the yacc wrapper has hardcoded paths that break
 # when bison is installed under KOMINKA_ROOT.
 # Also set BISON_PKGDATADIR so bison finds m4sugar under KOMINKA_ROOT.
-make YACC='bison -y' BISON_PKGDATADIR="${KOMINKA_ROOT}/usr/share/bison"
+make YACC='bison -y' BISON_PKGDATADIR="${_kr}/usr/share/bison"
 make DESTDIR=$dest install
 
 mkdir -p "${dest}/etc"
