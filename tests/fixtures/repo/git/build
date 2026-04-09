@@ -26,7 +26,7 @@ fi
     ac_cv_snprintf_returns_bogus=no \
     ac_cv_fread_reads_directories=yes
 
-make LIBS="-lcurl -lssl -lcrypto libgit.a xdiff/lib.a -lz"
+make LDFLAGS="$LDFLAGS" LIBS="-lcurl -lssl -lcrypto libgit.a xdiff/lib.a -lz"
 make DESTDIR="$1" install
 
 # Install manpages if downloaded.
