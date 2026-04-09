@@ -55,6 +55,7 @@ jobs:
               && printf '#!/bin/sh\n:\n' > /kominka-root/var/db/kominka/installed/glibc/build \
               && chmod +x /kominka-root/var/db/kominka/installed/glibc/build \
               && cd /kominka-root \
+              && mkdir -p /root/.cache/kominka/bin \
               && tar czf /root/.cache/kominka/bin/glibc@2.38-3.tar.gz \
                   ./usr/lib/ ./var/db/kominka/installed/glibc/
 
