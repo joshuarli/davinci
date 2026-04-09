@@ -760,12 +760,6 @@ proc pkg_depends (pkg, mode='', filter='', chain='', dep_type='') {
     # Skip build-only deps when installing (not building).
     if (order_mode === 'install' and dep_type === 'make') { return }
 
-    # Skip build-only deps of already-installed packages.
-    # e.g. don't pull cmake/go/samurai just because boringssl (installed) lists them.
-    if (dep_type === 'make') {
-        if test -d "${sys_db}/${pkg}" { return }
-    }
-
     # Filter out non-explicit, already installed packages.
     if (filter !== '' and mode === '' and not (pkg in explicit_seen)) {
         if test -d "${sys_db}/${pkg}" { return }
@@ -801,6 +795,12 @@ proc pkg_depends (pkg, mode='', filter='', chain='', dep_type='') {
                     \#* { continue }
                 }
                 if (dep !== '') {
+                    # Skip make deps of already-installed packages.
+                    # e.g. don't pull cmake/go/samurai just because
+                    # boringssl (installed) lists them as build deps.
+                    if (dep_type_line === 'make') {
+                        if test -d "${sys_db}/${pkg}" { continue }
+                    }
                     pkg_depends $dep '' $filter "$chain $pkg" $dep_type_line
                 }
             } < "${repo_dir}/depends"

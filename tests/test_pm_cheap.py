@@ -461,17 +461,21 @@ class MakeDepTests:
     """Test that make (build-only) deps are handled correctly."""
 
     def test_build_skips_make_deps_of_installed_packages(self):
-        """pm b should not pull make deps of already-installed packages."""
-        # Create a library with a make dep on 'buildtool'.
-        lib_repo = self.create_repo_pkg("mylib", version="1.0 1", depends="buildtool make")
-        # Create buildtool (should NOT be needed if mylib is installed).
-        self.create_repo_pkg("buildtool", version="1.0 1")
-        # Create an app that depends on mylib at runtime.
-        self.create_repo_pkg("myapp", version="1.0 1", depends="mylib")
+        """pm b should not pull make deps of already-installed packages.
 
-        # Build and install mylib (satisfies the runtime dep).
-        self.pm("b", "mylib")
-        self.pm("i", "mylib", env_override={"KOMINKA_FORCE": "1"})
+        Mirrors the CI scenario: boringssl is installed (has cmake/go/samurai
+        as make deps), curl depends on boringssl at runtime.  pm b curl must
+        NOT resolve cmake/go/samurai.  Crucially, the make deps themselves
+        are NOT installed — only the parent is.
+        """
+        # buildtool is a make dep of mylib — exists in repo but NOT installed.
+        self.create_repo_pkg("buildtool", version="1.0 1")
+        # mylib has buildtool as a make dep.
+        self.create_repo_pkg("mylib", version="1.0 1", depends="buildtool make")
+        # Mark mylib as installed WITHOUT installing buildtool.
+        self.fake_install("mylib", version="1.0 1", depends="buildtool make")
+        # myapp depends on mylib at runtime.
+        self.create_repo_pkg("myapp", version="1.0 1", depends="mylib")
 
         # Build myapp — should NOT try to build buildtool since mylib is installed.
         r = self.pm("b", "myapp", env_override={"KOMINKA_FORCE": "1"})

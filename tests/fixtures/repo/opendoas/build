@@ -8,7 +8,7 @@ BINGRP="$(id -g)" \
     --with-timestamp \
     --without-pam
 
-make YACC='bison -y'
+make YACC='bison -y' BISON_PKGDATADIR="${KOMINKA_ROOT}/usr/share/bison"
 make DESTDIR="$1" install
 
 mkdir -p "$1/etc"
