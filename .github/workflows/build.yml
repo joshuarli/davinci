@@ -1,0 +1,62 @@
+name: Build package
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: Package name to build
+        required: true
+        type: string
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache kominka:core image
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/kominka-core.tar.gz
+          key: kominka-core-${{ matrix.arch }}-${{ hashFiles('Dockerfile', 'pm.ysh', 'tests/fixtures/repo/**/version', 'tests/fixtures/repo/**/depends') }}
+
+      - name: Build kominka:core
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          docker build -t kominka:core .
+          docker save kominka:core | gzip > /tmp/kominka-core.tar.gz
+
+      - name: Load kominka:core
+        if: steps.cache.outputs.cache-hit == 'true'
+        run: docker load < /tmp/kominka-core.tar.gz
+
+      - name: Build package
+        run: |
+          docker run --name build \
+            -v "$PWD/tests/fixtures/repo:/packages:ro" \
+            -e KOMINKA_PATH=/packages \
+            -e KOMINKA_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
+            -e KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
+            -e KOMINKA_COMPRESS=gz \
+            -e KOMINKA_COLOR=0 \
+            -e KOMINKA_PROMPT=0 \
+            -e KOMINKA_FORCE=1 \
+            kominka:core sh -c '
+            pm i build-essential &&
+            pm b ${{ inputs.package }}'
+          mkdir -p out
+          docker cp "build:/root/.cache/kominka/bin/." out/
+          docker rm build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pkg-${{ inputs.package }}-${{ matrix.arch }}
+          path: out/*.tar.gz
