@@ -95,22 +95,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: pkg-curl, path: out/curl@*.tar.gz }
 
-  build-opendoas:
-    needs: base
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with: { name: base-image, path: /tmp }
-      - name: Load and build
-        run: |
-          docker load < /tmp/base.tar.gz
-          docker run --name build kominka:base sh -c 'env ${{ env.PM }} pm b opendoas'
-          mkdir -p out
-          docker cp "build:/root/.cache/kominka/bin/opendoas@6.8.1-1.tar.gz" out/
-          docker rm build
-      - uses: actions/upload-artifact@v4
-        with: { name: pkg-opendoas, path: out/opendoas@*.tar.gz }
-
   build-git:
     needs: [base, build-curl]
     runs-on: ubuntu-latest
