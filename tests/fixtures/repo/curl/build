@@ -2,7 +2,7 @@
 
 # Ensure configure can find headers and libraries in KOMINKA_ROOT.
 if [ -n "$KOMINKA_ROOT" ] && [ "$KOMINKA_ROOT" != "/" ]; then
-    CFLAGS="${CFLAGS:--O2 -DNDEBUG} -I${KOMINKA_ROOT}/usr/include"
+    CFLAGS="${CFLAGS:--O2 -DNDEBUG} -I${KOMINKA_ROOT}/usr/include -Wno-error"
     LDFLAGS="${LDFLAGS:-} -L${KOMINKA_ROOT}/usr/lib"
     export CFLAGS LDFLAGS
 fi
