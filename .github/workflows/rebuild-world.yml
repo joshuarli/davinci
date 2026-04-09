@@ -34,7 +34,9 @@ jobs:
             pm i build-essential && pm b bison'
           mkdir -p out && docker cp "build:/root/.cache/kominka/bin/." out/ && docker rm build
       - uses: actions/upload-artifact@v4
-        with: { name: bison-${{ matrix.arch }}, path: out/*.tar.gz }
+        with:
+          name: bison-${{ matrix.arch }}
+          path: out/*.tar.gz
 
   samurai:
     strategy:
@@ -63,7 +65,9 @@ jobs:
             kominka:core sh -c 'pm i build-essential && pm b samurai'
           mkdir -p out && docker cp "build:/root/.cache/kominka/bin/." out/ && docker rm build
       - uses: actions/upload-artifact@v4
-        with: { name: samurai-${{ matrix.arch }}, path: out/*.tar.gz }
+        with:
+          name: samurai-${{ matrix.arch }}
+          path: out/*.tar.gz
 
   bzip2:
     strategy:
@@ -92,7 +96,9 @@ jobs:
             kominka:core sh -c 'pm i build-essential && pm b bzip2'
           mkdir -p out && docker cp "build:/root/.cache/kominka/bin/." out/ && docker rm build
       - uses: actions/upload-artifact@v4
-        with: { name: bzip2-${{ matrix.arch }}, path: out/*.tar.gz }
+        with:
+          name: bzip2-${{ matrix.arch }}
+          path: out/*.tar.gz
 
   boringssl:
     strategy:
@@ -121,7 +127,9 @@ jobs:
             kominka:core sh -c 'pm i build-essential && pm b boringssl'
           mkdir -p out && docker cp "build:/root/.cache/kominka/bin/." out/ && docker rm build
       - uses: actions/upload-artifact@v4
-        with: { name: boringssl-${{ matrix.arch }}, path: out/*.tar.gz }
+        with:
+          name: boringssl-${{ matrix.arch }}
+          path: out/*.tar.gz
 
   curl:
     needs: boringssl
@@ -151,4 +159,6 @@ jobs:
             kominka:core sh -c 'pm i build-essential && pm b curl'
           mkdir -p out && docker cp "build:/root/.cache/kominka/bin/." out/ && docker rm build
       - uses: actions/upload-artifact@v4
-        with: { name: curl-${{ matrix.arch }}, path: out/*.tar.gz }
+        with:
+          name: curl-${{ matrix.arch }}
+          path: out/*.tar.gz
