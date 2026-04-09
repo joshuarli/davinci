@@ -79,7 +79,7 @@ jobs:
         run: |
           docker load < /tmp/base.tar.gz
           docker run --name build kominka:base sh -c \
-            'env ${{ env.PM }} pm i curl && env ${{ env.PM }} pm b git'
+            'env ${{ env.PM }} pm b zlib && env ${{ env.PM }} pm i curl && env ${{ env.PM }} pm b git'
           mkdir -p out
           docker cp "build:/root/.cache/kominka/bin/git@2.34.1-1.tar.gz" out/
           docker rm build

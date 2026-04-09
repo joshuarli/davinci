@@ -859,8 +859,19 @@ proc pkg_clean_dev (pkg) {
     ### Remove dev/doc artifacts from the built package tree.
     var pd = "${pkg_dir}/${pkg}"
 
-    # Static archives and libtool files — only useful for static linking.
-    for f in @[glob("${pd}/usr/lib/*.a")]  { rm -f $f }
+    # Static archives — remove only when a shared library exists.
+    # Keeps .a files for packages that can't build shared libs (e.g. zlib
+    # with zig's ld.lld where shared library detection fails).
+    for f in @[glob("${pd}/usr/lib/*.a")] {
+        var base = ${f%.a}
+        var has_so = false
+        for so in @[glob("${base}.so*")] {
+            setvar has_so = true
+            break
+        }
+        if (has_so) { rm -f $f }
+    }
+    # Libtool files — never needed.
     for f in @[glob("${pd}/usr/lib/*.la")] { rm -f $f }
 
     # pkgconfig and headers are kept — needed by packages that build
