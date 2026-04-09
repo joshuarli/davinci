@@ -33,9 +33,9 @@ jobs:
               KOMINKA_PATH=/packages KOMINKA_ROOT=/ \
               KOMINKA_COMPRESS=gz KOMINKA_COLOR=0 KOMINKA_PROMPT=0 \
               KOMINKA_FORCE=1 LOGNAME=root HOME=/root
-          RUN pm i zig linux-headers make zlib boringssl pkgconf
+          RUN pm i linux-headers zlib boringssl pkgconf
           DEOF
-          docker run --name build builder sh -c 'pm b curl'
+          docker run --name build -e CC=gcc builder sh -c 'pm b curl'
           mkdir -p out && docker cp "build:/root/.cache/kominka/bin/curl@7.80.0-5.tar.gz" out/ && docker rm build
       - uses: actions/upload-artifact@v4
         with:
