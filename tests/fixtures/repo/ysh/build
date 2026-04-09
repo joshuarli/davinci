@@ -15,6 +15,12 @@ EOF
 cp /usr/bin/cc /usr/bin/c++
 chmod +x /usr/bin/cc /usr/bin/c++
 
+echo "=== cc wrapper ===" >&2
+cat /usr/bin/cc >&2
+echo "=== cc test ===" >&2
+echo 'int main(){}' > /tmp/_test.c
+/usr/bin/cc -std=c++11 -c /tmp/_test.c -o /dev/null 2>&1 && echo "cc OK" >&2 || echo "cc FAIL" >&2
+
 LDFLAGS='' ./configure --without-readline
 LDFLAGS='' _build/oils.sh
 
