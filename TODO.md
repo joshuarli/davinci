@@ -6,12 +6,11 @@
 - ncurses + vim (text editing)
 - zstd (compression, increasingly common for tarballs)
 
-## Multi-architecture
+## Infrastructure
 
-- x86_64 installer ISO and package builds
-- `go` package source URL hardcoded to `linux-arm64` — needs ARCH
-  substitution in pm or per-arch source files
-- Kernel config for x86_64
+- Replace R2 wrangler uploads with a proper package server
+- `pm upload` currently uses wrangler CLI — should use direct R2 API
+  or a dedicated package repository service
 
 ## System
 

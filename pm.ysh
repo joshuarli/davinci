@@ -18,6 +18,7 @@ var KOMINKA_CHOICE = ''
 var KOMINKA_DEBUG = ''
 var KOMINKA_STRIP = ''
 var KOMINKA_INSECURE = ''
+var KOMINKA_BUCKET = ''
 var KOMINKA_HOOK = ''
 var KOMINKA_TMPDIR = ''
 var KOMINKA_KEEPLOG = ''
@@ -444,6 +445,33 @@ proc pkg_list_version (...pkgs) {
     }
 }
 
+proc pkg_upload (pkg) {
+    ### Upload a built package tarball to R2.
+    # Layout: {arch}/{package}/{version}.tar.{compress}
+    pkg_find_version $pkg
+
+    var _tarball = "${bin_dir}/${pkg}@${repo_ver}-${repo_rel}.tar.${KOMINKA_COMPRESS}"
+    if ! test -f $_tarball {
+        # Try any compression.
+        for f in @[glob("${bin_dir}/${pkg}@${repo_ver}-${repo_rel}.tar.*")] {
+            setvar _tarball = f
+        }
+    }
+    if ! test -f $_tarball {
+        die $pkg "No tarball found — build it first"
+    }
+
+    var bucket = KOMINKA_BUCKET
+    if (bucket === '') { die "KOMINKA_BUCKET not set" }
+
+    var _ext = ${_tarball##*.tar.}
+    var key = "${sys_arch}/${pkg}/${repo_ver}-${repo_rel}.tar.${_ext}"
+
+    log $pkg "Uploading ${_tarball##*/} -> ${key}"
+    wrangler r2 object put "${bucket}/${key}" --file=$_tarball --content-type=application/octet-stream --remote
+    log $pkg "Uploaded"
+}
+
 proc pkg_cache (pkg) {
     ### Find the tarball of a package in the binary cache.
     pkg_find_version $pkg
@@ -460,11 +488,11 @@ proc pkg_cache (pkg) {
         return 0
     }
 
-    # Try remote binary mirror.
+    # Try remote binary mirror: {arch}/{package}/{version}-{release}.tar.gz
     if (KOMINKA_BIN_MIRROR !== '') {
-        var _remote_name = "${pkg}@${repo_ver}-${repo_rel}.tar.${KOMINKA_COMPRESS}"
-        var _remote_url = "${KOMINKA_BIN_MIRROR}/${sys_arch}/${_remote_name}"
-        setglobal tar_file = "${bin_dir}/${_remote_name}"
+        var _remote_name = "${repo_ver}-${repo_rel}.tar.${KOMINKA_COMPRESS}"
+        var _remote_url = "${KOMINKA_BIN_MIRROR}/${sys_arch}/${pkg}/${_remote_name}"
+        setglobal tar_file = "${bin_dir}/${pkg}@${repo_ver}-${repo_rel}.tar.${KOMINKA_COMPRESS}"
         try { pkg_source_url $tar_file $_remote_url 'n' }
         if ! failed { return 0 }
     }
@@ -1643,7 +1671,7 @@ proc pkg_install_all (...pkgs) {
         if (_found) { continue }
 
         if (KOMINKA_BIN_MIRROR !== '') {
-            var _url = "${KOMINKA_BIN_MIRROR}/${sys_arch}/${_name}"
+            var _url = "${KOMINKA_BIN_MIRROR}/${sys_arch}/${pkg}/${repo_ver}-${repo_rel}.tar.${KOMINKA_COMPRESS}"
             setvar urls[pkg] = _url
             setvar dests[pkg] = _dest
             call dl_names->append(pkg)
@@ -1998,7 +2026,7 @@ proc args (action='', ...pkgs) {
             }
         }
 
-        b | build | c | checksum | d | download | i | install | l | list | r | remove {
+        b | build | c | checksum | d | download | i | install | l | list | p | upload | r | remove {
             for arg in (pkgs) {
                 var bad = ''
                 case (action) {
@@ -2091,11 +2119,12 @@ proc args (action='', ...pkgs) {
         r | remove       { for pkg in (redro) { pkg_remove $pkg } }
         s | search       { for pkg in (pkgs) { pkg_find $pkg all } }
         u | update       { pkg_update }
+        p | upload       { for pkg in (pkgs) { pkg_upload $pkg } }
         U | upgrade      { pkg_upgrade }
         v | version      { write -- '5.5.28' }
 
         h | help | '' {
-            log 'pm [a|b|c|d|h|i|l|r|s|u|U|v] [pkg]...'
+            log 'pm [a|b|c|d|h|i|l|p|r|s|u|U|v] [pkg]...'
             log 'alternatives List and swap alternatives'
             log 'build        Build packages'
             log 'checksum     Generate checksums'
@@ -2104,6 +2133,7 @@ proc args (action='', ...pkgs) {
             log 'install      Install packages'
             log 'list         List installed packages'
             log 'remove       Remove packages'
+            log 'upload       Upload built packages to R2'
             log 'search       Search for packages'
             log 'update       Update the system and repositories'
             log 'upgrade      Update the system'
@@ -2179,6 +2209,7 @@ proc main (...argv) {
     setglobal KOMINKA_DEBUG     = ENV => get("KOMINKA_DEBUG", "")
     setglobal KOMINKA_STRIP     = ENV => get("KOMINKA_STRIP", "")
     setglobal KOMINKA_INSECURE  = ENV => get("KOMINKA_INSECURE", "")
+    setglobal KOMINKA_BUCKET    = ENV => get("KOMINKA_BUCKET", "")
     setglobal KOMINKA_HOOK      = ENV => get("KOMINKA_HOOK", "")
     setglobal KOMINKA_TMPDIR    = ENV => get("KOMINKA_TMPDIR", "")
     setglobal KOMINKA_KEEPLOG   = ENV => get("KOMINKA_KEEPLOG", "")

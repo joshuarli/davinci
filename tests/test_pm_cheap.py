@@ -128,7 +128,7 @@ class CheapPMTestCase(unittest.TestCase):
 class HelpTests:
     def test_no_args_prints_usage(self):
         r = self.pm()
-        self.assertIn("pm [a|b|c|d|h|i|l|r|s|u|U|v]", r.stderr)
+        self.assertIn("pm [a|b|c|d|h|i|l|p|r|s|u|U|v]", r.stderr)
 
     def test_help_mentions_all_commands(self):
         r = self.pm()
