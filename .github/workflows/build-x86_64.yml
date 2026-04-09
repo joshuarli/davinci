@@ -41,16 +41,21 @@ jobs:
               KOMINKA_STRIP=0 KOMINKA_FORCE=1 LOGNAME=root HOME=/root
 
           # glibc from Debian — copy all runtime libs and package as tarball.
-          RUN mkdir -p /kominka-root/usr/lib && \
-              cp -a /lib/x86_64-linux-gnu/lib*.so* /kominka-root/usr/lib/ 2>/dev/null; \
-              cp -a /lib64/ld-linux-x86-64.so* /kominka-root/usr/lib/ 2>/dev/null; \
-              ln -sf usr/lib /kominka-root/lib && \
-              ln -sf usr/lib /kominka-root/lib64 && \
-              mkdir -p /kominka-root/var/db/kominka/installed/glibc && \
-              echo "2.38 3" > /kominka-root/var/db/kominka/installed/glibc/version && \
-              printf '#!/bin/sh\n:\n' > /kominka-root/var/db/kominka/installed/glibc/build && \
-              chmod +x /kominka-root/var/db/kominka/installed/glibc/build && \
-              cd /kominka-root && tar czf /root/.cache/kominka/bin/glibc@2.38-3.tar.gz \
+          RUN set -x && mkdir -p /kominka-root/usr/lib \
+              && cp -a /lib/x86_64-linux-gnu/libc.so.6 /kominka-root/usr/lib/ \
+              && cp -a /lib/x86_64-linux-gnu/libm.so.6 /kominka-root/usr/lib/ \
+              && cp -a /lib/x86_64-linux-gnu/libresolv.so.2 /kominka-root/usr/lib/ \
+              && cp -a /lib/x86_64-linux-gnu/libnss_dns.so.2 /kominka-root/usr/lib/ \
+              && cp -a /lib/x86_64-linux-gnu/libnss_files.so.2 /kominka-root/usr/lib/ \
+              && cp -a /lib64/ld-linux-x86-64.so.2 /kominka-root/usr/lib/ \
+              && ln -sf usr/lib /kominka-root/lib \
+              && ln -sf usr/lib /kominka-root/lib64 \
+              && mkdir -p /kominka-root/var/db/kominka/installed/glibc \
+              && echo "2.38 3" > /kominka-root/var/db/kominka/installed/glibc/version \
+              && printf '#!/bin/sh\n:\n' > /kominka-root/var/db/kominka/installed/glibc/build \
+              && chmod +x /kominka-root/var/db/kominka/installed/glibc/build \
+              && cd /kominka-root \
+              && tar czf /root/.cache/kominka/bin/glibc@2.38-3.tar.gz \
                   ./usr/lib/ ./var/db/kominka/installed/glibc/
 
           # Install zig and deps from R2 (already built).
