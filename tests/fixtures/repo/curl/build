@@ -1,7 +1,8 @@
 #!/bin/sh -e
 
-# curl 7.80.0 has missing #include <time.h> in altsvc.c.
-CFLAGS="${CFLAGS:--O2 -DNDEBUG} -Wno-error -D_GNU_SOURCE -include time.h"
+# curl 7.80.0 is missing #include <time.h> in altsvc.c — patch it.
+sed -i '1i #include <time.h>' lib/altsvc.c
+CFLAGS="${CFLAGS:--O2 -DNDEBUG} -Wno-error -D_GNU_SOURCE"
 LDFLAGS="${LDFLAGS:-}"
 CPPFLAGS=""
 
