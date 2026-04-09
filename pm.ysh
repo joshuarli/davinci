@@ -2048,7 +2048,7 @@ proc args (action='', ...pkgs) {
             for arg in (pkgs) {
                 var bad = ''
                 case (action) {
-                    i | install {
+                    i | install | p | upload {
                         try { setvar bad = $(echo $arg | grep '[][!* ]') } 2>/dev/null
                     }
                     * {
