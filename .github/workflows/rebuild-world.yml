@@ -7,80 +7,6 @@ env:
   R2: https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev
 
 jobs:
-  bison:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { arch: amd64, runner: ubuntu-latest }
-          - { arch: arm64, runner: ubuntu-24.04-arm }
-    runs-on: ${{ matrix.runner }}
-    steps:
-      - uses: actions/checkout@v4
-      - run: docker build -t kominka:core .
-      - run: |
-          docker run --name build \
-            -v "$PWD/tests/fixtures/repo:/packages:ro" \
-            -e KOMINKA_PATH=/packages -e KOMINKA_MIRROR=$R2 \
-            -e KOMINKA_BIN_MIRROR=$R2 -e KOMINKA_COMPRESS=gz \
-            -e KOMINKA_COLOR=0 -e KOMINKA_PROMPT=0 -e KOMINKA_FORCE=1 \
-            kominka:core sh -c '
-            mkdir -p /kominka-root/usr/bin && ln -sf /usr/bin/m4 /kominka-root/usr/bin/m4
-            pm i build-essential && pm b bison'
-          mkdir -p out && docker cp "build:/root/.cache/kominka/bin/bison@3.8.2-1.tar.gz" out/ && docker rm build
-      - uses: actions/upload-artifact@v4
-        with:
-          name: bison-${{ matrix.arch }}
-          path: out/*.tar.gz
-
-  samurai:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { arch: amd64, runner: ubuntu-latest }
-          - { arch: arm64, runner: ubuntu-24.04-arm }
-    runs-on: ${{ matrix.runner }}
-    steps:
-      - uses: actions/checkout@v4
-      - run: docker build -t kominka:core .
-      - run: |
-          docker run --name build \
-            -v "$PWD/tests/fixtures/repo:/packages:ro" \
-            -e KOMINKA_PATH=/packages -e KOMINKA_MIRROR=$R2 \
-            -e KOMINKA_BIN_MIRROR=$R2 -e KOMINKA_COMPRESS=gz \
-            -e KOMINKA_COLOR=0 -e KOMINKA_PROMPT=0 -e KOMINKA_FORCE=1 \
-            kominka:core sh -c 'pm i build-essential && pm b samurai'
-          mkdir -p out && docker cp "build:/root/.cache/kominka/bin/samurai@1.2-1.tar.gz" out/ && docker rm build
-      - uses: actions/upload-artifact@v4
-        with:
-          name: samurai-${{ matrix.arch }}
-          path: out/*.tar.gz
-
-  bzip2:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { arch: amd64, runner: ubuntu-latest }
-          - { arch: arm64, runner: ubuntu-24.04-arm }
-    runs-on: ${{ matrix.runner }}
-    steps:
-      - uses: actions/checkout@v4
-      - run: docker build -t kominka:core .
-      - run: |
-          docker run --name build \
-            -v "$PWD/tests/fixtures/repo:/packages:ro" \
-            -e KOMINKA_PATH=/packages -e KOMINKA_MIRROR=$R2 \
-            -e KOMINKA_BIN_MIRROR=$R2 -e KOMINKA_COMPRESS=gz \
-            -e KOMINKA_COLOR=0 -e KOMINKA_PROMPT=0 -e KOMINKA_FORCE=1 \
-            kominka:core sh -c 'pm i build-essential && pm b bzip2'
-          mkdir -p out && docker cp "build:/root/.cache/kominka/bin/bzip2@1.0.8-1.tar.gz" out/ && docker rm build
-      - uses: actions/upload-artifact@v4
-        with:
-          name: bzip2-${{ matrix.arch }}
-          path: out/*.tar.gz
-
   opendoas:
     strategy:
       fail-fast: false
@@ -91,7 +17,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t kominka:core .
+      - run: docker build --no-cache -t kominka:core .
       - run: |
           docker run --name build \
             -v "$PWD/tests/fixtures/repo:/packages:ro" \
@@ -107,42 +33,16 @@ jobs:
           name: opendoas-${{ matrix.arch }}
           path: out/*.tar.gz
 
-  cmake:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { arch: amd64, runner: ubuntu-latest }
-          - { arch: arm64, runner: ubuntu-24.04-arm }
-    runs-on: ${{ matrix.runner }}
-    steps:
-      - uses: actions/checkout@v4
-      - run: docker build -t kominka:core .
-      - run: |
-          docker run --name build \
-            -v "$PWD/tests/fixtures/repo:/packages:ro" \
-            -e KOMINKA_PATH=/packages -e KOMINKA_MIRROR=$R2 \
-            -e KOMINKA_BIN_MIRROR=$R2 -e KOMINKA_COMPRESS=gz \
-            -e KOMINKA_COLOR=0 -e KOMINKA_PROMPT=0 -e KOMINKA_FORCE=1 \
-            kominka:core sh -c 'pm i build-essential && pm b cmake'
-          mkdir -p out && docker cp "build:/root/.cache/kominka/bin/cmake@3.22.1-1.tar.gz" out/ && docker rm build
-      - uses: actions/upload-artifact@v4
-        with:
-          name: cmake-${{ matrix.arch }}
-          path: out/*.tar.gz
-
   boringssl:
-    needs: cmake
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { arch: amd64, runner: ubuntu-latest }
           - { arch: arm64, runner: ubuntu-24.04-arm }
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t kominka:core .
+      - run: docker build --no-cache -t kominka:core .
       - run: |
           docker run --name build \
             -v "$PWD/tests/fixtures/repo:/packages:ro" \
@@ -157,7 +57,6 @@ jobs:
           path: out/*.tar.gz
 
   curl:
-    needs: boringssl
     strategy:
       fail-fast: false
       matrix:
@@ -167,7 +66,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t kominka:core .
+      - run: docker build --no-cache -t kominka:core .
       - run: |
           docker run --name build \
             -v "$PWD/tests/fixtures/repo:/packages:ro" \
