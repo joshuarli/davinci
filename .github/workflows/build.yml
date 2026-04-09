@@ -52,6 +52,8 @@ jobs:
             -e KOMINKA_FORCE=1 \
             kominka:core sh -c '
             pm i build-essential &&
+            mkdir -p /kominka-root/usr/bin &&
+            ln -sf /usr/bin/m4 /kominka-root/usr/bin/m4 &&
             pm b ${{ inputs.package }}'
           mkdir -p out
           docker cp "build:/root/.cache/kominka/bin/." out/
