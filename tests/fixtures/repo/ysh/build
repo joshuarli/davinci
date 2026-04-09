@@ -6,20 +6,19 @@ dest="$1"
 MUSL_TARGET="$(uname -m)-linux-musl"
 
 # Static build targeting musl — no glibc/libstdc++ runtime deps.
-# oils is a C++ project that passes -std=c++11 to CC on .c files.
-# Both cc and c++ force -xc++ to treat all source as C++.
-cat > /usr/bin/cc <<EOF
+# oils passes -std=c++11 to CC on .c files. The wrapper adds -xc++
+# only when compiling (-c flag present), not when linking.
+CC_PATH=$(command -v cc)
+cat > "$CC_PATH" <<EOF
 #!/bin/sh
-exec zig c++ -target $MUSL_TARGET -xc++ "\$@"
+for a in "\$@"; do
+    case "\$a" in -c) exec zig c++ -target $MUSL_TARGET -xc++ "\$@";; esac
+done
+exec zig c++ -target $MUSL_TARGET "\$@"
 EOF
-cp /usr/bin/cc /usr/bin/c++
-chmod +x /usr/bin/cc /usr/bin/c++
-
-echo "=== cc wrapper ===" >&2
-cat /usr/bin/cc >&2
-echo "=== cc test ===" >&2
-echo 'int main(){}' > /tmp/_test.c
-/usr/bin/cc -std=c++11 -c /tmp/_test.c -o /dev/null 2>&1 && echo "cc OK" >&2 || echo "cc FAIL" >&2
+cp "$CC_PATH" "$(command -v c++)" 2>/dev/null || true
+chmod +x "$CC_PATH"
+chmod +x "$(command -v c++)" 2>/dev/null || true
 
 LDFLAGS='' ./configure --without-readline
 LDFLAGS='' _build/oils.sh
