@@ -14,6 +14,11 @@ NO_CROSS_DIRECTORY_HARDLINKS=1
 NO_INSTALL_HARDLINKS=1
 EOF
 
+if [ -n "$KOMINKA_ROOT" ] && [ "$KOMINKA_ROOT" != "/" ]; then
+    export CPPFLAGS="-I${KOMINKA_ROOT}/usr/include"
+    export LDFLAGS="-L${KOMINKA_ROOT}/usr/lib"
+fi
+
 ./configure \
     --prefix=/usr \
     --libexecdir=/usr/lib \
