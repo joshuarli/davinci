@@ -47,6 +47,7 @@ jobs:
               cp -a /lib/x86_64-linux-gnu/libnss_dns.so.2 /kominka-root/usr/lib/ && \
               cp -a /lib/x86_64-linux-gnu/libnss_files.so.2 /kominka-root/usr/lib/ && \
               cp -a /lib64/ld-linux-x86-64.so.2 /kominka-root/usr/lib/ && \
+              (cp -a /usr/lib/x86_64-linux-gnu/libcrypt.so* /kominka-root/usr/lib/ 2>/dev/null || true) && \
               ln -sf usr/lib /kominka-root/lib && \
               ln -sf usr/lib /kominka-root/lib64 && \
               mkdir -p /kominka-root/var/db/kominka/installed/glibc && \
@@ -116,10 +117,17 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with: { name: base-image, path: /tmp }
+      - uses: actions/download-artifact@v4
+        with: { name: pkg-curl, path: /tmp/curl }
       - name: Load and build
         run: |
           docker load < /tmp/base.tar.gz
-          docker run --name build kominka:base sh -c \
+          # Install the curl we just built (not on R2 yet).
+          docker create --name setup kominka:base true
+          docker cp /tmp/curl/curl@7.80.0-5.tar.gz setup:/root/.cache/kominka/bin/
+          docker commit setup kominka:with-curl
+          docker rm setup
+          docker run --name build kominka:with-curl sh -c \
             'env ${{ env.PM }} pm i curl && env ${{ env.PM }} pm b git'
           mkdir -p out
           docker cp "build:/root/.cache/kominka/bin/git@2.34.1-1.tar.gz" out/
