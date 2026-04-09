@@ -68,50 +68,17 @@ jobs:
           name: base-image
           path: /tmp/base.tar.gz
           retention-days: 7
-      - name: Upload glibc
-        run: |
-          mkdir -p /tmp/out
-          docker create --name tmp kominka:base true
-          docker cp tmp:/root/.cache/kominka/bin/glibc@2.38-3.tar.gz /tmp/out/
-          docker rm tmp
-      - uses: actions/upload-artifact@v4
-        with:
-          name: pkg-glibc
-          path: /tmp/out/glibc@*.tar.gz
-
-  build-curl:
-    needs: base
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with: { name: base-image, path: /tmp }
-      - name: Load and build
-        run: |
-          docker load < /tmp/base.tar.gz
-          docker run --name build kominka:base sh -c 'env ${{ env.PM }} pm b curl'
-          mkdir -p out
-          docker cp "build:/root/.cache/kominka/bin/curl@7.80.0-5.tar.gz" out/
-          docker rm build
-      - uses: actions/upload-artifact@v4
-        with: { name: pkg-curl, path: out/curl@*.tar.gz }
 
   build-git:
-    needs: [base, build-curl]
+    needs: [base]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with: { name: base-image, path: /tmp }
-      - uses: actions/download-artifact@v4
-        with: { name: pkg-curl, path: /tmp/curl }
       - name: Load and build
         run: |
           docker load < /tmp/base.tar.gz
-          # Install curl we just built (not on R2 yet).
-          docker create --name setup kominka:base true
-          docker cp /tmp/curl/curl@7.80.0-5.tar.gz setup:/root/.cache/kominka/bin/
-          docker commit setup kominka:with-curl
-          docker rm setup
-          docker run --name build kominka:with-curl sh -c \
+          docker run --name build kominka:base sh -c \
             'env ${{ env.PM }} pm i curl && env ${{ env.PM }} pm b git'
           mkdir -p out
           docker cp "build:/root/.cache/kominka/bin/git@2.34.1-1.tar.gz" out/
