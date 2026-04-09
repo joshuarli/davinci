@@ -13,7 +13,6 @@ Before adding a dependency, ask: can we solve this with 50 lines of C?
 - samurai (1 C file) instead of ninja (needs python)
 - zig (1 binary) instead of gcc + binutils + ld (3 complex packages)
 - Custom nm.c (50 lines) instead of binutils (massive dep chain)
-- opendoas (700 LOC) instead of sudo (200k LOC)
 - busybox over GNU coreutils (1 binary, ~300 applets)
 - runit over systemd (PID 1 is ~600 lines of C)
 
@@ -48,7 +47,7 @@ make boot       # Boot installer in vfkit VM
 ## Packages (24 on R2)
 
 **core** (metapackage → 9 runtime deps):
-baselayout, glibc, busybox, baseinit, runit, boringssl, curl, opendoas, ysh
+baselayout, glibc, busybox, baseinit, runit, boringssl, curl, ysh
 
 **build-essential** (metapackage → 13 runtime deps):
 core + zig, make, samurai, cmake, zlib, linux-headers, bzip2, xz,

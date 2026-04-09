@@ -47,7 +47,6 @@ Everything else dynamically links against glibc.
 | runit | Service supervision (runsvdir/runsv/sv) |
 | boringssl | TLS library (shared, from GitHub release tarball) |
 | curl | HTTP client + libcurl.so |
-| opendoas | Privilege escalation |
 | ysh | Shell (static musl binary, runs pm) |
 
 ## Build Pipeline

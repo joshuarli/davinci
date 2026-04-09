@@ -6,5 +6,4 @@ runit
 boringssl
 curl
 ca-certificates
-opendoas
 ysh

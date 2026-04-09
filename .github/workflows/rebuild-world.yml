@@ -7,38 +7,12 @@ env:
   R2: https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev
 
 jobs:
-  opendoas:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { arch: amd64, runner: ubuntu-latest }
-          - { arch: arm64, runner: ubuntu-24.04-arm }
-    runs-on: ${{ matrix.runner }}
-    steps:
-      - uses: actions/checkout@v4
-      - run: docker build --no-cache -t kominka:core .
-      - run: |
-          docker run --name build \
-            -v "$PWD/tests/fixtures/repo:/packages:ro" \
-            -e KOMINKA_PATH=/packages -e KOMINKA_MIRROR=$R2 \
-            -e KOMINKA_BIN_MIRROR=$R2 -e KOMINKA_COMPRESS=gz \
-            -e KOMINKA_COLOR=0 -e KOMINKA_PROMPT=0 -e KOMINKA_FORCE=1 \
-            kominka:core sh -c '
-            mkdir -p /kominka-root/usr/bin && ln -sf /usr/bin/m4 /kominka-root/usr/bin/m4
-            pm i build-essential && pm b opendoas'
-          mkdir -p out && docker cp "build:/root/.cache/kominka/bin/opendoas@6.8.1-1.tar.gz" out/ && docker rm build
-      - uses: actions/upload-artifact@v4
-        with:
-          name: opendoas-${{ matrix.arch }}
-          path: out/*.tar.gz
-
   boringssl:
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { arch: arm64, runner: ubuntu-24.04-arm }
+          - { arch: amd64, runner: ubuntu-latest }
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -62,7 +36,6 @@ jobs:
       matrix:
         include:
           - { arch: amd64, runner: ubuntu-latest }
-          - { arch: arm64, runner: ubuntu-24.04-arm }
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
