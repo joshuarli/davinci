@@ -457,6 +457,53 @@ class UpdateTests:
         self.assertIn("verbump 1.0-1 => 2.0-1", combined)
 
 
+class MakeDepTests:
+    """Test that make (build-only) deps are handled correctly."""
+
+    def test_build_skips_make_deps_of_installed_packages(self):
+        """pm b should not pull make deps of already-installed packages."""
+        # Create a library with a make dep on 'buildtool'.
+        lib_repo = self.create_repo_pkg("mylib", version="1.0 1", depends="buildtool make")
+        # Create buildtool (should NOT be needed if mylib is installed).
+        self.create_repo_pkg("buildtool", version="1.0 1")
+        # Create an app that depends on mylib at runtime.
+        self.create_repo_pkg("myapp", version="1.0 1", depends="mylib")
+
+        # Build and install mylib (satisfies the runtime dep).
+        self.pm("b", "mylib")
+        self.pm("i", "mylib", env_override={"KOMINKA_FORCE": "1"})
+
+        # Build myapp — should NOT try to build buildtool since mylib is installed.
+        r = self.pm("b", "myapp", env_override={"KOMINKA_FORCE": "1"})
+        combined = r.stdout + r.stderr
+        self.assertNotIn("buildtool", combined)
+
+    def test_build_includes_make_deps_of_uninstalled_packages(self):
+        """pm b should pull make deps of packages that need building."""
+        self.create_repo_pkg("compiler", version="1.0 1")
+        lib_repo = self.create_repo_pkg("mylib2", version="1.0 1",
+                                         depends="compiler make")
+        self.create_repo_pkg("myapp2", version="1.0 1", depends="mylib2")
+
+        # mylib2 is NOT installed — its make dep (compiler) should be resolved.
+        r = self.pm("b", "myapp2", env_override={"KOMINKA_FORCE": "1"})
+        combined = r.stdout + r.stderr
+        self.assertIn("compiler", combined)
+
+    def test_install_skips_all_make_deps(self):
+        """pm i should not install make deps as new packages."""
+        self.create_repo_pkg("devtool2", version="1.0 1")
+        self.create_repo_pkg("mypkg3", version="1.0 1", depends="devtool2 make")
+        # Only build mypkg3 (devtool2 gets built as make dep).
+        self.pm("b", "mypkg3")
+        # Remove devtool2 that was installed during build.
+        self.pm("r", "devtool2", env_override={"KOMINKA_FORCE": "1"})
+        # Now pm i should NOT reinstall devtool2.
+        self.pm("i", "mypkg3", env_override={"KOMINKA_FORCE": "1"})
+        r = self.pm("l")
+        self.assertNotIn("devtool2", r.stdout)
+
+
 class ParallelInstallTests:
     """Test that pm i with multiple packages installs all of them."""
 
@@ -487,6 +534,12 @@ class ParallelInstallTests:
             (self.kominka_root / "usr/bin/foo").exists())
         self.assertTrue(
             (self.kominka_root / "usr/bin/bar").exists())
+
+
+@unittest.skipUnless(HAS_YSH, "ysh interpreter not found")
+class YSH_MakeDepTests(CheapPMTestCase, MakeDepTests):
+    PM_INTERPRETER = YSH
+    PM_SCRIPT = PM_YSH
 
 
 @unittest.skipUnless(HAS_YSH, "ysh interpreter not found")

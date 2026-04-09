@@ -12,7 +12,9 @@ env BINOWN=$uid BINGRP=$gid \
     --with-timestamp \
     --without-pam
 
-make
+# Use bison directly — the yacc wrapper has hardcoded paths that break
+# when bison is installed under KOMINKA_ROOT.
+make YACC='bison -y'
 make DESTDIR=$dest install
 
 mkdir -p "${dest}/etc"

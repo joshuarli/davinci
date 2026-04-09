@@ -8,7 +8,7 @@ BINGRP="$(id -g)" \
     --with-timestamp \
     --without-pam
 
-make
+make YACC='bison -y'
 make DESTDIR="$1" install
 
 mkdir -p "$1/etc"
