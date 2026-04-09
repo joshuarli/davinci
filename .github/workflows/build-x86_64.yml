@@ -3,12 +3,20 @@ name: Build x86_64 packages
 on:
   workflow_dispatch:
 
+env:
+  PM: >-
+    KOMINKA_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev
+    KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev
+    KOMINKA_PATH=/packages KOMINKA_ROOT=/kominka-root
+    KOMINKA_COMPRESS=gz KOMINKA_COLOR=0 KOMINKA_PROMPT=0
+    KOMINKA_STRIP=0 KOMINKA_FORCE=1 LOGNAME=root HOME=/root
+
 jobs:
   base:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build base image with glibc + zig + deps from R2
+      - name: Build base image
         run: |
           docker build -f - -t kominka:base . <<'DEOF'
           FROM debian:bookworm-slim
@@ -32,24 +40,23 @@ jobs:
               KOMINKA_PATH=/packages KOMINKA_ROOT=/kominka-root \
               KOMINKA_COMPRESS=gz KOMINKA_COLOR=0 KOMINKA_PROMPT=0 \
               KOMINKA_STRIP=0 KOMINKA_FORCE=1 LOGNAME=root HOME=/root
-          RUN set -x && mkdir -p /kominka-root/usr/lib \
-              && cp -a /lib/x86_64-linux-gnu/libc.so.6 /kominka-root/usr/lib/ \
-              && cp -a /lib/x86_64-linux-gnu/libm.so.6 /kominka-root/usr/lib/ \
-              && cp -a /lib/x86_64-linux-gnu/libresolv.so.2 /kominka-root/usr/lib/ \
-              && cp -a /lib/x86_64-linux-gnu/libnss_dns.so.2 /kominka-root/usr/lib/ \
-              && cp -a /lib/x86_64-linux-gnu/libnss_files.so.2 /kominka-root/usr/lib/ \
-              && cp -a /lib64/ld-linux-x86-64.so.2 /kominka-root/usr/lib/ \
-              && ln -sf usr/lib /kominka-root/lib \
-              && ln -sf usr/lib /kominka-root/lib64 \
-              && mkdir -p /kominka-root/var/db/kominka/installed/glibc \
-              && echo "2.38 3" > /kominka-root/var/db/kominka/installed/glibc/version \
-              && printf '#!/bin/sh\n:\n' > /kominka-root/var/db/kominka/installed/glibc/build \
-              && chmod +x /kominka-root/var/db/kominka/installed/glibc/build \
-              && cd /kominka-root \
-              && mkdir -p /root/.cache/kominka/bin \
-              && tar czf /root/.cache/kominka/bin/glibc@2.38-3.tar.gz \
+          RUN mkdir -p /kominka-root/usr/lib && \
+              cp -a /lib/x86_64-linux-gnu/libc.so.6 /kominka-root/usr/lib/ && \
+              cp -a /lib/x86_64-linux-gnu/libm.so.6 /kominka-root/usr/lib/ && \
+              cp -a /lib/x86_64-linux-gnu/libresolv.so.2 /kominka-root/usr/lib/ && \
+              cp -a /lib/x86_64-linux-gnu/libnss_dns.so.2 /kominka-root/usr/lib/ && \
+              cp -a /lib/x86_64-linux-gnu/libnss_files.so.2 /kominka-root/usr/lib/ && \
+              cp -a /lib64/ld-linux-x86-64.so.2 /kominka-root/usr/lib/ && \
+              ln -sf usr/lib /kominka-root/lib && \
+              ln -sf usr/lib /kominka-root/lib64 && \
+              mkdir -p /kominka-root/var/db/kominka/installed/glibc && \
+              echo "2.38 3" > /kominka-root/var/db/kominka/installed/glibc/version && \
+              printf '#!/bin/sh\n:\n' > /kominka-root/var/db/kominka/installed/glibc/build && \
+              chmod +x /kominka-root/var/db/kominka/installed/glibc/build && \
+              mkdir -p /root/.cache/kominka/bin && cd /kominka-root && \
+              tar czf /root/.cache/kominka/bin/glibc@2.38-3.tar.gz \
                   ./usr/lib/ ./var/db/kominka/installed/glibc/
-          RUN pm i zig linux-headers make zlib boringssl
+          RUN pm i zig linux-headers make zlib boringssl samurai cmake go
           ENV PATH=/kominka-root/usr/bin:$PATH
           RUN mkdir -p /kominka-root/var/db/kominka/installed/perl && \
               echo "999 1" > /kominka-root/var/db/kominka/installed/perl/version
@@ -69,7 +76,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: pkg-glibc
-          path: /tmp/out/*.tar.gz
+          path: /tmp/out/glibc@*.tar.gz
 
   build-curl:
     needs: base
@@ -77,47 +84,15 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with: { name: base-image, path: /tmp }
-      - name: Load base
-        run: docker load < /tmp/base.tar.gz
-      - name: Build curl
+      - name: Load and build
         run: |
-          docker run --name build kominka:base sh -c \
-            'env KOMINKA_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev KOMINKA_PATH=/packages KOMINKA_ROOT=/kominka-root KOMINKA_COMPRESS=gz KOMINKA_COLOR=0 KOMINKA_PROMPT=0 KOMINKA_STRIP=0 KOMINKA_FORCE=1 LOGNAME=root HOME=/root pm b curl'
-          mkdir -p out && docker cp build:/root/.cache/kominka/bin/. out/ && docker rm build
+          docker load < /tmp/base.tar.gz
+          docker run --name build kominka:base sh -c 'env ${{ env.PM }} pm b curl'
+          mkdir -p out
+          docker cp "build:/root/.cache/kominka/bin/curl@7.80.0-5.tar.gz" out/
+          docker rm build
       - uses: actions/upload-artifact@v4
-        with: { name: pkg-curl, path: out/*.tar.gz }
-
-  build-git:
-    needs: [base, build-curl]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with: { name: base-image, path: /tmp }
-      - name: Load base
-        run: docker load < /tmp/base.tar.gz
-      - name: Build git
-        run: |
-          docker run --name build kominka:base sh -c \
-            'env KOMINKA_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev KOMINKA_PATH=/packages KOMINKA_ROOT=/kominka-root KOMINKA_COMPRESS=gz KOMINKA_COLOR=0 KOMINKA_PROMPT=0 KOMINKA_STRIP=0 KOMINKA_FORCE=1 LOGNAME=root HOME=/root pm i curl && env KOMINKA_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev KOMINKA_PATH=/packages KOMINKA_ROOT=/kominka-root KOMINKA_COMPRESS=gz KOMINKA_COLOR=0 KOMINKA_PROMPT=0 KOMINKA_STRIP=0 KOMINKA_FORCE=1 LOGNAME=root HOME=/root pm b git'
-          mkdir -p out && docker cp build:/root/.cache/kominka/bin/. out/ && docker rm build
-      - uses: actions/upload-artifact@v4
-        with: { name: pkg-git, path: out/*.tar.gz }
-
-  build-ysh:
-    needs: base
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with: { name: base-image, path: /tmp }
-      - name: Load base
-        run: docker load < /tmp/base.tar.gz
-      - name: Build ysh
-        run: |
-          docker run --name build kominka:base sh -c \
-            'env KOMINKA_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev KOMINKA_PATH=/packages KOMINKA_ROOT=/kominka-root KOMINKA_COMPRESS=gz KOMINKA_COLOR=0 KOMINKA_PROMPT=0 KOMINKA_STRIP=0 KOMINKA_FORCE=1 LOGNAME=root HOME=/root pm b ysh'
-          mkdir -p out && docker cp build:/root/.cache/kominka/bin/. out/ && docker rm build
-      - uses: actions/upload-artifact@v4
-        with: { name: pkg-ysh, path: out/*.tar.gz }
+        with: { name: pkg-curl, path: out/curl@*.tar.gz }
 
   build-opendoas:
     needs: base
@@ -125,13 +100,29 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with: { name: base-image, path: /tmp }
-      - name: Load base
-        run: docker load < /tmp/base.tar.gz
-      - name: Build opendoas
+      - name: Load and build
         run: |
-          docker run --name build kominka:base sh -c \
-            'env KOMINKA_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev KOMINKA_PATH=/packages KOMINKA_ROOT=/kominka-root KOMINKA_COMPRESS=gz KOMINKA_COLOR=0 KOMINKA_PROMPT=0 KOMINKA_STRIP=0 KOMINKA_FORCE=1 LOGNAME=root HOME=/root pm b opendoas' || true
-          mkdir -p out && docker cp build:/root/.cache/kominka/bin/. out/ 2>/dev/null; docker rm build 2>/dev/null; true
+          docker load < /tmp/base.tar.gz
+          docker run --name build kominka:base sh -c 'env ${{ env.PM }} pm b opendoas'
+          mkdir -p out
+          docker cp "build:/root/.cache/kominka/bin/opendoas@6.8.1-1.tar.gz" out/
+          docker rm build
       - uses: actions/upload-artifact@v4
-        if: always()
-        with: { name: pkg-opendoas, path: out/*.tar.gz }
+        with: { name: pkg-opendoas, path: out/opendoas@*.tar.gz }
+
+  build-git:
+    needs: [base, build-curl]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: base-image, path: /tmp }
+      - name: Load and build
+        run: |
+          docker load < /tmp/base.tar.gz
+          docker run --name build kominka:base sh -c \
+            'env ${{ env.PM }} pm i curl && env ${{ env.PM }} pm b git'
+          mkdir -p out
+          docker cp "build:/root/.cache/kominka/bin/git@2.34.1-1.tar.gz" out/
+          docker rm build
+      - uses: actions/upload-artifact@v4
+        with: { name: pkg-git, path: out/git@*.tar.gz }
