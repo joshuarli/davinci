@@ -4,15 +4,19 @@ var dest = ARGV[0]
 var _kr = ENV => get("KOMINKA_ROOT", "")
 var ssl_prefix = "${_kr}/usr"
 
-# Ensure configure can find headers and libraries in KOMINKA_ROOT.
-var _cflags = ENV => get("CFLAGS", "-O2 -DNDEBUG") ++ " -Wno-error -D_GNU_SOURCE"
+# curl 7.80.0 has missing #include <time.h> in altsvc.c.
+# -D_GNU_SOURCE + -include time.h fixes it. -Wno-error prevents
+# -Werror-implicit-function-declaration from configure breaking the build.
+var _cflags = ENV => get("CFLAGS", "-O2 -DNDEBUG") ++ " -Wno-error -D_GNU_SOURCE -include time.h"
 var _ldflags = ENV => get("LDFLAGS", "")
 if (_kr !== '' and _kr !== '/') {
-    setvar _cflags = "${_cflags} -isystem ${_kr}/usr/include"
     setvar _ldflags = "${_ldflags} -L${_kr}/usr/lib"
 }
 
-CFLAGS=$_cflags LDFLAGS=$_ldflags ./configure \
+CFLAGS=$_cflags LDFLAGS=$_ldflags \
+    CPPFLAGS="-I${_kr}/usr/include" \
+    PKG_CONFIG_PATH="${_kr}/usr/lib/pkgconfig" \
+    ./configure \
     --prefix=/usr \
     --enable-ipv6 \
     --enable-unix-sockets \

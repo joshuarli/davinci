@@ -57,7 +57,7 @@ jobs:
               mkdir -p /root/.cache/kominka/bin && cd /kominka-root && \
               tar czf /root/.cache/kominka/bin/glibc@2.38-3.tar.gz \
                   ./usr/lib/ ./var/db/kominka/installed/glibc/
-          RUN pm i zig linux-headers make zlib boringssl samurai cmake go
+          RUN pm i zig linux-headers make zlib boringssl m4 bison
           ENV PATH=/kominka-root/usr/bin:$PATH
           RUN mkdir -p /kominka-root/var/db/kominka/installed/perl && \
               echo "999 1" > /kominka-root/var/db/kominka/installed/perl/version
@@ -67,7 +67,7 @@ jobs:
         with:
           name: base-image
           path: /tmp/base.tar.gz
-          retention-days: 1
+          retention-days: 7
       - name: Upload glibc
         run: |
           mkdir -p /tmp/out

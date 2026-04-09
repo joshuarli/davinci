@@ -1,11 +1,15 @@
 #!/bin/sh -e
 
-# Ensure configure can find headers and libraries in KOMINKA_ROOT.
+# curl 7.80.0 has missing #include <time.h> in altsvc.c.
+CFLAGS="${CFLAGS:--O2 -DNDEBUG} -Wno-error -D_GNU_SOURCE -include time.h"
+LDFLAGS="${LDFLAGS:-}"
+CPPFLAGS=""
+
 if [ -n "$KOMINKA_ROOT" ] && [ "$KOMINKA_ROOT" != "/" ]; then
-    CFLAGS="${CFLAGS:--O2 -DNDEBUG} -isystem ${KOMINKA_ROOT}/usr/include -Wno-error -D_GNU_SOURCE"
-    LDFLAGS="${LDFLAGS:-} -L${KOMINKA_ROOT}/usr/lib"
-    export CFLAGS LDFLAGS
+    CPPFLAGS="-I${KOMINKA_ROOT}/usr/include"
+    LDFLAGS="${LDFLAGS} -L${KOMINKA_ROOT}/usr/lib"
 fi
+export CFLAGS LDFLAGS CPPFLAGS
 
 ./configure \
     --prefix=/usr \
