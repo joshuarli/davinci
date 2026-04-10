@@ -19,7 +19,8 @@ proc build(dest) {
 
     var CC      = ENV => get("CC", "cc")
     var CXX     = ENV => get("CXX", "c++")
-    var _cflags = ENV => get("CFLAGS", "")
+    var _cflags  = ENV => get("CFLAGS", "")
+    var _ldflags = ENV => get("LDFLAGS", "")
 
     cmake -GNinja -B build \
         -DCMAKE_BUILD_TYPE=Release \
@@ -29,7 +30,8 @@ proc build(dest) {
         -DCMAKE_CXX_COMPILER=$CXX \
         -DCMAKE_C_FLAGS=$_cflags \
         -DCMAKE_CXX_FLAGS=$_cflags \
-        -DCMAKE_ASM_FLAGS=$_cflags
+        -DCMAKE_ASM_FLAGS=$_cflags \
+        -DCMAKE_SHARED_LINKER_FLAGS=$_ldflags
     ninja -C build
 
     mkdir -p "${dest}/usr/lib/pkgconfig" "${dest}/usr/include" "${dest}/etc/ssl"

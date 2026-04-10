@@ -69,7 +69,8 @@ jobs:
               KOMINKA_PROMPT=0 \
               KOMINKA_FORCE=1 \
               LOGNAME=root \
-              HOME=/root
+              HOME=/root \
+              LDFLAGS='-static-libstdc++ -static-libgcc'
 
           RUN pm b boringssl && pm i boringssl && pm b curl
           DEOF
