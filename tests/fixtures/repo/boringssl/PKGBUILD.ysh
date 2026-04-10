@@ -20,12 +20,24 @@ proc build(dest) {
     var CC = ENV => get("CC", "cc")
     var CXX = ENV => get("CXX", "c++")
 
+    # Pin to armv8-a+crypto on aarch64 so the shared libraries work in any
+    # ARM64 VM.  zig cc without explicit -mcpu targets the native build CPU
+    # (e.g. Graviton3 with SVE/BF16), which Apple Virtualization.framework
+    # does not expose to guests.  +crypto keeps AES/SHA/PMULL for TLS.
+    var arch_flags = ''
+    if ($(uname -m) === 'aarch64') {
+        setvar arch_flags = '-march=armv8-a+crypto'
+    }
+
     cmake -GNinja -B build \
         -DCMAKE_BUILD_TYPE=Release \
         -DBUILD_SHARED_LIBS=ON \
         -DBUILD_TESTING=OFF \
         -DCMAKE_C_COMPILER=$CC \
-        -DCMAKE_CXX_COMPILER=$CXX
+        -DCMAKE_CXX_COMPILER=$CXX \
+        -DCMAKE_C_FLAGS=$arch_flags \
+        -DCMAKE_CXX_FLAGS=$arch_flags \
+        -DCMAKE_ASM_FLAGS=$arch_flags
     ninja -C build
 
     mkdir -p "${dest}/usr/lib/pkgconfig" "${dest}/usr/include" "${dest}/etc/ssl"
