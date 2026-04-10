@@ -1,5 +1,6 @@
-#!/bin/sh -e
-dest=$1
+#!/usr/local/bin/ysh
+
+var dest = ARGV[0]
 
 # Bootstrap muon from the amalgamated source.
 CC=cc sh bootstrap.sh build
@@ -17,4 +18,4 @@ build/muon-bootstrap setup \
     build-final
 
 samu -C build-final
-DESTDIR="$dest" build/muon-bootstrap -C build-final install
+DESTDIR=$dest build/muon-bootstrap -C build-final install

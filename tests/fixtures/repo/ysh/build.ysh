@@ -1,23 +1,23 @@
-#!/bin/sh
-set -e
-dest="$1"
+#!/usr/local/bin/ysh
+
+var dest = ARGV[0]
 
 # Detect musl target triple from architecture.
-MUSL_TARGET="$(uname -m)-linux-musl"
+var MUSL_TARGET = "$(uname -m)-linux-musl"
 
 # Static build targeting musl — no glibc/libstdc++ runtime deps.
 # oils passes -std=c++11 to CC on .c files. The wrapper adds -xc++
 # only when compiling (-c flag present), not when linking.
-CC_PATH=$(command -v cc)
-cat > "$CC_PATH" <<EOF
+var CC_PATH = $(command -v cc)
+cat > $CC_PATH << EOF
 #!/bin/sh
 for a in "\$@"; do
     case "\$a" in -c) exec zig c++ -target $MUSL_TARGET -xc++ "\$@";; esac
 done
 exec zig c++ -target $MUSL_TARGET "\$@"
 EOF
-cp "$CC_PATH" "$(command -v c++)" 2>/dev/null || true
-chmod +x "$CC_PATH"
+cp $CC_PATH "$(command -v c++)" 2>/dev/null || true
+chmod +x $CC_PATH
 chmod +x "$(command -v c++)" 2>/dev/null || true
 
 LDFLAGS='' ./configure --without-readline

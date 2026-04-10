@@ -1,5 +1,6 @@
-#!/bin/sh -e
-dest=$1
+#!/usr/local/bin/ysh
+
+var dest = ARGV[0]
 
 muon setup \
     -Dprefix=/usr \
@@ -21,4 +22,4 @@ muon setup \
     build
 
 samu -C build
-DESTDIR="$dest" muon -C build install
+DESTDIR=$dest muon -C build install

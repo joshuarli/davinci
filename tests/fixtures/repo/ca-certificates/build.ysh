@@ -1,0 +1,10 @@
+#!/usr/local/bin/ysh
+
+var dest = ARGV[0]
+
+mkdir -p "${dest}/etc/ssl/certs"
+cp cacert.pem "${dest}/etc/ssl/certs/ca-certificates.crt"
+
+mkdir -p "${dest}/usr/bin"
+cp update-certdata.sh "${dest}/usr/bin/update-certdata"
+chmod +x "${dest}/usr/bin/update-certdata"
