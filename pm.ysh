@@ -255,8 +255,6 @@ proc as_user (...args) {
 
 proc pkg_owner (...args) {
     ### Find which package owns a file by searching manifests.
-    var _owns = ''
-
     if (len(args) < 2) {
         var manifests = @[glob("${sys_db}/*/manifest")]
         setvar args = [args[0]]
