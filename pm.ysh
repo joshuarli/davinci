@@ -68,7 +68,12 @@ var tmp_dir = ''
 
 var time_str = ''
 
-# Package state — set by pkg_find_version and friends.
+# Current package record — set by pkg_load().
+# Replaces individual globals: repo_dir, repo_ver, repo_rel, repo_name,
+# pkgdeps, pkgmkdeps, sources, checksums*, nostrip.
+var _pkg = {}
+
+# Compatibility aliases — updated whenever _pkg changes.
 var repo_dir = ''
 var repo_name = ''
 var repo_ver = ''
@@ -76,12 +81,6 @@ var repo_rel = ''
 var repo_parts = {major: '', minor: '', patch: '', ident: ''}
 var ver_pre = ''
 var rel_pre = ''
-
-# PKGBUILD.ysh state — populated by _pkg_load_pkgbuild.
-# Use pkgdeps/pkgmkdeps to avoid collision with pm's internal deps list.
-var pkgname       = ''
-var pkgver        = ''
-var pkgrel        = ''
 var pkgdeps       = []
 var pkgmkdeps     = []
 var nostrip       = false
@@ -107,8 +106,12 @@ var hash = ''
 var build_install = '1'
 var prefer_cache = ''
 var user = ''
-var _pkg = ''
 var _file = ''
+# Name of the package currently being installed (string, not the _pkg dict).
+var _install_pkg_name = ''
+
+# Runtime configuration dict — set in main(), read throughout.
+var config = {}
 
 # Dependency / ordering state.
 # Lists preserve insertion order; companion dicts give O(1) membership.
@@ -367,85 +370,117 @@ proc _sh256 (...files) {
     write -- $hash
 }
 
+proc _pkg_sync_compat () {
+    ### Sync compatibility aliases from _pkg dict.
+    setglobal repo_dir          = _pkg.dir
+    setglobal repo_name         = _pkg.name
+    setglobal repo_ver          = _pkg.ver
+    setglobal repo_rel          = _pkg.rel
+    setglobal pkgdeps           = _pkg.deps
+    setglobal pkgmkdeps         = _pkg.mkdeps
+    setglobal nostrip           = _pkg.nostrip
+    setglobal sources           = _pkg.sources
+    setglobal checksums         = _pkg.checksums
+    setglobal checksums_aarch64 = _pkg.checksums_aarch64
+    setglobal checksums_x86_64  = _pkg.checksums_x86_64
+}
+
+proc pkg_load (pkg_dir) {
+    ### Load a package from pkg_dir into _pkg dict.
+    # Supports both PKGBUILD.ysh (repo packages) and version/depends
+    # (installed package db entries).
+    if test -f "${pkg_dir}/PKGBUILD.ysh" {
+        # Reset defaults before sourcing.
+        var name = ${pkg_dir##*/}
+        var ver  = ''
+        var rel  = ''
+        var deps    = []
+        var mkdeps  = []
+        var nostrip_local = false
+        var sources_local = []
+        var checksums_local = []
+        var checksums_aarch64_local = []
+        var checksums_x86_64_local  = []
+
+        source "${pkg_dir}/PKGBUILD.ysh"
+
+        setglobal _pkg = {
+            dir:              pkg_dir,
+            name:             name,
+            ver:              ver,
+            rel:              rel,
+            deps:             deps,
+            mkdeps:           mkdeps,
+            nostrip:          nostrip,
+            sources:          sources,
+            checksums:        checksums,
+            checksums_aarch64: checksums_aarch64,
+            checksums_x86_64:  checksums_x86_64,
+        }
+    } elif test -f "${pkg_dir}/version" {
+        # Installed db entry — read old-format files.
+        var _vline = ''
+        read -r _vline < "${pkg_dir}/version"
+        var _vparts = _vline => split(" ")
+        var _ver = _vparts[0]
+        var _rel = _vparts[1] if (len(_vparts) > 1) else ''
+
+        var _deps   = []
+        var _mkdeps = []
+        if test -f "${pkg_dir}/depends" {
+            while true {
+                try { read -r _dep _dtype }
+                if (_dep === '' and _status !== 0) { break }
+                if (_dtype === 'make') {
+                    call _mkdeps->append(_dep)
+                } else {
+                    call _deps->append(_dep)
+                }
+            } < "${pkg_dir}/depends"
+        }
+
+        setglobal _pkg = {
+            dir:              pkg_dir,
+            name:             ${pkg_dir##*/},
+            ver:              _ver,
+            rel:              _rel,
+            deps:             _deps,
+            mkdeps:           _mkdeps,
+            nostrip:          false,
+            sources:          [],
+            checksums:        [],
+            checksums_aarch64: [],
+            checksums_x86_64:  [],
+        }
+    } else {
+        die "${pkg_dir##*/}" "No PKGBUILD.ysh or version file in $pkg_dir"
+    }
+
+    _pkg_sync_compat
+}
+
 proc pkg_find_version (pkg, arg2='', arg3='', search_path='') {
     setglobal ver_pre = repo_ver
     setglobal rel_pre = repo_rel
 
     pkg_find $pkg $arg2 $arg3 $search_path
+    pkg_load $repo_dir
 
-    _pkg_load_pkgbuild
-
-    if (repo_ver === '') {
-        die $pkg "pkgver not set in PKGBUILD.ysh"
-    }
-    if (repo_rel === '') {
-        die $pkg "pkgrel not set in PKGBUILD.ysh"
-    }
+    if (_pkg.ver === '') { die $pkg "ver not set in PKGBUILD.ysh" }
+    if (_pkg.rel === '') { die $pkg "rel not set in PKGBUILD.ysh" }
 }
 
 proc _pkg_load_pkgbuild () {
-    ### Source PKGBUILD.ysh and populate package globals.
-    # Reset to defaults so stale values from the previous package don't leak.
-    setglobal pkgname           = ''
-    setglobal pkgver            = ''
-    setglobal pkgrel            = ''
-    setglobal pkgdeps           = []
-    setglobal pkgmkdeps         = []
-    setglobal nostrip           = false
-    setglobal sources           = []
-    setglobal checksums         = []
-    setglobal checksums_aarch64 = []
-    setglobal checksums_x86_64  = []
-
-    if test -f "${repo_dir}/PKGBUILD.ysh" {
-        source "${repo_dir}/PKGBUILD.ysh"
-        # PKGBUILD.ysh uses var (locals in this scope) — copy to globals.
-        # Use pkgdeps/pkgmkdeps to avoid colliding with pm's internal deps list.
-        setglobal pkgver            = ver
-        setglobal pkgrel            = rel
-        setglobal repo_ver          = ver
-        setglobal repo_rel          = rel
-        setglobal repo_name         = name
-        setglobal pkgdeps           = deps
-        setglobal pkgmkdeps         = mkdeps
-        setglobal nostrip           = nostrip
-        setglobal sources           = sources
-        setglobal checksums         = checksums
-        setglobal checksums_aarch64 = checksums_aarch64
-        setglobal checksums_x86_64  = checksums_x86_64
-    } elif test -f "${repo_dir}/version" {
-        # Installed package db — read the old-format version file.
-        var _vline = ''
-        read -r _vline < "${repo_dir}/version"
-        var _vparts = _vline => split(" ")
-        setglobal repo_ver  = _vparts[0]
-        setglobal repo_rel  = _vparts[1] if (len(_vparts) > 1) else ''
-        setglobal pkgver    = repo_ver
-        setglobal pkgrel    = repo_rel
-        setglobal repo_name = ${repo_dir##*/}
-        # Read deps from the installed depends file if present.
-        setglobal pkgdeps   = []
-        setglobal pkgmkdeps = []
-        if test -f "${repo_dir}/depends" {
-            while true {
-                try { read -r _dep _dtype }
-                if (_dep === '' and _status !== 0) { break }
-                if (_dtype === 'make') {
-                    call pkgmkdeps->append(_dep)
-                } else {
-                    call pkgdeps->append(_dep)
-                }
-            } < "${repo_dir}/depends"
-        }
-    }
+    ### Compatibility shim — use pkg_load instead.
+    pkg_load $repo_dir
 }
 
 proc pkg_find_version_split (...args) {
     pkg_find_version @args
 
-    var vp = repo_ver => split(/ '.' | '+' | '-' | '_' /)
-    for i, name in (:| major minor patch ident |) {
-        setglobal repo_parts[name] = vp[i] if (i < len(vp)) else ''
+    var vp = _pkg.ver => split(/ '.' | '+' | '-' | '_' /)
+    for i, vpart_name in (:| major minor patch ident |) {
+        setglobal repo_parts[vpart_name] = vp[i] if (i < len(vp)) else ''
     }
 }
 
@@ -488,6 +523,51 @@ proc _pkg_find (name, mode='', test_flag='', search_path='') {
             write -- $r
         }
     }
+}
+
+### ── Database abstraction ─────────────────────────────────────────────── ###
+# These procs encapsulate all access to sys_db (the installed package DB).
+# Use these instead of directly accessing sys_db paths.
+
+proc db_installed (name) {
+    ### Return 0 if package is installed, 1 otherwise.
+    test -d "${sys_db}/${name}"
+}
+
+proc db_version (name) {
+    ### Print "ver rel" of installed package, or die if not installed.
+    if ! test -f "${sys_db}/${name}/version" {
+        die $name "Not installed"
+    }
+    cat "${sys_db}/${name}/version"
+}
+
+proc db_register (name, ver, rel) {
+    ### Create a minimal DB entry for a metapackage or pre-registered package.
+    mkdir -p "${sys_db}/${name}"
+    write -- "$ver $rel" > "${sys_db}/${name}/version"
+    printf '#!/bin/sh\n:\n' > "${sys_db}/${name}/build"
+    chmod +x "${sys_db}/${name}/build"
+    true > "${sys_db}/${name}/manifest"
+}
+
+proc db_remove (name) {
+    ### Remove a package's DB entry.
+    rm -rf "${sys_db}/${name}"
+}
+
+proc db_all_installed () {
+    ### Print all installed package names, one per line.
+    for d in @[glob("${sys_db}/*")] {
+        write -- ${d##*/}
+    }
+}
+
+proc db_dependents (name) {
+    ### Print installed packages that depend on name, one per line.
+    cd $sys_db
+    try { grep -lFx -- $name */depends }
+    cd $OLDPWD
 }
 
 proc pkg_list_version (...pkgs) {
@@ -813,7 +893,7 @@ proc pkg_extract (pkg) {
 }
 
 proc pkg_depends (pkg, mode='', filter='', chain='', dep_type='') {
-    ### Resolve all dependencies, deepest first.
+    ### Resolve all dependencies, adding to global deps/deps_seen.
     if (pkg in deps_seen) { return }
 
     # Skip build-only deps when installing (not building).
@@ -846,18 +926,14 @@ proc pkg_depends (pkg, mode='', filter='', chain='', dep_type='') {
     # Recurse through child dependencies.
     try { _pkg_find $pkg }
     if (_status === 0) {
-        # Load this package's PKGBUILD.ysh to get its deps/mkdeps.
-        _pkg_load_pkgbuild
-        # Save before recursion overwrites globals with sub-package data.
-        var _this_deps   = pkgdeps
-        var _this_mkdeps = pkgmkdeps
+        pkg_load $repo_dir
+        var _this_deps   = _pkg.deps
+        var _this_mkdeps = _pkg.mkdeps
         for dep in (_this_deps) {
-            # Skip make deps of already-installed packages.
             if test -d "${sys_db}/${dep}" { continue }
             pkg_depends $dep '' $filter "$chain $pkg" ''
         }
         for dep in (_this_mkdeps) {
-            # Skip make deps of already-installed packages.
             if test -d "${sys_db}/${dep}" { continue }
             pkg_depends $dep '' $filter "$chain $pkg" 'make'
         }
@@ -1254,7 +1330,7 @@ proc pkg_build_all (...pkgs) {
 
         run_hook queue $pkg $build_cur $[len(to_build)]
 
-        if test -f "${repo_dir}/sources" {
+        if (len(sources) > 0) {
             pkg_extract $pkg
         }
 
@@ -1298,10 +1374,11 @@ proc pkg_build (pkg) {
     # Create log file early to catch permission errors.
     true > "${log_dir}/${pkg}-${time_str}-${KOMINKA_PID}"
 
-    # Source PKGBUILD.ysh to bring the build proc into scope, then call it.
-    source "${repo_dir}/PKGBUILD.ysh"
-
+    # Source PKGBUILD.ysh inside the pipe subshell so its `var` declarations
+    # stay local to the subshell and don't shadow pm globals.
     {
+        source "${repo_dir}/PKGBUILD.ysh"
+
         setglobal ENV.AR          = "${AR:-ar}"
         setglobal ENV.MAKEFLAGS   = "${MAKEFLAGS:--j${_nproc}}"
         setglobal ENV.CC          = "${CC:-cc}"
@@ -1584,7 +1661,7 @@ proc pkg_install_files (test_flag, src_dir) {
                 if test -h $_file {
                     cp -fP "${src_dir}${file}" "${_file%/*}/."
                 } else {
-                    var __tmp = "${_file%/*}/__kominka-tmp-${_pkg}-${file##*/}-${KOMINKA_PID}"
+                    var __tmp = "${_file%/*}/__kominka-tmp-${_install_pkg_name}-${file##*/}-${KOMINKA_PID}"
                     cp -fP "${src_dir}${file}" $__tmp \
                         && mv -f $__tmp $_file
                 }
@@ -1634,7 +1711,7 @@ proc pkg_remove_files () {
 
 proc pkg_etc (file) {
     ### Handle /etc/ file installation with 3-way checksum merge.
-    sh256 "${tar_dir}/${_pkg}${file}" "${KOMINKA_ROOT}${file}" >/dev/null
+    sh256 "${tar_dir}/${_install_pkg_name}${file}" "${KOMINKA_ROOT}${file}" >/dev/null
 
     var hash_parts = hash => split(\n)
     var sum_new = hash_parts[0]
@@ -1674,15 +1751,13 @@ proc pkg_removable (pkg) {
     log $pkg "Checking if package removable"
 
     cd $sys_db
-
     var dependents = ''
     try { setvar dependents = $(grep -lFx -- $pkg */depends) }
+    cd $OLDPWD
 
     if (dependents !== '') {
         die $pkg "Not removable, has dependents"
     }
-
-    cd $OLDPWD
 }
 
 proc pkg_remove (pkg) {
@@ -1759,7 +1834,7 @@ proc pkg_install_all (...pkgs) {
         pkg_find_version $pkg
 
         # Metapackages (no sources) don't have tarballs to download.
-        if ! test -s "${repo_dir}/sources" { continue }
+        if (len(sources) === 0) { continue }
 
         var _name = "${pkg}@${repo_ver}-${repo_rel}.tar.${KOMINKA_COMPRESS}"
         var _dest = "${bin_dir}/${_name}"
@@ -1853,14 +1928,15 @@ proc pkg_install_all (...pkgs) {
 
 proc pkg_install (pkg) {
     ### Install a built package tarball.
+    # Uses _ipkg (install-pkg) to avoid clobbering the _pkg record dict.
 
-    setglobal _pkg = ''
+    var _ipkg = ''
     case (pkg) {
         *.tar.* {
             if ! test -f $pkg { die "File '$pkg' does not exist" }
             setglobal tar_file = pkg
-            setglobal _pkg = ${pkg##*/}
-            setglobal _pkg = ${_pkg%@*}
+            setvar _ipkg = ${pkg##*/}
+            setvar _ipkg = ${_ipkg%@*}
         }
         * {
             try { pkg_cache $pkg }
@@ -1881,40 +1957,41 @@ proc pkg_install (pkg) {
                 }
                 die $pkg "Not yet built"
             }
-            setglobal _pkg = pkg
+            setvar _ipkg = pkg
         }
     }
+    setglobal _install_pkg_name = _ipkg
 
     trap_off
-    mkcd "${tar_dir}/${_pkg}"
+    mkcd "${tar_dir}/${_ipkg}"
 
     decompress $tar_file | tar xf -
 
-    if ! test -f "${PWD}/${pkg_db}/${_pkg}/manifest" {
+    if ! test -f "${PWD}/${pkg_db}/${_ipkg}/manifest" {
         die "Not a valid package"
     }
 
     if (KOMINKA_FORCE !== '1') {
-        pkg_manifest_validate $_pkg
-        pkg_installable $_pkg "${PWD}/${pkg_db}/${_pkg}/depends"
+        pkg_manifest_validate $_ipkg
+        pkg_installable $_ipkg "${PWD}/${pkg_db}/${_ipkg}/depends"
     }
 
-    run_hook pre-install $_pkg $PWD
+    run_hook pre-install $_ipkg $PWD
 
-    pkg_conflicts $_pkg
+    pkg_conflicts $_ipkg
 
-    log $_pkg "Installing package (${tar_file##*/})"
+    log $_ipkg "Installing package (${tar_file##*/})"
 
-    tmp_file_copy $_pkg manifest-copy "${sys_db}/${_pkg}/manifest"
-    tmp_file_copy $_pkg etcsums-copy "${sys_db}/${_pkg}/etcsums"
-    tmp_file $_pkg manifest-diff
+    tmp_file_copy $_ipkg manifest-copy "${sys_db}/${_ipkg}/manifest"
+    tmp_file_copy $_ipkg etcsums-copy "${sys_db}/${_ipkg}/etcsums"
+    tmp_file $_ipkg manifest-diff
 
-    var tar_man = "${PWD}/${pkg_db}/${_pkg}/manifest"
+    var tar_man = "${PWD}/${pkg_db}/${_ipkg}/manifest"
 
     grep -vFxf $tar_man $[tf[-3]] > $[tf[-1]] 2>/dev/null || true
 
     # Reverse the manifest for shallow-first installation.
-    tmp_file $_pkg manifest-reverse
+    tmp_file $_ipkg manifest-reverse
     sort $tar_man > $[tf[-1]]
 
     try {
@@ -1924,14 +2001,14 @@ proc pkg_install (pkg) {
     }
     if failed {
         pkg_clean
-        log $_pkg "Failed to install package." ERROR
-        die $_pkg "Filesystem now dirty, manual repair needed."
+        log $_ipkg "Failed to install package." ERROR
+        die $_ipkg "Filesystem now dirty, manual repair needed."
     }
 
     trap_on
-    run_hook_pkg post-install $_pkg
-    run_hook post-install $_pkg "${sys_db}/${_pkg}"
-    log $_pkg "Installed successfully"
+    run_hook_pkg post-install $_ipkg
+    run_hook post-install $_ipkg "${sys_db}/${_ipkg}"
+    log $_ipkg "Installed successfully"
 }
 
 proc pkg_update () {
@@ -2380,6 +2457,26 @@ proc main (...argv) {
 
     setglobal cmd_get = $(_discover_tool $KOMINKA_GET curl wget)
     if (cmd_get === '') { die "No download tool found (curl, wget)" }
+
+    # Config dict — single source of truth for runtime configuration.
+    setglobal config = {
+        root:       KOMINKA_ROOT,
+        path:       KOMINKA_PATH,
+        mirror:     KOMINKA_MIRROR,
+        bin_mirror: KOMINKA_BIN_MIRROR,
+        compress:   KOMINKA_COMPRESS,
+        arch:       sys_arch,
+        force:      KOMINKA_FORCE,
+        prompt:     KOMINKA_PROMPT,
+        strip:      KOMINKA_STRIP,
+        insecure:   KOMINKA_INSECURE,
+        color:      KOMINKA_COLOR,
+        bucket:     KOMINKA_BUCKET,
+        hook:       KOMINKA_HOOK,
+        get:        cmd_get,
+        sha:        cmd_sha,
+        elf:        cmd_elf,
+    }
 
     setglobal time_str = $(date +%Y-%m-%d-%H:%M)
 
