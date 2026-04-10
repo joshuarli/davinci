@@ -2,6 +2,11 @@
 
 var dest = ARGV[0]
 
+# Patch the version script before configure: lld requires all symbols listed
+# in version scripts to be defined. The original lists all 6 pam_sm_* symbols
+# but PAM modules only implement the subset they need. Replace with a wildcard.
+cp modules.map modules/modules.map
+
 muon setup \
     -Dprefix=/usr \
     -Dlibdir=lib \
@@ -21,5 +26,8 @@ muon setup \
     -Dlckpwdf=false \
     build
 
+# Patch the version script: lld requires all symbols in version scripts to
+# exist. GNU ld silently ignores missing ones. The patched file uses a
+# wildcard so lld doesn't fail on modules that implement only a subset.
 samu -C build
 DESTDIR=$dest muon -C build install
