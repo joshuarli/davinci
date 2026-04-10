@@ -17,10 +17,24 @@ proc build(dest) {
     install -Dm4755 target/release/su "${dest}/usr/bin/su"
     install -Dm755 target/release/visudo "${dest}/usr/bin/visudo"
 
-    mkdir -p "${dest}/etc"
+    mkdir -p "${dest}/etc" "${dest}/etc/pam.d"
+
+    # NOPASSWD for wheel — josh has no password in the dev VM.
     cat > "${dest}/etc/sudoers" << 'EOF'
 root ALL=(ALL:ALL) ALL
-%wheel ALL=(ALL:ALL) ALL
+%wheel ALL=(ALL:ALL) NOPASSWD: ALL
 EOF
     chmod 440 "${dest}/etc/sudoers"
+
+    # PAM configuration for sudo-rs.  Without these files libpam aborts with
+    # "Critical error" before sudo even reads sudoers.  pam_permit lets all
+    # auth/account checks pass; pam_unix records the session in wtmp.
+    for svc in (:| sudo sudo-rs su |) {
+        cat > "${dest}/etc/pam.d/${svc}" << 'EOF'
+auth     sufficient  pam_permit.so
+account  sufficient  pam_permit.so
+password sufficient  pam_permit.so
+session  optional    pam_unix.so
+EOF
+    }
 }
