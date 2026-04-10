@@ -34,7 +34,7 @@ jobs:
           ENV DEBIAN_FRONTEND=noninteractive
           RUN apt-get update && apt-get install -y --no-install-recommends \
                 cmake ninja-build gcc g++ golang-go make pkg-config wget \
-                ca-certificates && rm -rf /var/lib/apt/lists/*
+                xz-utils ca-certificates && rm -rf /var/lib/apt/lists/*
 
           # Fetch ysh from R2 — Ubuntu wget speaks modern TLS.
           RUN case $(uname -m) in \
