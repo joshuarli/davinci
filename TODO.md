@@ -4,6 +4,13 @@
 
 `rebuild-world.yml` curl job still failing. The Debian bootstrap uses gcc but linking against kominka's boringssl at `/kominka-root/usr/` — need to verify LDFLAGS pass `-L/kominka-root/usr/lib` correctly.
 
+## Package Format (future)
+
+When redesigning to a single PKGBUILD.ysh format:
+- `var nostrip = true` replaces the `nostrip` sentinel file
+- `var deps` / `var mkdeps` replaces `make` suffix convention in depends
+- See REPOSITORY.md for content-addressed cache design
+
 ## Packaging
 
 - openssh (remote access)
