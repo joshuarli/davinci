@@ -30,7 +30,12 @@ jobs:
               KOMINKA_PATH=/packages KOMINKA_ROOT=/kominka-root \
               KOMINKA_COMPRESS=gz KOMINKA_COLOR=0 KOMINKA_PROMPT=0 \
               KOMINKA_FORCE=1 LOGNAME=root HOME=/root
-          RUN pm i zlib boringssl
+          RUN mkdir -p /kominka-root/var/db/kominka/installed/glibc && \
+              echo "2.38 3" > /kominka-root/var/db/kominka/installed/glibc/version && \
+              printf '#!/bin/sh\n:\n' > /kominka-root/var/db/kominka/installed/glibc/build && \
+              chmod +x /kominka-root/var/db/kominka/installed/glibc/build && \
+              true > /kominka-root/var/db/kominka/installed/glibc/manifest && \
+              pm i zlib boringssl
           DEOF
           docker run --name build -e CC=gcc builder sh -c 'pm b curl'
           mkdir -p out && docker cp "build:/root/.cache/kominka/bin/curl@7.80.0-5.tar.gz" out/ && docker rm build
