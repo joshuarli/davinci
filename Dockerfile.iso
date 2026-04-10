@@ -53,10 +53,15 @@ RUN busybox adduser -D -s /bin/sh -u 1000 josh && \
     busybox addgroup josh wheel
 
 # Default environment for pm — inherited by all login shells.
+# curl --version is used to detect if the pre-built curl crashes (SIGILL);
+# if so, fall back to wget until curl is rebuilt from source.
 RUN mkdir -p /etc/profile.d && \
-    printf 'export KOMINKA_PATH=/packages\nexport KOMINKA_ROOT=/\nexport KOMINKA_COMPRESS=gz\n# Prefer curl when it works; fall back to wget. The pre-installed curl may
-# crash with SIGILL until rebuilt from source, at which point curl is used
-# automatically on the next login.\nif /usr/bin/curl --version >/dev/null 2>&1; then export KOMINKA_GET=/usr/bin/curl; else export KOMINKA_GET=/usr/bin/wget; fi\nexport KOMINKA_SU=/usr/bin/su\n' \
+    printf '%s\n' \
+        'export KOMINKA_PATH=/packages' \
+        'export KOMINKA_ROOT=/' \
+        'export KOMINKA_COMPRESS=gz' \
+        'export KOMINKA_SU=/usr/bin/su' \
+        'if /usr/bin/curl --version >/dev/null 2>&1; then export KOMINKA_GET=/usr/bin/curl; else export KOMINKA_GET=/usr/bin/wget; fi' \
         > /etc/profile.d/kominka.sh
 
 # Point wget at the system CA bundle.
