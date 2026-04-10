@@ -29,10 +29,12 @@ jobs:
           FROM ubuntu:24.04
           ARG PKG
           ENV DEBIAN_FRONTEND=noninteractive
+
+          # Packages not yet in R2: provided by apt, pre-registered in Kominka
+          # so pm doesn't try to fetch them from R2.
           RUN apt-get update && apt-get install -y --no-install-recommends \
-                gcc g++ cmake ninja-build golang-go make pkg-config bison \
-                wget xz-utils bzip2 ca-certificates patch perl linux-libc-dev \
-                zlib1g-dev && rm -rf /var/lib/apt/lists/*
+                wget ca-certificates m4 make bison cmake pkg-config git golang-go \
+                && rm -rf /var/lib/apt/lists/*
 
           RUN case $(uname -m) in \
                 x86_64)  ARCH=x86_64-linux-gnu ;; \
@@ -48,8 +50,9 @@ jobs:
 
           RUN mkdir -p /var/db/kominka/installed /var/db/kominka/choices
 
-          # Pre-register packages provided by apt so pm doesn't fetch them from R2.
-          RUN for pkg in glibc linux-headers make pkgconf cmake go zig bison m4; do \
+          # Pre-register: 'core' prevents pm from recursing into glibc/busybox/etc.
+          # The rest are installed from apt above.
+          RUN for pkg in core linux-headers m4 make bison cmake pkgconf git go; do \
                 mkdir -p /var/db/kominka/installed/$pkg && \
                 echo "0 0" > /var/db/kominka/installed/$pkg/version && \
                 printf '#!/bin/sh\n:\n' > /var/db/kominka/installed/$pkg/build && \
@@ -66,14 +69,12 @@ jobs:
               LOGNAME=root \
               HOME=/root
 
-          RUN case $(uname -m) in \
-                x86_64)  ARCH_FLAGS="-march=x86-64-v3" ;; \
-                aarch64) ARCH_FLAGS="-march=armv8-a+lse+crypto" ;; \
-              esac && \
-              CFLAGS="-O2 -DNDEBUG $ARCH_FLAGS" \
-              CXXFLAGS="-O2 -DNDEBUG $ARCH_FLAGS" \
-              LDFLAGS="-static-libgcc" \
-              sh -c "pm b $PKG"
+          # Install build tools: zig, samurai, zlib, bzip2, xz from R2.
+          # (zig cc targets a conservative baseline by default — no explicit
+          # -march needed unlike the GCC-based rebuild-world builds.)
+          RUN pm i build-essential
+
+          RUN sh -c "pm b $PKG"
           DEOF
 
           docker create --name extract builder
