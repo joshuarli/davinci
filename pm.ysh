@@ -68,24 +68,12 @@ var tmp_dir = ''
 
 var time_str = ''
 
-# Current package record — set by pkg_load().
-# Replaces individual globals: repo_dir, repo_ver, repo_rel, repo_name,
-# pkgdeps, pkgmkdeps, sources, checksums*, nostrip.
-var _pkg = {}
-
-# Compatibility aliases — updated whenever _pkg changes.
+# pkg_find sets repo_dir as its output; pkg_load reads it and stores p.dir.
 var repo_dir = ''
-var repo_name = ''
-var repo_ver = ''
-var repo_rel = ''
-var repo_parts = {major: '', minor: '', patch: '', ident: ''}
-var ver_pre = ''
-var rel_pre = ''
-var pkgdeps       = []
-var pkgmkdeps     = []
-var nostrip       = false
-var sources       = []
-var checksums     = []
+
+# PKGBUILD.ysh parse fallbacks — used when a PKGBUILD.ysh does not declare
+# the optional field; the global value is read as the default.
+var nostrip           = false
 var checksums_aarch64 = []
 var checksums_x86_64  = []
 
@@ -210,7 +198,7 @@ proc fnr (input, ...pairs) {
     }
 }
 
-proc fnr_vars (input) {
+proc fnr_vars (input; p Dict) {
     ### Substitute VERSION/RELEASE/MAJOR/MINOR/PATCH/IDENT/PACKAGE in a source line.
     # For each keyword: protect \KEYWORD → sentinel, replace KEYWORD → value, restore.
     setglobal _fnr_val = input
@@ -222,11 +210,16 @@ proc fnr_vars (input) {
         x86_64  { setvar _goarch = 'amd64' }
     }
 
+    # Split version into components for MAJOR/MINOR/PATCH/IDENT substitution.
+    var _vp = p.ver => split(/ '.' | '+' | '-' | '_' /)
+
     var subs = {
-        VERSION: repo_ver, RELEASE: repo_rel,
-        MAJOR: repo_parts['major'], MINOR: repo_parts['minor'],
-        PATCH: repo_parts['patch'], IDENT: repo_parts['ident'],
-        PACKAGE: repo_name,
+        VERSION: p.ver, RELEASE: p.rel,
+        MAJOR: _vp[0] if (len(_vp) > 0) else '',
+        MINOR: _vp[1] if (len(_vp) > 1) else '',
+        PATCH: _vp[2] if (len(_vp) > 2) else '',
+        IDENT: _vp[3] if (len(_vp) > 3) else '',
+        PACKAGE: p.name,
         GOARCH: _goarch, ARCH: _arch,
     }
     for key, val in (subs) {
@@ -370,41 +363,27 @@ proc _sh256 (...files) {
     write -- $hash
 }
 
-proc _pkg_sync_compat () {
-    ### Sync compatibility aliases from _pkg dict.
-    setglobal repo_dir          = _pkg.dir
-    setglobal repo_name         = _pkg.name
-    setglobal repo_ver          = _pkg.ver
-    setglobal repo_rel          = _pkg.rel
-    setglobal pkgdeps           = _pkg.deps
-    setglobal pkgmkdeps         = _pkg.mkdeps
-    setglobal nostrip           = _pkg.nostrip
-    setglobal sources           = _pkg.sources
-    setglobal checksums         = _pkg.checksums
-    setglobal checksums_aarch64 = _pkg.checksums_aarch64
-    setglobal checksums_x86_64  = _pkg.checksums_x86_64
-}
-
-proc pkg_load (pkg_dir) {
-    ### Load a package from pkg_dir into _pkg dict.
-    # Supports both PKGBUILD.ysh (repo packages) and version/depends
-    # (installed package db entries).
+proc pkg_load (pkg_dir; result Ref = null) {
+    ### Load a package from pkg_dir into a dict and return it via out-param.
+    # Supports both PKGBUILD.ysh (repo packages) and version/depends files
+    # (installed db entries).
+    var d = {}
     if test -f "${pkg_dir}/PKGBUILD.ysh" {
-        # Reset defaults before sourcing.
+        # Declare required fields as locals so stale values don't leak if
+        # PKGBUILD.ysh somehow omits them. Optional fields (nostrip,
+        # checksums_aarch64, checksums_x86_64) fall back to the globals
+        # declared at the top of this file when PKGBUILD.ysh omits them.
         var name = ${pkg_dir##*/}
         var ver  = ''
         var rel  = ''
         var deps    = []
         var mkdeps  = []
-        var nostrip_local = false
-        var sources_local = []
-        var checksums_local = []
-        var checksums_aarch64_local = []
-        var checksums_x86_64_local  = []
+        var sources   = []
+        var checksums = []
 
         source "${pkg_dir}/PKGBUILD.ysh"
 
-        setglobal _pkg = {
+        setvar d = {
             dir:              pkg_dir,
             name:             name,
             ver:              ver,
@@ -439,7 +418,7 @@ proc pkg_load (pkg_dir) {
             } < "${pkg_dir}/depends"
         }
 
-        setglobal _pkg = {
+        setvar d = {
             dir:              pkg_dir,
             name:             ${pkg_dir##*/},
             ver:              _ver,
@@ -456,32 +435,11 @@ proc pkg_load (pkg_dir) {
         die "${pkg_dir##*/}" "No PKGBUILD.ysh or version file in $pkg_dir"
     }
 
-    _pkg_sync_compat
-}
+    # Keep repo_dir in sync — callers use `pkg_load $repo_dir (&p)` where
+    # repo_dir was just set by _pkg_find; this ensures p.dir === repo_dir.
+    setglobal repo_dir = d.dir
 
-proc pkg_find_version (pkg, arg2='', arg3='', search_path='') {
-    setglobal ver_pre = repo_ver
-    setglobal rel_pre = repo_rel
-
-    pkg_find $pkg $arg2 $arg3 $search_path
-    pkg_load $repo_dir
-
-    if (_pkg.ver === '') { die $pkg "ver not set in PKGBUILD.ysh" }
-    if (_pkg.rel === '') { die $pkg "rel not set in PKGBUILD.ysh" }
-}
-
-proc _pkg_load_pkgbuild () {
-    ### Compatibility shim — use pkg_load instead.
-    pkg_load $repo_dir
-}
-
-proc pkg_find_version_split (...args) {
-    pkg_find_version @args
-
-    var vp = _pkg.ver => split(/ '.' | '+' | '-' | '_' /)
-    for i, vpart_name in (:| major minor patch ident |) {
-        setglobal repo_parts[vpart_name] = vp[i] if (i < len(vp)) else ''
-    }
+    if (result !== null) { call result->setValue(d) }
 }
 
 proc pkg_find (name, mode='', test_flag='', search_path='') {
@@ -515,9 +473,7 @@ proc _pkg_find (name, mode='', test_flag='', search_path='') {
     }
 
     if (mode === '') {
-        var first = results[0]
-        setglobal repo_dir = first
-        setglobal repo_name = ${first##*/}
+        setglobal repo_dir = results[0]
     } else {
         for r in (results) {
             write -- $r
@@ -576,9 +532,11 @@ proc pkg_list_version (...pkgs) {
         setvar pkgs = @[glob("${sys_db}/*")]
     }
 
+    var p = null
     for list_pkg in (pkgs) {
-        pkg_find_version "${list_pkg##*/}" '' '' $sys_db
-        write -- "$repo_name $repo_ver-$repo_rel"
+        pkg_find "${list_pkg##*/}" '' '' $sys_db
+        pkg_load $repo_dir (&p)
+        write -- "$[p.name] $[p.ver]-$[p.rel]"
     }
 }
 
@@ -601,18 +559,20 @@ proc pkg_upload (pkg) {
         }
         * {
             # Package name: find tarball in bin cache.
-            pkg_find_version $pkg
+            pkg_find $pkg
+            var _p = null
+            pkg_load $repo_dir (&_p)
             setvar _pkg = pkg
-            setvar _tarball = "${bin_dir}/${pkg}@${repo_ver}-${repo_rel}.tar.${KOMINKA_COMPRESS}"
+            setvar _tarball = "${bin_dir}/${pkg}@$[_p.ver]-$[_p.rel].tar.${KOMINKA_COMPRESS}"
             if ! test -f $_tarball {
-                for f in @[glob("${bin_dir}/${pkg}@${repo_ver}-${repo_rel}.tar.*")] {
+                for f in @[glob("${bin_dir}/${pkg}@$[_p.ver]-$[_p.rel].tar.*")] {
                     setvar _tarball = f
                 }
             }
             if ! test -f $_tarball {
                 die $pkg "No tarball found — build it first"
             }
-            setvar _verrel = "${repo_ver}-${repo_rel}"
+            setvar _verrel = "$[_p.ver]-$[_p.rel]"
         }
     }
 
@@ -629,26 +589,28 @@ proc pkg_upload (pkg) {
 
 proc pkg_cache (pkg) {
     ### Find the tarball of a package in the binary cache.
-    pkg_find_version $pkg
+    pkg_find $pkg
+    var p = null
+    pkg_load $repo_dir (&p)
 
-    setglobal tar_file = "${bin_dir}/${pkg}@${repo_ver}-${repo_rel}.tar.${KOMINKA_COMPRESS}"
+    setglobal tar_file = "${bin_dir}/${pkg}@$[p.ver]-$[p.rel].tar.${KOMINKA_COMPRESS}"
 
     if test -f $tar_file {
         return 0
     }
 
     # Try any compression.
-    for f in @[glob("${bin_dir}/${pkg}@${repo_ver}-${repo_rel}.tar.*")] {
+    for f in @[glob("${bin_dir}/${pkg}@$[p.ver]-$[p.rel].tar.*")] {
         setglobal tar_file = f
         return 0
     }
 
     # Try remote binary mirror: {arch}/{package}/{version}-{release}.tar.gz
     if (KOMINKA_BIN_MIRROR !== '') {
-        var _remote_name = "${repo_ver}-${repo_rel}.tar.${KOMINKA_COMPRESS}"
+        var _remote_name = "$[p.ver]-$[p.rel].tar.${KOMINKA_COMPRESS}"
         var _remote_url = "${KOMINKA_BIN_MIRROR}/${sys_arch}/${pkg}/${_remote_name}"
-        setglobal tar_file = "${bin_dir}/${pkg}@${repo_ver}-${repo_rel}.tar.${KOMINKA_COMPRESS}"
-        try { pkg_source_url $tar_file $_remote_url 'n' }
+        setglobal tar_file = "${bin_dir}/${pkg}@$[p.ver]-$[p.rel].tar.${KOMINKA_COMPRESS}"
+        try { pkg_source_url $tar_file $_remote_url 'n' (p) }
         if ! failed { return 0 }
     }
 
@@ -660,7 +622,7 @@ proc _resolve_found (quiet) {
     if (quiet === '') { write -- "found $_res" }
 }
 
-proc pkg_source_resolve (pkg, src, dest='', quiet='') {
+proc pkg_source_resolve (src, dest='', quiet=''; p Dict) {
     ### Resolve a source line to an absolute path.
     setglobal _res = ''
     setglobal _des = ''
@@ -672,7 +634,7 @@ proc pkg_source_resolve (pkg, src, dest='', quiet='') {
 
     var clean_src = ${src%"${src##*[!/]}"}
 
-    fnr_vars $clean_src
+    fnr_vars $clean_src (p)
 
     var resolved_src = _fnr_val
     var clean_dest = ${dest%"${dest##*[!/]}"}
@@ -682,13 +644,13 @@ proc pkg_source_resolve (pkg, src, dest='', quiet='') {
         setglobal _res = resolved_src
         var base = ${resolved_src##*/}
         setvar base = ${base%[@#]*}
-        setglobal _des = "${src_dir}/${pkg}/${clean_dest:+"${clean_dest}/"}${base}/"
+        setglobal _des = "${src_dir}/$[p.name]/${clean_dest:+"${clean_dest}/"}${base}/"
         _resolve_found $quiet
         return
     }
 
     # Remote source (cached).
-    var cached = "${src_dir}/${pkg}/${clean_dest:+"${clean_dest}/"}${resolved_src##*/}"
+    var cached = "${src_dir}/$[p.name]/${clean_dest:+"${clean_dest}/"}${resolved_src##*/}"
     if test -f $cached {
         setglobal _res = cached
         _resolve_found $quiet
@@ -706,8 +668,8 @@ proc pkg_source_resolve (pkg, src, dest='', quiet='') {
     }
 
     # Local relative directory.
-    if test -d "${repo_dir}/${resolved_src}" {
-        setglobal _res = "${repo_dir}/${resolved_src}/."
+    if test -d "$[p.dir]/${resolved_src}" {
+        setglobal _res = "$[p.dir]/${resolved_src}/."
         _resolve_found $quiet
         return
     }
@@ -720,8 +682,8 @@ proc pkg_source_resolve (pkg, src, dest='', quiet='') {
     }
 
     # Local relative file.
-    if test -f "${repo_dir}/${resolved_src}" {
-        setglobal _res = "${repo_dir}/${resolved_src}"
+    if test -f "$[p.dir]/${resolved_src}" {
+        setglobal _res = "$[p.dir]/${resolved_src}"
         _resolve_found $quiet
         return
     }
@@ -733,26 +695,25 @@ proc pkg_source_resolve (pkg, src, dest='', quiet='') {
         return
     }
 
-    die $pkg "No local file '$resolved_src'"
+    die $[p.name] "No local file '$resolved_src'"
 }
 
-proc pkg_source (pkg, checksum_mode='') {
+proc pkg_source (checksum_mode=''; p Dict) {
     ### Download any remote package sources.
-    pkg_find_version_split $pkg
 
     # Support packages without sources.
-    if (len(sources) === 0) { return }
+    if (len(p.sources) === 0) { return }
 
-    log $pkg "Reading sources"
+    log $[p.name] "Reading sources"
 
-    for src_line in (sources) {
+    for src_line in (p.sources) {
         var src  = ${src_line%% *}
         var dest = ''
         if (src_line !== src) { setvar dest = ${src_line#* } }
 
-        pkg_source_resolve $pkg $src $dest $checksum_mode
+        pkg_source_resolve $src $dest $checksum_mode (p)
 
-        run_hook pre-source $pkg $src $_fnr_val
+        run_hook pre-source $[p.name] $src $_fnr_val
 
         # Download remote or clone git sources.
         var src_key = "${checksum_mode}${_res}"
@@ -765,22 +726,22 @@ proc pkg_source (pkg, checksum_mode='') {
 
                 if (src_type === 'url' and KOMINKA_MIRROR !== '') {
                     var mirror_file = ${src_url##*/}
-                    var mirror_url = "${KOMINKA_MIRROR}/${pkg}/${mirror_file}"
-                    try { pkg_source_url $_des $mirror_url 'n' }
+                    var mirror_url = "${KOMINKA_MIRROR}/$[p.name]/${mirror_file}"
+                    try { pkg_source_url $_des $mirror_url 'n' (p) }
                     if ! failed { continue }
-                    war $repo_name "Mirror unavailable, trying upstream"
+                    war $[p.name] "Mirror unavailable, trying upstream"
                 }
 
-                "pkg_source_${src_type}" $_des $src_url
+                "pkg_source_${src_type}" $_des $src_url (p)
             }
         }
 
-        run_hook post-source $pkg $src "${_des:-"$_res"}"
+        run_hook post-source $[p.name] $src "${_des:-"$_res"}"
     }
 }
 
-proc pkg_source_url (dest, url, fatal='y') {
-    log $repo_name "Downloading $url"
+proc pkg_source_url (dest, url, fatal='y'; p Dict) {
+    log $[p.name] "Downloading $url"
 
     case (cmd_get) {
         */curl {
@@ -795,17 +756,17 @@ proc pkg_source_url (dest, url, fatal='y') {
     if failed {
         rm -f $dest
         if (fatal === 'y') {
-            die $repo_name "Failed to download $url"
+            die $[p.name] "Failed to download $url"
         }
         return 1
     }
 }
 
-proc pkg_source_git (dest, url) {
+proc pkg_source_git (dest, url; p Dict) {
     var com = ${url##*[@#]}
     setvar com = ${com#${url%[#@]*}}
 
-    log $repo_name "Checking out ${com:-FETCH_HEAD}"
+    log $[p.name] "Checking out ${com:-FETCH_HEAD}"
 
     if ! test -d .git {
         git init
@@ -821,7 +782,7 @@ proc pkg_source_git (dest, url) {
 
     try { git fetch @fetch_args }
     if failed {
-        war $repo_name "Partial clone rejected, retrying full fetch"
+        war $[p.name] "Partial clone rejected, retrying full fetch"
         var fallback = ['origin']
         if (com !== '') { call fallback->append(com) }
         git fetch @fallback
@@ -829,20 +790,20 @@ proc pkg_source_git (dest, url) {
     git reset --hard FETCH_HEAD
 }
 
-proc pkg_source_tar (file) {
+proc pkg_source_tar (file; p Dict) {
     ### Portable --strip-components 1 for tar extraction.
-    tmp_file $repo_name tarball
-    tmp_file $repo_name tarball-manifest
+    tmp_file $[p.name] tarball
+    tmp_file $[p.name] tarball-manifest
 
     try { decompress $file > $[tf[-2]] }
-    if failed { die $repo_name "Failed to decompress $file" }
+    if failed { die $[p.name] "Failed to decompress $file" }
 
     try { tar xf $[tf[-2]] }
-    if failed { die $repo_name "Failed to extract $file" }
+    if failed { die $[p.name] "Failed to extract $file" }
 
     # Get unique top-level directories.
     try { tar tf $[tf[-2]] | sort -ut / -k1,1 > $[tf[-1]] }
-    if failed { die $repo_name "Failed to extract manifest" }
+    if failed { die $[p.name] "Failed to extract manifest" }
 
     while read --raw-line {
         var _parts = _reply => split('/')
@@ -867,26 +828,26 @@ proc pkg_source_tar (file) {
     rm -f $[tf[-2]]
 }
 
-proc pkg_extract (pkg) {
+proc pkg_extract (; p Dict) {
     ### Extract all source archives to the build directory.
-    log $pkg "Extracting sources"
+    log $[p.name] "Extracting sources"
 
-    run_hook pre-extract $pkg "${pkg_dir}/${pkg}"
+    run_hook pre-extract $[p.name] "${pkg_dir}/$[p.name]"
 
-    for src_line in (sources) {
+    for src_line in (p.sources) {
         var src  = ${src_line%% *}
         var dest = ''
         if (src_line !== src) { setvar dest = ${src_line#* } }
 
-        pkg_source_resolve $pkg $src $dest >/dev/null
+        pkg_source_resolve $src $dest >/dev/null (p)
 
         if (_res !== '') {
-            mkcd "${mak_dir}/${pkg}/${dest}"
+            mkcd "${mak_dir}/$[p.name]/${dest}"
         }
 
         case (_res) {
             git+*                                        { cp -LRf "${_des}/." . }
-            *.tar | *.tar.?? | *.tar.??? | *.tar.???? | *.t?z { pkg_source_tar $_res }
+            *.tar | *.tar.?? | *.tar.??? | *.tar.???? | *.t?z { pkg_source_tar $_res (p) }
             ?*                                           { cp -LRf $_res . }
         }
     }
@@ -926,14 +887,13 @@ proc pkg_depends (pkg, mode='', filter='', chain='', dep_type='') {
     # Recurse through child dependencies.
     try { _pkg_find $pkg }
     if (_status === 0) {
-        pkg_load $repo_dir
-        var _this_deps   = _pkg.deps
-        var _this_mkdeps = _pkg.mkdeps
-        for dep in (_this_deps) {
+        var p = null
+        pkg_load $repo_dir (&p)
+        for dep in (p.deps) {
             if test -d "${sys_db}/${dep}" { continue }
             pkg_depends $dep '' $filter "$chain $pkg" ''
         }
-        for dep in (_this_mkdeps) {
+        for dep in (p.mkdeps) {
             if test -d "${sys_db}/${dep}" { continue }
             pkg_depends $dep '' $filter "$chain $pkg" 'make'
         }
@@ -1026,44 +986,44 @@ proc pkg_clean_dev (pkg) {
     }
 }
 
-proc pkg_strip (pkg) {
+proc pkg_strip (; p Dict) {
     ### Strip package binaries and libraries.
-    if (nostrip === true) { return }
-    if test -f "${mak_dir}/${pkg}/nostrip" { return }
+    if (p.nostrip === true) { return }
+    if test -f "${mak_dir}/$[p.name]/nostrip" { return }
     if (KOMINKA_STRIP === '0') {
         return
     }
 
-    log $pkg "Stripping binaries and libraries"
+    log $[p.name] "Stripping binaries and libraries"
 
     while read -r file {
-        if test -h "${pkg_dir}/${pkg}${file}" { continue }
+        if test -h "${pkg_dir}/$[p.name]${file}" { continue }
 
         case (file) {
             */sbin/?*[!/] | */bin/?*[!/] | */lib/?*[!/] | \
             */lib??/?*[!/] | */lib???/?*[!/] | */lib????/?*[!/] {
-                var od_out = $(od -A o -t c -N 18 "${pkg_dir}/${pkg}${file}")
+                var od_out = $(od -A o -t c -N 18 "${pkg_dir}/$[p.name]${file}")
 
                 # REL (object files (.o), static libraries (.a)).
                 if (od_out ~ / '177' dot* 'E' dot* 'L' dot* 'F' dot* '0000020 001' / or
                     od_out ~ / '!' dot* '<' dot* 'a' dot* 'r' dot* 'c' dot* 'h' dot* '>' /) {
-                    run strip -g -R .comment -R .note "${pkg_dir}/${pkg}${file}"
+                    run strip -g -R .comment -R .note "${pkg_dir}/$[p.name]${file}"
 
                 # EXEC (binaries), DYN (shared libraries).
                 } elif (od_out ~ / '177' dot* 'E' dot* 'L' dot* 'F' dot* '0000020 00' [2 3] /) {
-                    run strip -s -R .comment -R .note "${pkg_dir}/${pkg}${file}"
+                    run strip -s -R .comment -R .note "${pkg_dir}/$[p.name]${file}"
                 }
             }
         }
-    } < "${pkg_dir}/${pkg}/${pkg_db}/${pkg}/manifest"
+    } < "${pkg_dir}/$[p.name]/${pkg_db}/$[p.name]/manifest"
 }
 
-proc pkg_fix_deps (pkg, ...manifests) {
+proc pkg_fix_deps (...manifests; p Dict) {
     ### Dynamically find missing runtime dependencies using ldd/readelf.
-    log $pkg "looking for dependencies (using ${cmd_elf##*/})"
+    log $[p.name] "looking for dependencies (using ${cmd_elf##*/})"
 
-    tmp_file_copy $pkg depends depends
-    tmp_file $pkg depends-fixed
+    tmp_file_copy $[p.name] depends depends
+    tmp_file $[p.name] depends-fixed
 
     if (len(manifests) === 0) {
         setvar manifests = @[glob("${sys_db}/*/manifest")]
@@ -1079,11 +1039,11 @@ proc pkg_fix_deps (pkg, ...manifests) {
             */lib??/?*[!/] | */lib???/?*[!/] | */lib????/?*[!/] {
 
                 var ldd_out = ''
-                try { setvar ldd_out = $(ldd -- "${pkg_dir}/${repo_name}${_file}" 2>/dev/null) }
+                try { setvar ldd_out = $(ldd -- "${pkg_dir}/$[p.name]${_file}" 2>/dev/null) }
                 if failed { continue }
 
                 var elf_out = ''
-                try { setvar elf_out = $($cmd_elf -d "${pkg_dir}/${repo_name}${_file}" 2>/dev/null) }
+                try { setvar elf_out = $($cmd_elf -d "${pkg_dir}/$[p.name]${_file}" 2>/dev/null) }
                 if failed { setvar elf_out = ldd_out }
 
                 for lib_line in @(echo $elf_out) {
@@ -1200,11 +1160,11 @@ proc pkg_manifest_replace (pkg, old_entry, new_entry) {
     mv -f $[tf[-1]] "${sys_db}/${pkg}/manifest"
 }
 
-proc pkg_etcsums () {
+proc pkg_etcsums (; p Dict) {
     ### Generate checksums for /etc/ configuration files.
-    log $repo_name "Generating etcsums"
+    log $[p.name] "Generating etcsums"
 
-    if ! test -d "${pkg_dir}/${repo_name}/etc" {
+    if ! test -d "${pkg_dir}/$[p.name]/etc" {
         return
     }
 
@@ -1212,20 +1172,20 @@ proc pkg_etcsums () {
     while read -r etc {
         # Match /etc/ files that don't end in /
         if (etc => startsWith('/etc/') and not etc => endsWith('/')) {
-            call etc_files->insert(0, "${pkg_dir}/${repo_name}/${etc}")
+            call etc_files->insert(0, "${pkg_dir}/$[p.name]/${etc}")
         }
     } < manifest
 
     sh256 @etc_files > etcsums
 }
 
-proc pkg_tar (pkg) {
+proc pkg_tar (; p Dict) {
     ### Create a compressed tarball from the built package.
-    log $pkg "Creating tarball"
+    log $[p.name] "Creating tarball"
 
-    var tf_path = "${bin_dir}/${pkg}@${repo_ver}-${repo_rel}.tar.${KOMINKA_COMPRESS}"
+    var tf_path = "${bin_dir}/$[p.name]@$[p.ver]-$[p.rel].tar.${KOMINKA_COMPRESS}"
 
-    cd "${pkg_dir}/${pkg}"
+    cd "${pkg_dir}/$[p.name]"
 
     tar cf - . | case (KOMINKA_COMPRESS) {
         bz2  { bzip2 -z }
@@ -1238,9 +1198,9 @@ proc pkg_tar (pkg) {
 
     cd $OLDPWD
 
-    log $pkg "Successfully created tarball"
+    log $[p.name] "Successfully created tarball"
 
-    run_hook post-package $pkg $tf_path
+    run_hook post-package $[p.name] $tf_path
 }
 
 proc pkg_build_all (...pkgs) {
@@ -1313,10 +1273,13 @@ proc pkg_build_all (...pkgs) {
         call to_build->append(pkg)
     }
 
+    var p = null
     for pkg in (to_build) {
-        pkg_source $pkg
-        if test -f "${repo_dir}/sources" {
-            pkg_verify $pkg
+        pkg_find $pkg
+        pkg_load $repo_dir (&p)
+        pkg_source (p)
+        if (len(p.sources) > 0) {
+            pkg_verify (p)
         }
     }
 
@@ -1326,24 +1289,25 @@ proc pkg_build_all (...pkgs) {
         setvar build_cur += 1
         log $pkg "Building package ($build_cur/$[len(to_build)])"
 
-        pkg_find_version_split $pkg
+        pkg_find $pkg
+        pkg_load $repo_dir (&p)
 
         run_hook queue $pkg $build_cur $[len(to_build)]
 
-        if (len(sources) > 0) {
-            pkg_extract $pkg
+        if (len(p.sources) > 0) {
+            pkg_extract (p)
         }
 
-        pkg_build $pkg
+        pkg_build (p)
         pkg_clean_dev $pkg
         pkg_manifest $pkg $pkg_dir
-        pkg_strip $pkg
+        pkg_strip (p)
 
         cd "${pkg_dir}/${pkg}/${pkg_db}/${pkg}"
 
-        pkg_fix_deps $pkg
-        pkg_etcsums
-        pkg_tar $pkg
+        pkg_fix_deps (p)
+        pkg_etcsums (p)
+        pkg_tar (p)
 
         if (prefer_cache === '1' or not (pkg in explicit_seen)) {
             log $pkg "Needed as a dependency or has an update, installing"
@@ -1363,21 +1327,21 @@ proc pkg_build_all (...pkgs) {
     }
 }
 
-proc pkg_build (pkg) {
+proc pkg_build (; p Dict) {
     ### Run the package's build script.
-    mkcd "${mak_dir}/${pkg}" "${pkg_dir}/${pkg}/${pkg_db}"
+    mkcd "${mak_dir}/$[p.name]" "${pkg_dir}/$[p.name]/${pkg_db}"
 
-    log $pkg "Starting build"
+    log $[p.name] "Starting build"
 
-    run_hook pre-build $pkg "${mak_dir}/${pkg}"
+    run_hook pre-build $[p.name] "${mak_dir}/$[p.name]"
 
     # Create log file early to catch permission errors.
-    true > "${log_dir}/${pkg}-${time_str}-${KOMINKA_PID}"
+    true > "${log_dir}/$[p.name]-${time_str}-${KOMINKA_PID}"
 
     # Source PKGBUILD.ysh inside the pipe subshell so its `var` declarations
     # stay local to the subshell and don't shadow pm globals.
     {
-        source "${repo_dir}/PKGBUILD.ysh"
+        source "$[p.dir]/PKGBUILD.ysh"
 
         setglobal ENV.AR          = "${AR:-ar}"
         setglobal ENV.MAKEFLAGS   = "${MAKEFLAGS:--j${_nproc}}"
@@ -1387,56 +1351,60 @@ proc pkg_build (pkg) {
         setglobal ENV.CXXFLAGS    = "${CXXFLAGS:--O2 -DNDEBUG}"
         setglobal ENV.NM          = "${NM:-nm}"
         setglobal ENV.RANLIB      = "${RANLIB:-ranlib}"
-        setglobal ENV.DESTDIR     = "${pkg_dir}/${pkg}"
+        setglobal ENV.DESTDIR     = "${pkg_dir}/$[p.name]"
         setglobal ENV.RUSTFLAGS   = "--remap-path-prefix=$PWD=. ${RUSTFLAGS:-}"
         setglobal ENV.GOFLAGS     = "-trimpath -modcacherw ${GOFLAGS:-}"
         setglobal ENV.GOPATH      = "${PWD}/go"
         setglobal ENV.KOMINKA_ROOT = KOMINKA_ROOT
 
-        build "${pkg_dir}/${pkg}" 2>&1
-        write -- $? > "${log_dir}/${pkg}-${time_str}-${KOMINKA_PID}.exit"
-    } | tee "${log_dir}/${pkg}-${time_str}-${KOMINKA_PID}"
+        build "${pkg_dir}/$[p.name]" 2>&1
+        write -- $? > "${log_dir}/$[p.name]-${time_str}-${KOMINKA_PID}.exit"
+    } | tee "${log_dir}/$[p.name]-${time_str}-${KOMINKA_PID}"
 
-    var _build_exit = $(cat "${log_dir}/${pkg}-${time_str}-${KOMINKA_PID}.exit" 2>/dev/null || echo 1)
-    rm -f "${log_dir}/${pkg}-${time_str}-${KOMINKA_PID}.exit"
+    var _build_exit = $(cat "${log_dir}/$[p.name]-${time_str}-${KOMINKA_PID}.exit" 2>/dev/null || echo 1)
+    rm -f "${log_dir}/$[p.name]-${time_str}-${KOMINKA_PID}.exit"
 
     if (_build_exit !== '0') {
-        log $pkg "Build failed"
-        log $pkg "Log stored to ${log_dir}/${pkg}-${time_str}-${KOMINKA_PID}"
+        log $[p.name] "Build failed"
+        log $[p.name] "Log stored to ${log_dir}/$[p.name]-${time_str}-${KOMINKA_PID}"
 
-        try { forkwait { run_hook build-fail $pkg "${mak_dir}/${pkg}" } }
+        try { forkwait { run_hook build-fail $[p.name] "${mak_dir}/$[p.name]" } }
 
         pkg_clean
         kill 0
     }
 
     if (KOMINKA_KEEPLOG !== '1') {
-        rm -f "${log_dir}/${pkg}-${time_str}-${KOMINKA_PID}"
+        rm -f "${log_dir}/$[p.name]-${time_str}-${KOMINKA_PID}"
     }
 
-    cp -LRf $repo_dir "${pkg_dir}/${pkg}/${pkg_db}/"
+    cp -LRf $[p.dir] "${pkg_dir}/$[p.name]/${pkg_db}/"
 
-    # Generate a depends file from pkgdeps/pkgmkdeps for pkg_installable.
-    var _deps_path = "${pkg_dir}/${pkg}/${pkg_db}/${repo_name}/depends"
+    # Generate a depends file from p.deps/p.mkdeps for pkg_installable.
+    var _deps_path = "${pkg_dir}/$[p.name]/${pkg_db}/$[p.name]/depends"
     true > $_deps_path
-    for d in (pkgdeps)   { write -- $d        >> $_deps_path }
-    for d in (pkgmkdeps) { write -- "$d make" >> $_deps_path }
+    for d in (p.deps)   { write -- $d        >> $_deps_path }
+    for d in (p.mkdeps) { write -- "$d make" >> $_deps_path }
 
     # Write version file.
-    write -- "$repo_ver $repo_rel" > "${pkg_dir}/${pkg}/${pkg_db}/${repo_name}/version"
+    write -- "$[p.ver] $[p.rel]" > "${pkg_dir}/$[p.name]/${pkg_db}/$[p.name]/version"
 
-    log $pkg "Successfully built package"
+    log $[p.name] "Successfully built package"
 
-    run_hook post-build $pkg "${pkg_dir}/${pkg}"
+    run_hook post-build $[p.name] "${pkg_dir}/$[p.name]"
 }
 
 proc pkg_checksum (pkg) {
     ### Download sources and print checksums for pasting into PKGBUILD.ysh.
-    pkg_source $pkg c
+    pkg_find $pkg
+    var p = null
+    pkg_load $repo_dir (&p)
 
-    if (len(sources) === 0) { return }
+    pkg_source 'c' (p)
 
-    pkg_checksum_gen
+    if (len(p.sources) === 0) { return }
+
+    pkg_checksum_gen (p)
 
     if (hash !== '') {
         log $pkg "Generated checksums"
@@ -1445,16 +1413,16 @@ proc pkg_checksum (pkg) {
     }
 }
 
-proc pkg_checksum_gen () {
+proc pkg_checksum_gen (; p Dict) {
     ### Generate checksums for a package's sources.
     var files = []
 
-    for src_line in (sources) {
+    for src_line in (p.sources) {
         var src  = ${src_line%% *}
         var dest = ''
         if (src_line !== src) { setvar dest = ${src_line#* } }
 
-        pkg_source_resolve $repo_name $src $dest >/dev/null
+        pkg_source_resolve $src $dest >/dev/null (p)
 
         var _res_stripped = ${_res##git+*}
         case (_res_stripped) {
@@ -1465,20 +1433,20 @@ proc pkg_checksum_gen () {
     _sh256 @files
 }
 
-proc pkg_verify (pkg) {
+proc pkg_verify (; p Dict) {
     ### Verify package checksums against the stored checksums in PKGBUILD.ysh.
     # Prefer arch-specific: checksums_aarch64 / checksums_x86_64.
     var _arch = ${sys_arch%%-*}
     var _stored = []
     case (_arch) {
-        aarch64 { if (len(checksums_aarch64) > 0) { setvar _stored = checksums_aarch64 } }
-        x86_64  { if (len(checksums_x86_64)  > 0) { setvar _stored = checksums_x86_64  } }
+        aarch64 { if (len(p.checksums_aarch64) > 0) { setvar _stored = p.checksums_aarch64 } }
+        x86_64  { if (len(p.checksums_x86_64)  > 0) { setvar _stored = p.checksums_x86_64  } }
     }
-    if (len(_stored) === 0) { setvar _stored = checksums }
+    if (len(_stored) === 0) { setvar _stored = p.checksums }
 
-    log $repo_name "Verifying sources"
+    log $[p.name] "Verifying sources"
 
-    pkg_checksum_gen >/dev/null
+    pkg_checksum_gen >/dev/null (p)
 
     var new_sums = @(echo $hash)
     var idx = 0
@@ -1497,7 +1465,7 @@ proc pkg_verify (pkg) {
         write -- "+ $expected"
 
         if (expected !== stored_sum and stored_sum !== 'SKIP') {
-            die $repo_name "Checksum mismatch"
+            die $[p.name] "Checksum mismatch"
         }
         setvar idx += 1
     }
@@ -1829,26 +1797,28 @@ proc pkg_install_all (...pkgs) {
     var urls = {}
     var dests = {}
     var dl_names = []
+    var p = null
     for pkg in (pkgs) {
         case (pkg) { *.tar.* { continue } }
-        pkg_find_version $pkg
+        pkg_find $pkg
+        pkg_load $repo_dir (&p)
 
         # Metapackages (no sources) don't have tarballs to download.
-        if (len(sources) === 0) { continue }
+        if (len(p.sources) === 0) { continue }
 
-        var _name = "${pkg}@${repo_ver}-${repo_rel}.tar.${KOMINKA_COMPRESS}"
+        var _name = "${pkg}@$[p.ver]-$[p.rel].tar.${KOMINKA_COMPRESS}"
         var _dest = "${bin_dir}/${_name}"
 
         # Already cached locally — skip.
         if test -f $_dest { continue }
         var _found = false
-        for f in @[glob("${bin_dir}/${pkg}@${repo_ver}-${repo_rel}.tar.*")] {
+        for f in @[glob("${bin_dir}/${pkg}@$[p.ver]-$[p.rel].tar.*")] {
             setvar _found = true
         }
         if (_found) { continue }
 
         if (KOMINKA_BIN_MIRROR !== '') {
-            var _url = "${KOMINKA_BIN_MIRROR}/${sys_arch}/${pkg}/${repo_ver}-${repo_rel}.tar.${KOMINKA_COMPRESS}"
+            var _url = "${KOMINKA_BIN_MIRROR}/${sys_arch}/${pkg}/$[p.ver]-$[p.rel].tar.${KOMINKA_COMPRESS}"
             setvar urls[pkg] = _url
             setvar dests[pkg] = _dest
             call dl_names->append(pkg)
@@ -1942,13 +1912,15 @@ proc pkg_install (pkg) {
             try { pkg_cache $pkg }
             if failed {
                 # Metapackage — no sources, no tarball. Just register as installed.
-                pkg_find_version $pkg
-                if (len(sources) === 0) {
+                pkg_find $pkg
+                var p = null
+                pkg_load $repo_dir (&p)
+                if (len(p.sources) === 0) {
                     mkdir -p "${sys_db}/${pkg}"
-                    write -- "$repo_ver $repo_rel" > "${sys_db}/${pkg}/version"
+                    write -- "$[p.ver] $[p.rel]" > "${sys_db}/${pkg}/version"
                     true > "${sys_db}/${pkg}/depends"
-                    for d in (pkgdeps)   { write -- $d        >> "${sys_db}/${pkg}/depends" }
-                    for d in (pkgmkdeps) { write -- "$d make"  >> "${sys_db}/${pkg}/depends" }
+                    for d in (p.deps)   { write -- $d        >> "${sys_db}/${pkg}/depends" }
+                    for d in (p.mkdeps) { write -- "$d make"  >> "${sys_db}/${pkg}/depends" }
                     printf '#!/bin/sh\n:\n' > "${sys_db}/${pkg}/build"
                     chmod +x "${sys_db}/${pkg}/build"
                     true > "${sys_db}/${pkg}/manifest"
@@ -2088,25 +2060,27 @@ proc pkg_upgrade () {
     var to_update = []
     var repo_orphans = []
 
+    var inst = null
+    var repo_p = null
     for pkg_path in @[glob("${sys_db}/*")] {
         var pkg = ${pkg_path##*/}
 
-        pkg_find_version $pkg '' '' $sys_db
-        var inst_ver = repo_ver
-        var inst_rel = repo_rel
+        pkg_find $pkg '' '' $sys_db
+        pkg_load $repo_dir (&inst)
 
-        pkg_find_version $pkg
+        pkg_find $pkg
+        pkg_load $repo_dir (&repo_p)
 
         # Detect repository orphans.
-        case (repo_dir) {
+        case (repo_p.dir) {
             */var/db/kominka/installed/* {
                 call repo_orphans->append(pkg)
             }
         }
 
-        if ("$inst_ver-$inst_rel" !== "$repo_ver-$repo_rel") {
+        if ("$[inst.ver]-$[inst.rel]" !== "$[repo_p.ver]-$[repo_p.rel]") {
             call to_update->append(pkg)
-            write -- "$pkg $inst_ver-$inst_rel => $repo_ver-$repo_rel"
+            write -- "$pkg $[inst.ver]-$[inst.rel] => $[repo_p.ver]-$[repo_p.rel]"
         }
     }
 
@@ -2292,7 +2266,14 @@ proc args (action='', ...pkgs) {
         a | alternatives { pkg_alternatives @pkgs }
         b | build        { pkg_build_all @pkgs }
         c | checksum     { for pkg in (pkgs) { pkg_checksum $pkg } }
-        d | download     { for pkg in (pkgs) { pkg_source $pkg } }
+        d | download     {
+            var p = null
+            for pkg in (pkgs) {
+                pkg_find $pkg
+                pkg_load $repo_dir (&p)
+                pkg_source (p)
+            }
+        }
         H | help-ext     { pkg_help_ext @pkgs }
         i | install      { pkg_install_all @pkgs }
         l | list         { pkg_list_version @pkgs }
