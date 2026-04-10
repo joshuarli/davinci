@@ -1,43 +1,65 @@
 name: Rebuild packages
 
-# Rebuilds packages whose R2 binaries used CPU instructions not exposed
-# by Apple Virtualization.framework (SVE, PAC/BTI, etc.).
+# Rebuilds packages whose R2 binaries were compiled with CPU instructions
+# not exposed by Apple Virtualization.framework (SVE, etc.).
+# Each package is an independent job — a failure loses only that package.
 #
-# Uses ubuntu:24.04 + apt for build tools — no R2 dependency for the
-# toolchain. CFLAGS/CXXFLAGS are set per-arch to a conservative baseline:
+# CFLAGS baseline per arch:
 #   aarch64: armv8-a+lse+crypto  (LSE atomics + hw AES/SHA/PMULL)
 #   x86_64:  x86-64-v3           (AVX2/FMA/BMI2, 2013+)
 #
-# boringssl and curl are done. This run rebuilds the packages with SIMD
-# hash/compress code: zlib (NEON CRC/Adler32), xz (NEON CRC64), libevent.
-# Build order: zlib first (libevent runtime dep), then xz and libevent.
+# Binary downloads (zig, go, cargo) are excluded — their official upstream
+# releases already target a conservative baseline.
 
 on:
   workflow_dispatch:
 
 jobs:
-  rebuild:
+  build:
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { arch: amd64, runner: ubuntu-latest     }
-          - { arch: arm64, runner: ubuntu-24.04-arm  }
+          # ── amd64 ──────────────────────────────────────────────────────── #
+          - { pkg: samurai,   arch: amd64, runner: ubuntu-latest,    apt_extra: '',                           prereg: ''     }
+          - { pkg: bzip2,     arch: amd64, runner: ubuntu-latest,    apt_extra: '',                           prereg: ''     }
+          - { pkg: zlib,      arch: amd64, runner: ubuntu-latest,    apt_extra: '',                           prereg: ''     }
+          - { pkg: xz,        arch: amd64, runner: ubuntu-latest,    apt_extra: '',                           prereg: ''     }
+          - { pkg: sqlite,    arch: amd64, runner: ubuntu-latest,    apt_extra: '',                           prereg: ''     }
+          - { pkg: e2fsprogs, arch: amd64, runner: ubuntu-latest,    apt_extra: '',                           prereg: ''     }
+          - { pkg: busybox,   arch: amd64, runner: ubuntu-latest,    apt_extra: 'linux-libc-dev patch perl',  prereg: ''     }
+          - { pkg: libevent,  arch: amd64, runner: ubuntu-latest,    apt_extra: 'zlib1g-dev',                 prereg: 'zlib' }
+          # ── arm64 ──────────────────────────────────────────────────────── #
+          - { pkg: samurai,   arch: arm64, runner: ubuntu-24.04-arm, apt_extra: '',                           prereg: ''     }
+          - { pkg: bzip2,     arch: arm64, runner: ubuntu-24.04-arm, apt_extra: '',                           prereg: ''     }
+          - { pkg: zlib,      arch: arm64, runner: ubuntu-24.04-arm, apt_extra: '',                           prereg: ''     }
+          - { pkg: xz,        arch: arm64, runner: ubuntu-24.04-arm, apt_extra: '',                           prereg: ''     }
+          - { pkg: sqlite,    arch: arm64, runner: ubuntu-24.04-arm, apt_extra: '',                           prereg: ''     }
+          - { pkg: e2fsprogs, arch: arm64, runner: ubuntu-24.04-arm, apt_extra: '',                           prereg: ''     }
+          - { pkg: busybox,   arch: arm64, runner: ubuntu-24.04-arm, apt_extra: 'linux-libc-dev patch perl',  prereg: ''     }
+          - { pkg: libevent,  arch: arm64, runner: ubuntu-24.04-arm, apt_extra: 'zlib1g-dev',                 prereg: 'zlib' }
+
     runs-on: ${{ matrix.runner }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build packages
+      - name: Build ${{ matrix.pkg }}
         run: |
-          docker build -t builder -f - . <<'DEOF'
+          docker build -t builder \
+            --build-arg PKG="${{ matrix.pkg }}" \
+            --build-arg APT_EXTRA="${{ matrix.apt_extra }}" \
+            --build-arg PREREG="${{ matrix.prereg }}" \
+            -f - . <<'DEOF'
           FROM ubuntu:24.04
+          ARG PKG
+          ARG APT_EXTRA
+          ARG PREREG
           ENV DEBIAN_FRONTEND=noninteractive
           RUN apt-get update && apt-get install -y --no-install-recommends \
-                gcc g++ make pkg-config wget \
-                xz-utils ca-certificates && rm -rf /var/lib/apt/lists/*
+                gcc g++ make pkg-config wget xz-utils bzip2 ca-certificates $APT_EXTRA \
+                && rm -rf /var/lib/apt/lists/*
 
-          # Fetch ysh from R2 — Ubuntu wget speaks modern TLS.
           RUN case $(uname -m) in \
                 x86_64)  ARCH=x86_64-linux-gnu ;; \
                 aarch64) ARCH=aarch64-linux-gnu ;; \
@@ -52,14 +74,15 @@ jobs:
 
           RUN mkdir -p /var/db/kominka/installed /var/db/kominka/choices
 
-          # Pre-register only system packages that pm must not try to build.
-          RUN for pkg in glibc linux-headers make pkgconf; do \
-              mkdir -p /var/db/kominka/installed/$pkg && \
-              echo "0 0" > /var/db/kominka/installed/$pkg/version && \
-              printf '#!/bin/sh\n:\n' > /var/db/kominka/installed/$pkg/build && \
-              chmod +x /var/db/kominka/installed/$pkg/build && \
-              touch /var/db/kominka/installed/$pkg/manifest; \
-            done
+          # Base pre-register: system packages pm must not try to fetch.
+          # PREREG adds package-specific extras (e.g. zlib for libevent).
+          RUN for pkg in glibc linux-headers make pkgconf $PREREG; do \
+                mkdir -p /var/db/kominka/installed/$pkg && \
+                echo "0 0" > /var/db/kominka/installed/$pkg/version && \
+                printf '#!/bin/sh\n:\n' > /var/db/kominka/installed/$pkg/build && \
+                chmod +x /var/db/kominka/installed/$pkg/build && \
+                touch /var/db/kominka/installed/$pkg/manifest; \
+              done
 
           ENV KOMINKA_PATH=/packages \
               KOMINKA_COMPRESS=gz \
@@ -76,7 +99,7 @@ jobs:
               CFLAGS="-O2 -DNDEBUG $ARCH_FLAGS" \
               CXXFLAGS="-O2 -DNDEBUG $ARCH_FLAGS" \
               LDFLAGS="-static-libgcc" \
-              sh -c 'pm b zlib && pm i zlib && pm b xz && pm b libevent'
+              sh -c "pm b $PKG"
           DEOF
 
           docker create --name extract builder
@@ -87,5 +110,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: packages-${{ matrix.arch }}
+          name: ${{ matrix.pkg }}-${{ matrix.arch }}
           path: out/*.tar.gz

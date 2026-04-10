@@ -14,50 +14,73 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - arch: amd64
-            runner: ubuntu-latest
-          - arch: arm64
-            runner: ubuntu-24.04-arm
+          - { arch: amd64, runner: ubuntu-latest     }
+          - { arch: arm64, runner: ubuntu-24.04-arm  }
     runs-on: ${{ matrix.runner }}
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Cache kominka:core image
-        id: cache
-        uses: actions/cache@v4
-        with:
-          path: /tmp/kominka-core.tar.gz
-          key: kominka-core-v2-${{ matrix.arch }}-${{ hashFiles('Dockerfile', 'pm.ysh', 'tests/fixtures/repo/**/version', 'tests/fixtures/repo/**/depends') }}
-
-      - name: Build kominka:core
-        if: steps.cache.outputs.cache-hit != 'true'
+      - name: Build ${{ inputs.package }}
         run: |
-          docker build --no-cache -t kominka:core .
-          docker save kominka:core | gzip > /tmp/kominka-core.tar.gz
+          docker build -t builder \
+            --build-arg PKG="${{ inputs.package }}" \
+            -f - . <<'DEOF'
+          FROM ubuntu:24.04
+          ARG PKG
+          ENV DEBIAN_FRONTEND=noninteractive
+          RUN apt-get update && apt-get install -y --no-install-recommends \
+                gcc g++ cmake ninja-build golang-go make pkg-config wget \
+                xz-utils bzip2 ca-certificates patch perl linux-libc-dev \
+                zlib1g-dev && rm -rf /var/lib/apt/lists/*
 
-      - name: Load kominka:core
-        if: steps.cache.outputs.cache-hit == 'true'
-        run: docker load < /tmp/kominka-core.tar.gz
+          RUN case $(uname -m) in \
+                x86_64)  ARCH=x86_64-linux-gnu ;; \
+                aarch64) ARCH=aarch64-linux-gnu ;; \
+              esac && \
+              wget -qO- \
+                "https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev/${ARCH}/ysh/0.37.0-2.tar.gz" | \
+              tar xzf - -C / ./usr/local/bin/
 
-      - name: Build package
-        run: |
-          docker run --name build \
-            -v "$PWD/tests/fixtures/repo:/packages:ro" \
-            -e KOMINKA_PATH=/packages \
-            -e KOMINKA_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
-            -e KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
-            -e KOMINKA_COMPRESS=gz \
-            -e KOMINKA_COLOR=0 \
-            -e KOMINKA_PROMPT=0 \
-            -e KOMINKA_FORCE=1 \
-            kominka:core sh -c '
-            pm i build-essential &&
-            mkdir -p /kominka-root/usr/bin &&
-            ln -sf /usr/bin/m4 /kominka-root/usr/bin/m4 &&
-            pm b ${{ inputs.package }}'
+          COPY pm.ysh /usr/bin/pm
+          RUN chmod +x /usr/bin/pm
+          COPY tests/fixtures/repo /packages
+
+          RUN mkdir -p /var/db/kominka/installed /var/db/kominka/choices
+
+          # Pre-register packages provided by apt so pm doesn't fetch them from R2.
+          RUN for pkg in glibc linux-headers make pkgconf cmake go zig bison m4; do \
+                mkdir -p /var/db/kominka/installed/$pkg && \
+                echo "0 0" > /var/db/kominka/installed/$pkg/version && \
+                printf '#!/bin/sh\n:\n' > /var/db/kominka/installed/$pkg/build && \
+                chmod +x /var/db/kominka/installed/$pkg/build && \
+                touch /var/db/kominka/installed/$pkg/manifest; \
+              done
+
+          ENV KOMINKA_PATH=/packages \
+              KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
+              KOMINKA_COMPRESS=gz \
+              KOMINKA_COLOR=0 \
+              KOMINKA_PROMPT=0 \
+              KOMINKA_FORCE=1 \
+              LOGNAME=root \
+              HOME=/root
+
+          RUN case $(uname -m) in \
+                x86_64)  ARCH_FLAGS="-march=x86-64-v3" ;; \
+                aarch64) ARCH_FLAGS="-march=armv8-a+lse+crypto" ;; \
+              esac && \
+              CFLAGS="-O2 -DNDEBUG $ARCH_FLAGS" \
+              CXXFLAGS="-O2 -DNDEBUG $ARCH_FLAGS" \
+              LDFLAGS="-static-libgcc" \
+              sh -c "pm b $PKG"
+          DEOF
+
+          docker create --name extract builder
           mkdir -p out
-          docker cp "build:/root/.cache/kominka/bin/${{ inputs.package }}@$(cat tests/fixtures/repo/${{ inputs.package }}/version | tr ' ' '-').tar.gz" out/
-          docker rm build
+          docker cp "extract:/root/.cache/kominka/bin/." out/
+          docker rm extract
+          ls -lh out/
 
       - uses: actions/upload-artifact@v4
         with:
