@@ -1,0 +1,38 @@
+#!/usr/local/bin/ysh
+
+var name    = 'tmux'
+var ver     = '3.3a-jl'
+var rel     = '1'
+var deps    = ['libevent']
+var mkdeps  = []
+
+# joshuarli's fork includes a pre-generated ./configure (no autotools needed).
+var sources = ['https://github.com/joshuarli/tmux/archive/f56456f2ebae99c628263c6fb05bbde5ee0cd036.tar.gz']
+var checksums = ['SKIP']
+
+proc build(dest) {
+    var _kr = ENV => get("KOMINKA_ROOT", "")
+    if (_kr === '/') { setvar _kr = '' }
+
+    var CFLAGS  = ENV => get("CFLAGS",  "-O2 -DNDEBUG")
+    var LDFLAGS = ENV => get("LDFLAGS", "")
+
+    # Point to any installed headers/libs inside the sysroot.
+    if (_kr !== '') {
+        setvar CFLAGS  = "${CFLAGS} -I${_kr}/usr/include"
+        setvar LDFLAGS = "${LDFLAGS} -L${_kr}/usr/lib"
+    }
+
+    CFLAGS=$CFLAGS LDFLAGS=$LDFLAGS \
+    ./configure \
+        --prefix=/usr \
+        --without-ncurses \
+        --without-utf8proc \
+        --enable-static
+
+    make
+    make DESTDIR=$dest install
+
+    # tmux installs to bin/tmux — strip the man page location if minimal.
+    rm -rf "${dest}/usr/share/man"
+}
