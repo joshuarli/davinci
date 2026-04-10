@@ -1349,8 +1349,14 @@ proc pkg_build (; p Dict) {
         setglobal ENV.MAKEFLAGS   = "${MAKEFLAGS:--j${_nproc}}"
         setglobal ENV.CC          = "${CC:-cc}"
         setglobal ENV.CXX         = "${CXX:-c++}"
-        setglobal ENV.CFLAGS      = "${CFLAGS:--O2 -DNDEBUG}"
-        setglobal ENV.CXXFLAGS    = "${CXXFLAGS:--O2 -DNDEBUG}"
+        # On aarch64, append a conservative -march so packages don't use
+        # instructions that VM environments may not expose (SVE, PAC, BTI…).
+        # armv8.2-a+crypto covers every ARM64 CPU since ~2019 and includes
+        # hardware AES/SHA/PMULL (needed for TLS performance).
+        var _march = ''
+        if ($(uname -m) === 'aarch64') { setvar _march = ' -march=armv8.2-a+crypto' }
+        setglobal ENV.CFLAGS      = "${CFLAGS:--O2 -DNDEBUG}${_march}"
+        setglobal ENV.CXXFLAGS    = "${CXXFLAGS:--O2 -DNDEBUG}${_march}"
         setglobal ENV.NM          = "${NM:-nm}"
         setglobal ENV.RANLIB      = "${RANLIB:-ranlib}"
         setglobal ENV.DESTDIR     = "${pkg_dir}/$[p.name]"

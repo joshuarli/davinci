@@ -22,12 +22,6 @@ proc build(dest) {
     }
 
     var _cflags = ENV => get("CFLAGS", "-O2 -DNDEBUG") ++ " -Wno-error"
-
-    # Pin to the ARMv8-A baseline to avoid instructions that a VM may not
-    # expose even when the host CPU supports them (e.g. LSE, SVE, PAC/BTI).
-    if ($(uname -m) === 'aarch64') {
-        setvar _cflags = "$_cflags -march=armv8-a"
-    }
     var _ldflags = ENV => get("LDFLAGS", "") ++ " -L${_kr}/usr/lib"
 
     # On Debian bootstrap: configure runs test binaries that load libcrypto.so.
