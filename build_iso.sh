@@ -80,7 +80,7 @@ busybox mkdir -p "$MNT/boot"
 busybox mount "$LOOP_EFI" "$MNT/boot"
 
 echo "==> Installing rootfs"
-for d in bin etc lib lib64 packages root sbin usr var; do
+for d in bin etc home lib lib64 packages root sbin usr var; do
     [ -e "/$d" ] && busybox cp -a "/$d" "$MNT/"
 done
 busybox mkdir -p "$MNT/dev" "$MNT/proc" "$MNT/sys" "$MNT/run" "$MNT/tmp" "$MNT/home"

@@ -44,9 +44,15 @@ RUN busybox adduser -D -s /bin/sh -u 1000 josh && \
     grep -q '^wheel:' /etc/group || echo "wheel:x:10:" >> /etc/group && \
     busybox addgroup josh wheel
 
+# Default environment for pm — inherited by all login shells.
+RUN printf 'export KOMINKA_PATH=/packages\nexport KOMINKA_ROOT=/\nexport KOMINKA_COMPRESS=gz\n' \
+        > /etc/profile.d/kominka.sh
+
 # Auto-login josh on the serial console.
 # getty -n skips the login prompt; -l runs a program instead of /bin/login.
-RUN printf '#!/bin/busybox sh\nexec su -l josh\n' \
+# Mount host package repo via virtiofs (tag "packages") if the hypervisor
+# provides it; falls back silently to the baked /packages on the disk.
+RUN printf '#!/bin/busybox sh\nmount -t virtiofs packages /packages 2>/dev/null || true\nexec su -l josh\n' \
         > /usr/local/bin/autologin && \
     chmod +x /usr/local/bin/autologin && \
     mkdir -p /etc/sv/getty-hvc0 && \

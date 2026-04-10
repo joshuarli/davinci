@@ -7,7 +7,8 @@ TARGET_IMG      := target.img
 
 VFKIT_CMDLINE := root=/dev/vda2 rw console=hvc0 loglevel=4
 
-REPO_FILES := $(wildcard tests/fixtures/repo/*/build*) \
+REPO_FILES := $(wildcard tests/fixtures/repo/*/PKGBUILD.ysh) \
+              $(wildcard tests/fixtures/repo/*/build*) \
               $(wildcard tests/fixtures/repo/*/sources) \
               $(wildcard tests/fixtures/repo/*/files/*)
 
@@ -40,7 +41,8 @@ boot: $(KERNEL) $(INSTALLER_IMG)
 		--cpus 4 --memory 4096 \
 		--device virtio-blk,path=$(INSTALLER_IMG) \
 		--device virtio-net,nat \
-		--device virtio-serial,stdio
+		--device virtio-serial,stdio \
+		--device virtio-fs,sharedDir=$(CURDIR)/tests/fixtures/repo,mountTag=packages
 
 boot-installer: $(KERNEL) $(INSTALLER_IMG)
 	@command -v vfkit >/dev/null || { echo "error: vfkit required — brew install vfkit"; exit 1; }
