@@ -16,6 +16,7 @@ cd glibc-build
     --enable-bind-now \
     --enable-kernel=5.10 \
     --enable-stack-protector=strong \
+    --enable-crypt \
     --disable-nscd \
     --disable-profile \
     --disable-werror \
@@ -35,6 +36,13 @@ case (ARCH) {
 
 mkdir -p "${dest}/usr/bin"
 ln -sf "/usr/lib/${ldso}" "${dest}/usr/bin/ldd"
+
+# Compat symlinks: libdl, libpthread, librt were merged into libc in
+# glibc 2.34+ but pre-built binaries still link against them.
+for lib in (:| dl pthread rt |) {
+    ln -sf libc.so.6 "${dest}/usr/lib/lib${lib}.so.2"
+    ln -sf libc.so.6 "${dest}/usr/lib/lib${lib}.so"
+}
 
 # Install BSD compatibility headers (from source directory).
 cp -f "${srcdir}/cdefs.h" "${srcdir}/queue.h" "${srcdir}/tree.h" \

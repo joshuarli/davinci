@@ -5,8 +5,8 @@ muon setup \
     -Dprefix=/usr \
     -Dlibdir=lib \
     -Dsysconfdir=/etc \
-    -Ddocs=disabled \
-    -Di18n=disabled \
+    -Ddocs=auto \
+    -Di18n=auto \
     -Daudit=disabled \
     -Dselinux=disabled \
     -Deconf=disabled \
@@ -17,6 +17,7 @@ muon setup \
     -Dexamples=false \
     -Dpam_lastlog=disabled \
     -Dxtests=false \
+    -Dlckpwdf=false \
     build
 
 samu -C build
