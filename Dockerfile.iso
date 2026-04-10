@@ -46,7 +46,7 @@ RUN busybox adduser -D -s /bin/sh -u 1000 josh && \
 
 # Default environment for pm — inherited by all login shells.
 RUN mkdir -p /etc/profile.d && \
-    printf 'export KOMINKA_PATH=/packages\nexport KOMINKA_ROOT=/\nexport KOMINKA_COMPRESS=gz\n' \
+    printf 'export KOMINKA_PATH=/packages\nexport KOMINKA_ROOT=/\nexport KOMINKA_COMPRESS=gz\nexport KOMINKA_GET=/usr/bin/wget\n' \
         > /etc/profile.d/kominka.sh
 
 # Auto-login josh on the serial console.
