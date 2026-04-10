@@ -605,6 +605,9 @@ proc pkg_cache (pkg) {
         return 0
     }
 
+    # Metapackages have no tarball — skip the mirror entirely.
+    if (len(p.sources) === 0) { return 1 }
+
     # Try remote binary mirror: {arch}/{package}/{version}-{release}.tar.gz
     if (KOMINKA_BIN_MIRROR !== '') {
         var _remote_name = "$[p.ver]-$[p.rel].tar.${KOMINKA_COMPRESS}"
