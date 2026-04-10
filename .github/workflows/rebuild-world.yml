@@ -69,10 +69,18 @@ jobs:
               KOMINKA_PROMPT=0 \
               KOMINKA_FORCE=1 \
               LOGNAME=root \
-              HOME=/root \
-              LDFLAGS='-static-libstdc++ -static-libgcc'
+              HOME=/root
 
-          RUN pm b boringssl && pm i boringssl && pm b curl
+          # Set arch-specific CFLAGS and static C++ runtime so the shared
+          # libraries work on any ARM64/x86_64 VM regardless of host CPU.
+          RUN case $(uname -m) in \
+                x86_64)  ARCH_FLAGS="-march=x86-64-v3" ;; \
+                aarch64) ARCH_FLAGS="-march=armv8-a+lse+crypto" ;; \
+              esac && \
+              CFLAGS="-O2 -DNDEBUG $ARCH_FLAGS" \
+              CXXFLAGS="-O2 -DNDEBUG $ARCH_FLAGS" \
+              LDFLAGS="-static-libstdc++ -static-libgcc" \
+              sh -c 'pm b boringssl && pm i boringssl && pm b curl'
           DEOF
 
           docker create --name extract builder

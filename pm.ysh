@@ -1349,19 +1349,8 @@ proc pkg_build (; p Dict) {
         setglobal ENV.MAKEFLAGS   = "${MAKEFLAGS:--j${_nproc}}"
         setglobal ENV.CC          = "${CC:-cc}"
         setglobal ENV.CXX         = "${CXX:-c++}"
-        # Pin -march to a modern-but-compatible baseline so packages don't
-        # use instructions unavailable in VM/cloud environments.
-        #   aarch64: armv8.2-a+crypto — every ARM64 since ~2019; +crypto
-        #            keeps hardware AES/SHA/PMULL for TLS acceleration.
-        #   x86_64:  x86-64-v3 — AVX2/FMA/BMI2, all hardware since
-        #            Intel Haswell 2013 / AMD Excavator 2015.
-        var _march = ''
-        case ($(uname -m)) {
-            aarch64 { setvar _march = ' -march=armv8-a+lse+crypto' }
-            x86_64  { setvar _march = ' -march=x86-64-v3' }
-        }
-        setglobal ENV.CFLAGS      = "${CFLAGS:--O2 -DNDEBUG}${_march}"
-        setglobal ENV.CXXFLAGS    = "${CXXFLAGS:--O2 -DNDEBUG}${_march}"
+        setglobal ENV.CFLAGS      = "${CFLAGS:--O2 -DNDEBUG}"
+        setglobal ENV.CXXFLAGS    = "${CXXFLAGS:--O2 -DNDEBUG}"
         setglobal ENV.NM          = "${NM:-nm}"
         setglobal ENV.RANLIB      = "${RANLIB:-ranlib}"
         setglobal ENV.DESTDIR     = "${pkg_dir}/$[p.name]"
