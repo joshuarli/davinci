@@ -3,7 +3,7 @@
 Prerequisites: Docker, [vfkit](https://github.com/crc-org/vfkit) (`brew install vfkit`).
 
 ```sh
-make boot   # builds everything, boots VM — drops you into ysh on Kominka Linux
+make boot   # builds everything, boots VM — autologins as josh
 ```
 
 ## Make Targets
@@ -11,30 +11,40 @@ make boot   # builds everything, boots VM — drops you into ysh on Kominka Linu
 | Target | Description |
 |--------|-------------|
 | `make core` | Build `kominka:core` Docker image (~57MB, FROM scratch) |
-| `make kernel` | Build ARM64 kernel |
-| `make iso` | Build 161MB bootable installer image |
-| `make boot` | Boot `kominka:core` in vfkit VM |
-| `make boot-installer` | Boot installer in vfkit with virtual target disk |
+| `make kernel` | Build kernel (ARM64 or x86_64) |
+| `make iso` | Build bootable installer image |
+| `make boot` | Boot in vfkit (virtiofs-mounts `tests/fixtures/repo` as `/packages`) |
+| `make boot-installer` | Boot installer with virtual target disk |
 | `make test` | Run all tests |
 
 ## Running Tests
 
 ```sh
-# Fast unit tests (no Docker, no builds)
 python3 -m pytest tests/test_pm_cheap.py -v
 ```
 
 ## Building Packages
 
-Use the `build.yml` GitHub Actions workflow (workflow_dispatch) to build packages for both aarch64 and x86_64:
+Use `build.yml` (workflow_dispatch, builds for both arches):
 
-1. Go to Actions → Build package
-2. Enter package name
-3. Download artifacts and upload to R2 with `pm p`
-
-Or build locally inside `kominka:core`:
+1. Actions → Build package → enter package name
+2. Download artifacts, upload to R2:
 
 ```sh
+for arch_dir in pkg-NAME-amd64 pkg-NAME-arm64; do
+    case $arch_dir in *amd64) arch=x86_64-linux-gnu ;; *arm64) arch=aarch64-linux-gnu ;; esac
+    for f in "$arch_dir"/*.tar.gz; do
+        base=$(basename "$f"); pkg=${base%%@*}; verrel=${base#*@}; verrel=${verrel%.tar.gz}
+        wrangler r2 object put "kominka-sources/${arch}/${pkg}/${verrel}.tar.gz" \
+            --file="$f" --content-type=application/octet-stream --remote
+    done
+done
+```
+
+Or build locally:
+
+```sh
+docker build -t kominka:core .
 docker run --rm \
   -v "$PWD/tests/fixtures/repo:/packages:ro" \
   -e KOMINKA_PATH=/packages \
@@ -52,6 +62,6 @@ docker run --rm \
 5. Eventually replace ysh with exsh (non-interactive executor shell)
 6. Wayland + Firefox (long term)
 
-The dream: boot to Linux + shell, the only userland is the package manager (a shell script) + busybox. Shell builtins replace individual text-processing utilities. No system Perl, no Python.
+The dream: boot to Linux + shell, the only userland is the package manager (a shell script) + busybox.
 
 See ARCHITECTURE.md for system design. See AGENTS.md for contributor context.
