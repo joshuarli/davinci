@@ -173,7 +173,7 @@ if [ -n "$NEW_USER" ]; then
     /usr/bin/busybox chroot "$MNT" /usr/bin/busybox passwd "$NEW_USER"
 
     echo ""
-    echo "  User '${NEW_USER}' created (wheel group, doas access)."
+    echo "  User '${NEW_USER}' created (wheel group, sudo access)."
 else
     echo "  Skipped — root-only system."
 fi

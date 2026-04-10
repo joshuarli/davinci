@@ -42,7 +42,7 @@ ysh is statically linked against musl (`zig c++ -target aarch64-linux-musl`). Ev
 | boringssl | TLS library |
 | curl | HTTP client + libcurl.so |
 | ca-certificates | Root CAs |
-| opendoas | Privilege escalation (being replaced by sudo-rs) |
+| sudo-rs | Privilege escalation |
 | ysh | Shell (static musl binary, runs pm) |
 
 ## Build Pipeline

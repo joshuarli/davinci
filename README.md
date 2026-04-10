@@ -49,10 +49,8 @@ docker run --rm \
 2. Clean YSH package manager ✓
 3. Bootable installer ISO ✓
 4. Multiarch (aarch64 + x86_64) ✓
-5. Replace opendoas with sudo-rs (in progress)
-6. Add openssh, ncurses/vim
-7. Eventually replace ysh with exsh (non-interactive executor shell)
-8. Wayland + Firefox (long term)
+5. Eventually replace ysh with exsh (non-interactive executor shell)
+6. Wayland + Firefox (long term)
 
 The dream: boot to Linux + shell, the only userland is the package manager (a shell script) + busybox. Shell builtins replace individual text-processing utilities. No system Perl, no Python.
 

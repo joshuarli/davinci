@@ -2301,7 +2301,7 @@ proc main (...argv) {
 
 
     # Discover tools via fallback chains.
-    setglobal cmd_su = $(_discover_tool $KOMINKA_SU ssu sudo doas su)
+    setglobal cmd_su = $(_discover_tool $KOMINKA_SU sudo su)
     if (cmd_su === '') { setglobal cmd_su = 'su' }
 
     setglobal cmd_elf = $(_discover_tool $KOMINKA_ELF readelf eu-readelf llvm-readelf)
