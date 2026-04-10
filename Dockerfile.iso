@@ -50,7 +50,7 @@ RUN grep -q '^wheel:' /etc/group || echo "wheel:x:10:" >> /etc/group && \
 
 # Auto-login josh on the serial console.
 # getty -n skips the login prompt; -l runs a program instead of /bin/login.
-RUN printf '#!/bin/busybox sh\nexec busybox login -f josh\n' \
+RUN printf '#!/bin/busybox sh\nexec su -l josh\n' \
         > /usr/local/bin/autologin && \
     chmod +x /usr/local/bin/autologin && \
     mkdir -p /etc/sv/getty-hvc0 && \
