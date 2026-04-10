@@ -445,6 +445,12 @@ proc pkg_find (name, mode='', test_flag='', search_path='') {
     if failed { die "'$name' not found" }
 }
 
+proc pkg_find_and_load (pkg; result Ref) {
+    ### Find a package and load it into a dict returned via out-param.
+    pkg_find $pkg
+    pkg_load $repo_dir (result)
+}
+
 proc _pkg_find (name, mode='', test_flag='', search_path='') {
     ### Search KOMINKA_PATH for directories matching a package name.
     var spath = search_path if (search_path !== '') else KOMINKA_PATH
@@ -538,6 +544,29 @@ proc pkg_list_version (...pkgs) {
     }
 }
 
+proc pkg_info (pkg) {
+    ### Show name, version, deps, and install status for a package.
+    var p = null
+    pkg_find_and_load $pkg (&p)
+
+    var status = 'not installed'
+    if test -d "${sys_db}/$[p.name]" { setvar status = 'installed' }
+
+    write -- "name     $[p.name]"
+    write -- "version  $[p.ver]-$[p.rel]"
+    write -- "status   $status"
+
+    if (len(p.deps) > 0) {
+        write -- "deps     $[p.deps => join(' ')]"
+    }
+    if (len(p.mkdeps) > 0) {
+        write -- "mkdeps   $[p.mkdeps => join(' ')]"
+    }
+    if (len(p.sources) > 0) {
+        write -- "sources  $[p.sources => join(' ')]"
+    }
+}
+
 proc pkg_upload (pkg) {
     ### Upload a built package tarball to R2.
     # Layout: {arch}/{package}/{version}-{release}.tar.{compress}
@@ -557,9 +586,8 @@ proc pkg_upload (pkg) {
         }
         * {
             # Package name: find tarball in bin cache.
-            pkg_find $pkg
             var _p = null
-            pkg_load $repo_dir (&_p)
+            pkg_find_and_load $pkg (&_p)
             setvar _pkg = pkg
             setvar _tarball = "${bin_dir}/${pkg}@$[_p.ver]-$[_p.rel].tar.${KOMINKA_COMPRESS}"
             if ! test -f $_tarball {
@@ -587,9 +615,8 @@ proc pkg_upload (pkg) {
 
 proc pkg_cache (pkg) {
     ### Find the tarball of a package in the binary cache.
-    pkg_find $pkg
     var p = null
-    pkg_load $repo_dir (&p)
+    pkg_find_and_load $pkg (&p)
 
     setglobal tar_file = "${bin_dir}/${pkg}@$[p.ver]-$[p.rel].tar.${KOMINKA_COMPRESS}"
 
@@ -1278,8 +1305,7 @@ proc pkg_build_all (...pkgs) {
 
     var p = null
     for pkg in (to_build) {
-        pkg_find $pkg
-        pkg_load $repo_dir (&p)
+        pkg_find_and_load $pkg (&p)
         pkg_source (p)
         if (len(p.sources) > 0) {
             pkg_verify (p)
@@ -1292,8 +1318,7 @@ proc pkg_build_all (...pkgs) {
         setvar build_cur += 1
         log $pkg "Building package ($build_cur/$[len(to_build)])"
 
-        pkg_find $pkg
-        pkg_load $repo_dir (&p)
+        pkg_find_and_load $pkg (&p)
 
         run_hook queue $pkg $build_cur $[len(to_build)]
 
@@ -1399,9 +1424,8 @@ proc pkg_build (; p Dict) {
 
 proc pkg_checksum (pkg) {
     ### Download sources and print checksums for pasting into PKGBUILD.ysh.
-    pkg_find $pkg
     var p = null
-    pkg_load $repo_dir (&p)
+    pkg_find_and_load $pkg (&p)
 
     pkg_source 'c' (p)
 
@@ -1804,8 +1828,7 @@ proc pkg_install_all (...pkgs) {
     var p = null
     for pkg in (pkgs) {
         case (pkg) { *.tar.* { continue } }
-        pkg_find $pkg
-        pkg_load $repo_dir (&p)
+        pkg_find_and_load $pkg (&p)
 
         # Metapackages (no sources) don't have tarballs to download.
         if (len(p.sources) === 0) { continue }
@@ -1916,9 +1939,8 @@ proc pkg_install (pkg) {
             try { pkg_cache $pkg }
             if failed {
                 # Metapackage — no sources, no tarball. Just register as installed.
-                pkg_find $pkg
                 var p = null
-                pkg_load $repo_dir (&p)
+                pkg_find_and_load $pkg (&p)
                 if (len(p.sources) === 0) {
                     mkdir -p "${sys_db}/${pkg}"
                     write -- "$[p.ver] $[p.rel]" > "${sys_db}/${pkg}/version"
@@ -2072,8 +2094,7 @@ proc pkg_upgrade () {
         pkg_find $pkg '' '' $sys_db
         pkg_load $repo_dir (&inst)
 
-        pkg_find $pkg
-        pkg_load $repo_dir (&repo_p)
+        pkg_find_and_load $pkg (&repo_p)
 
         # Detect repository orphans.
         case (repo_p.dir) {
@@ -2279,14 +2300,14 @@ proc args (action='', ...pkgs) {
         d | download     {
             var p = null
             for pkg in (pkgs) {
-                pkg_find $pkg
-                pkg_load $repo_dir (&p)
+                pkg_find_and_load $pkg (&p)
                 pkg_source (p)
             }
         }
         H | help-ext     { pkg_help_ext @pkgs }
         i | install      { pkg_install_all @pkgs }
         l | list         { pkg_list_version @pkgs }
+        n | info         { for pkg in (pkgs) { pkg_info $pkg } }
         r | remove       { for pkg in (redro) { pkg_remove $pkg } }
         s | search       { for pkg in (pkgs) { pkg_find $pkg all } }
         u | update       { pkg_update }
@@ -2301,6 +2322,7 @@ proc args (action='', ...pkgs) {
             log 'checksum     Generate checksums'
             log 'download     Download sources'
             log 'help         Show this message'
+            log 'info         Show package details'
             log 'install      Install packages'
             log 'list         List installed packages'
             log 'remove       Remove packages'
