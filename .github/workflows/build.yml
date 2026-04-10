@@ -50,9 +50,10 @@ jobs:
 
           RUN mkdir -p /var/db/kominka/installed /var/db/kominka/choices
 
-          # Pre-register: 'core' prevents pm from recursing into glibc/busybox/etc.
-          # The rest are installed from apt above.
-          RUN for pkg in core linux-headers m4 make bison cmake pkgconf git go; do \
+          # Pre-register: system packages pm must not clobber, plus apt-provided
+          # tools. 'glibc' must be listed explicitly — package deps reference it
+          # directly (e.g. samurai) and would overwrite Ubuntu's libc otherwise.
+          RUN for pkg in glibc core linux-headers m4 make bison cmake pkgconf git go; do \
                 mkdir -p /var/db/kominka/installed/$pkg && \
                 echo "0 0" > /var/db/kominka/installed/$pkg/version && \
                 printf '#!/bin/sh\n:\n' > /var/db/kominka/installed/$pkg/build && \
