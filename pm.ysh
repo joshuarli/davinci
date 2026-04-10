@@ -1711,7 +1711,7 @@ proc pkg_etc (file) {
         true  # user didn't modify, overwrite
     } else {
         # All other cases — save as .new to not clobber user changes
-        war $_pkg "saving $file as ${file}.new"
+        war $_install_pkg_name "saving $file as ${file}.new"
         setglobal _file = "${_file}.new"
     }
 }

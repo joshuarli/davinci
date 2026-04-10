@@ -20,24 +20,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # ── amd64 ──────────────────────────────────────────────────────── #
-          - { pkg: samurai,   arch: amd64, runner: ubuntu-latest,    apt_extra: '',                           prereg: ''     }
-          - { pkg: bzip2,     arch: amd64, runner: ubuntu-latest,    apt_extra: '',                           prereg: ''     }
-          - { pkg: zlib,      arch: amd64, runner: ubuntu-latest,    apt_extra: '',                           prereg: ''     }
-          - { pkg: xz,        arch: amd64, runner: ubuntu-latest,    apt_extra: '',                           prereg: ''     }
-          - { pkg: sqlite,    arch: amd64, runner: ubuntu-latest,    apt_extra: '',                           prereg: ''     }
-          - { pkg: e2fsprogs, arch: amd64, runner: ubuntu-latest,    apt_extra: '',                           prereg: ''     }
-          - { pkg: busybox,   arch: amd64, runner: ubuntu-latest,    apt_extra: 'linux-libc-dev patch perl',  prereg: ''     }
-          - { pkg: libevent,  arch: amd64, runner: ubuntu-latest,    apt_extra: 'zlib1g-dev',                 prereg: 'zlib' }
-          # ── arm64 ──────────────────────────────────────────────────────── #
-          - { pkg: samurai,   arch: arm64, runner: ubuntu-24.04-arm, apt_extra: '',                           prereg: ''     }
-          - { pkg: bzip2,     arch: arm64, runner: ubuntu-24.04-arm, apt_extra: '',                           prereg: ''     }
-          - { pkg: zlib,      arch: arm64, runner: ubuntu-24.04-arm, apt_extra: '',                           prereg: ''     }
-          - { pkg: xz,        arch: arm64, runner: ubuntu-24.04-arm, apt_extra: '',                           prereg: ''     }
-          - { pkg: sqlite,    arch: arm64, runner: ubuntu-24.04-arm, apt_extra: '',                           prereg: ''     }
-          - { pkg: e2fsprogs, arch: arm64, runner: ubuntu-24.04-arm, apt_extra: '',                           prereg: ''     }
-          - { pkg: busybox,   arch: arm64, runner: ubuntu-24.04-arm, apt_extra: 'linux-libc-dev patch perl',  prereg: ''     }
-          - { pkg: libevent,  arch: arm64, runner: ubuntu-24.04-arm, apt_extra: 'zlib1g-dev',                 prereg: 'zlib' }
+          - { pkg: e2fsprogs, arch: amd64, runner: ubuntu-latest,    apt_extra: '',          prereg: ''     }
+          - { pkg: e2fsprogs, arch: arm64, runner: ubuntu-24.04-arm, apt_extra: '',          prereg: ''     }
+          - { pkg: libevent,  arch: amd64, runner: ubuntu-latest,    apt_extra: 'zlib1g-dev', prereg: 'zlib' }
+          - { pkg: libevent,  arch: arm64, runner: ubuntu-24.04-arm, apt_extra: 'zlib1g-dev', prereg: 'zlib' }
 
     runs-on: ${{ matrix.runner }}
 

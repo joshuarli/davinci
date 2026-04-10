@@ -13,6 +13,7 @@ proc build(dest) {
     ./configure \
         --prefix=/usr \
         --enable-shared \
+        --disable-openssl \
         --disable-samples \
         --disable-libevent-regress
 
