@@ -19,11 +19,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # All current packages are in R2. Add entries here when new packages
+        # need rebuilding (see comment at top of file for format).
+        #
+        # Done: boringssl, curl, samurai, zlib, xz, sqlite, busybox, bzip2,
+        #       e2fsprogs, libevent
+        #
+        # To add a package:
+        #   - { pkg: NAME, arch: amd64, runner: ubuntu-latest,    apt_extra: '', prereg: '' }
+        #   - { pkg: NAME, arch: arm64, runner: ubuntu-24.04-arm, apt_extra: '', prereg: '' }
         include:
-          - { pkg: e2fsprogs, arch: amd64, runner: ubuntu-latest,    apt_extra: '',          prereg: ''     }
-          - { pkg: e2fsprogs, arch: arm64, runner: ubuntu-24.04-arm, apt_extra: '',          prereg: ''     }
-          - { pkg: libevent,  arch: amd64, runner: ubuntu-latest,    apt_extra: 'zlib1g-dev', prereg: 'zlib' }
-          - { pkg: libevent,  arch: arm64, runner: ubuntu-24.04-arm, apt_extra: 'zlib1g-dev', prereg: 'zlib' }
+          - { pkg: _none, arch: amd64, runner: ubuntu-latest, apt_extra: '', prereg: '' }
 
     runs-on: ${{ matrix.runner }}
 
