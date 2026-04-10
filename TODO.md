@@ -3,6 +3,7 @@
 ## Packaging
 
 - dropbear (SSH server/client) — PKGBUILD done, CI build pending for R2
+- tailscale — PKGBUILD done, CI build pending for R2; first boot: `tailscale up` to join tailnet, then SSH via tailscale IP to dropbear
 - zstd (compression)
 - git: R2 binary not yet uploaded (links against boringssl, needs careful dep handling)
 
