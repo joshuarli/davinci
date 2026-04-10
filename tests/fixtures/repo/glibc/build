@@ -11,6 +11,7 @@ cd glibc-build
     --enable-bind-now \
     --enable-kernel=5.10 \
     --enable-stack-protector=strong \
+    --enable-crypt \
     --disable-nscd \
     --disable-profile \
     --disable-werror \
