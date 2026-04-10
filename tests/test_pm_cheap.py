@@ -528,6 +528,42 @@ class MakeDepTests:
         combined = r.stdout + r.stderr
         self.assertIn("compiler", combined)
 
+    def test_install_succeeds_with_uninstalled_make_dep(self):
+        """pm i must not fail when make deps are absent on the target system.
+
+        Regression: pkg_installable was checking all depends-file entries
+        including make deps, so 'pm i boringssl' would fail with
+        'Package not installable' because cmake/go/samurai weren't installed.
+        Make deps are build-time only and must be invisible at install time.
+
+        Note: test_install_skips_all_make_deps uses KOMINKA_FORCE=1 which
+        bypasses pkg_installable entirely — it cannot catch this regression.
+
+        The scenario: package built in CI (make deps present), tarball
+        uploaded to R2, then installed on a fresh system lacking make deps.
+        Simulated by building to populate the binary cache, then wiping the
+        installed db to represent the fresh-system state.
+        """
+        self.create_repo_pkg("buildtool", version="1.0 1")
+        self.create_repo_pkg("mypkg4", version="1.0 1", depends="buildtool make")
+
+        # Build — populates the binary cache with mypkg4's tarball.
+        self.pm("b", "mypkg4")
+
+        # Wipe the installed db: simulate a fresh system that has the tarball
+        # (via KOMINKA_BIN_MIRROR / pre-downloaded cache) but has never had
+        # buildtool or mypkg4 installed.
+        db = self.kominka_root / "var/db/kominka/installed"
+        shutil.rmtree(db / "buildtool", ignore_errors=True)
+        shutil.rmtree(db / "mypkg4",    ignore_errors=True)
+
+        # Install WITHOUT KOMINKA_FORCE — pkg_installable must skip make deps.
+        self.pm("i", "mypkg4")
+
+        r = self.pm("l")
+        self.assertIn("mypkg4", r.stdout)
+        self.assertNotIn("buildtool", r.stdout)
+
     def test_install_skips_all_make_deps(self):
         """pm i should not install make deps as new packages."""
         self.create_repo_pkg("devtool2", version="1.0 1")
