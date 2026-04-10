@@ -750,7 +750,9 @@ proc pkg_source_url (dest, url, fatal='y'; p Dict) {
             try { $cmd_get @curl_args }
         }
         */wget {
-            try { $cmd_get --no-check-certificate -qO $dest $url }
+            var wget_args = ['-qO', dest, url]
+            if (KOMINKA_INSECURE === '1') { call wget_args->insert(0, '--no-check-certificate') }
+            try { $cmd_get @wget_args }
         }
     }
     if failed {
@@ -1837,7 +1839,13 @@ proc pkg_install_all (...pkgs) {
                         fork { $cmd_get -sfLo $[dests[pkg]] $[urls[pkg]] }
                     }
                 }
-                */wget { fork { $cmd_get --no-check-certificate -qO $[dests[pkg]] $[urls[pkg]] } }
+                */wget {
+                    if (KOMINKA_INSECURE === '1') {
+                        fork { $cmd_get --no-check-certificate -qO $[dests[pkg]] $[urls[pkg]] }
+                    } else {
+                        fork { $cmd_get -qO $[dests[pkg]] $[urls[pkg]] }
+                    }
+                }
             }
             setvar pids[pkg] = $!
         }

@@ -49,6 +49,9 @@ RUN mkdir -p /etc/profile.d && \
     printf 'export KOMINKA_PATH=/packages\nexport KOMINKA_ROOT=/\nexport KOMINKA_COMPRESS=gz\nexport KOMINKA_GET=/usr/bin/wget\n' \
         > /etc/profile.d/kominka.sh
 
+# Point wget at the system CA bundle.
+RUN printf 'ca_certificate=/etc/ssl/certs/ca-certificates.crt\n' > /etc/wgetrc
+
 # Auto-login josh on the serial console.
 # getty -n skips the login prompt; -l runs a program instead of /bin/login.
 # Mount host package repo via virtiofs (tag "packages") if the hypervisor
