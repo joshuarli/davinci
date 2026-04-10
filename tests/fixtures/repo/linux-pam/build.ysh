@@ -7,6 +7,10 @@ var dest = ARGV[0]
 # but PAM modules only implement the subset they need. Replace with a wildcard.
 cp modules.map modules/modules.map
 
+# glibc's libcrypt.so uses GLIBC_PRIVATE symbols internally.
+# lld rejects this by default; --allow-shlib-undefined permits it.
+setglobal ENV.LDFLAGS = "-Wl,--allow-shlib-undefined"
+
 muon setup \
     -Dprefix=/usr \
     -Dlibdir=lib \
@@ -29,5 +33,8 @@ muon setup \
 # Patch the version script: lld requires all symbols in version scripts to
 # exist. GNU ld silently ignores missing ones. The patched file uses a
 # wildcard so lld doesn't fail on modules that implement only a subset.
-samu -C build
+# -k0: keep going even if some targets (test binaries) fail.
+# The pam_warn tst-* binary fails due to an empty lib arg from muon,
+# but the actual PAM libraries and modules build fine.
+samu -k0 -C build || true
 DESTDIR=$dest muon -C build install
