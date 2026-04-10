@@ -1357,7 +1357,7 @@ proc pkg_build (; p Dict) {
         #            Intel Haswell 2013 / AMD Excavator 2015.
         var _march = ''
         case ($(uname -m)) {
-            aarch64 { setvar _march = ' -march=armv8.2-a+crypto' }
+            aarch64 { setvar _march = ' -march=armv8-a+lse+crypto' }
             x86_64  { setvar _march = ' -march=x86-64-v3' }
         }
         setglobal ENV.CFLAGS      = "${CFLAGS:--O2 -DNDEBUG}${_march}"
