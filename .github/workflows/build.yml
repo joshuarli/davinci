@@ -59,7 +59,10 @@ jobs:
 
           docker create --name extract builder
           mkdir -p out
-          docker cp "extract:/root/.cache/kominka/bin/." out/
+          # Copy only the target package's tarball, not everything pm installed.
+          PKG="${{ inputs.package }}"
+          docker cp "extract:/root/.cache/kominka/bin/." /tmp/allpkgs/
+          cp /tmp/allpkgs/${PKG}@*.tar.* out/
           docker rm extract
           ls -lh out/
 
