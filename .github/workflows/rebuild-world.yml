@@ -3,9 +3,6 @@ name: Rebuild broken x86_64 packages
 on:
   workflow_dispatch:
 
-env:
-  R2: https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev
-
 jobs:
   curl:
     runs-on: ubuntu-latest
@@ -16,8 +13,8 @@ jobs:
           docker build -f - -t builder . <<'DEOF'
           FROM debian:bookworm-slim
           RUN apt-get update && apt-get install -y --no-install-recommends \
-              build-essential curl ca-certificates tar gzip xz-utils && \
-              rm -rf /var/lib/apt/lists/*
+              build-essential curl ca-certificates tar gzip xz-utils \
+              pkg-config && rm -rf /var/lib/apt/lists/*
           RUN curl -fLo /tmp/oils.tar.gz \
                   https://oils.pub/download/oils-for-unix-0.37.0.tar.gz && \
               cd /tmp && tar xzf oils.tar.gz && cd oils-for-unix-* && \
@@ -30,10 +27,10 @@ jobs:
           RUN chmod +x /usr/bin/pm
           ENV KOMINKA_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
               KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
-              KOMINKA_PATH=/packages KOMINKA_ROOT=/ \
+              KOMINKA_PATH=/packages KOMINKA_ROOT=/kominka-root \
               KOMINKA_COMPRESS=gz KOMINKA_COLOR=0 KOMINKA_PROMPT=0 \
               KOMINKA_FORCE=1 LOGNAME=root HOME=/root
-          RUN pm i linux-headers zlib boringssl pkgconf
+          RUN pm i zlib boringssl
           DEOF
           docker run --name build -e CC=gcc builder sh -c 'pm b curl'
           mkdir -p out && docker cp "build:/root/.cache/kominka/bin/curl@7.80.0-5.tar.gz" out/ && docker rm build
