@@ -21,46 +21,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Cache kominka:core
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/kominka-core.tar.gz
+          key: kominka-core-${{ matrix.arch }}-${{ hashFiles('Dockerfile', 'pm.ysh', 'tests/fixtures/repo/**/PKGBUILD.ysh') }}
+
+      - name: Build kominka:core
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          docker build --no-cache -t kominka:core .
+          docker save kominka:core | gzip > /tmp/kominka-core.tar.gz
+
+      - name: Load kominka:core
+        if: steps.cache.outputs.cache-hit == 'true'
+        run: docker load < /tmp/kominka-core.tar.gz
+
       - name: Build ${{ inputs.package }}
         run: |
           docker build -t builder \
             --build-arg PKG="${{ inputs.package }}" \
             -f - . <<'DEOF'
-          FROM ubuntu:24.04
+          FROM kominka:core
           ARG PKG
-          ENV DEBIAN_FRONTEND=noninteractive
-
-          # Packages not yet in R2: provided by apt, pre-registered in Kominka
-          # so pm doesn't try to fetch them from R2.
-          RUN apt-get update && apt-get install -y --no-install-recommends \
-                wget ca-certificates m4 make bison cmake pkg-config git golang-go \
-                && rm -rf /var/lib/apt/lists/*
-
-          RUN case $(uname -m) in \
-                x86_64)  ARCH=x86_64-linux-gnu ;; \
-                aarch64) ARCH=aarch64-linux-gnu ;; \
-              esac && \
-              wget -qO- \
-                "https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev/${ARCH}/ysh/0.37.0-2.tar.gz" | \
-              tar xzf - -C / ./usr/local/bin/
-
-          COPY pm.ysh /usr/bin/pm
-          RUN chmod +x /usr/bin/pm
           COPY tests/fixtures/repo /packages
-
-          RUN mkdir -p /var/db/kominka/installed /var/db/kominka/choices
-
-          # Pre-register: system packages pm must not clobber, plus apt-provided
-          # tools. 'glibc' must be listed explicitly — package deps reference it
-          # directly (e.g. samurai) and would overwrite Ubuntu's libc otherwise.
-          RUN for pkg in glibc core linux-headers m4 make bison cmake pkgconf git go; do \
-                mkdir -p /var/db/kominka/installed/$pkg && \
-                echo "0 0" > /var/db/kominka/installed/$pkg/version && \
-                printf '#!/bin/sh\n:\n' > /var/db/kominka/installed/$pkg/build && \
-                chmod +x /var/db/kominka/installed/$pkg/build && \
-                touch /var/db/kominka/installed/$pkg/manifest; \
-              done
-
           ENV KOMINKA_PATH=/packages \
               KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
               KOMINKA_COMPRESS=gz \
@@ -69,13 +54,7 @@ jobs:
               KOMINKA_FORCE=1 \
               LOGNAME=root \
               HOME=/root
-
-          # Install build tools: zig, samurai, zlib, bzip2, xz from R2.
-          # (zig cc targets a conservative baseline by default — no explicit
-          # -march needed unlike the GCC-based rebuild-world builds.)
-          RUN pm i build-essential
-
-          RUN sh -c "pm b $PKG"
+          RUN pm i build-essential && pm b $PKG
           DEOF
 
           docker create --name extract builder
