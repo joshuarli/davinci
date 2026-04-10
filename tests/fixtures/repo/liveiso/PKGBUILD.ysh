@@ -11,4 +11,5 @@ var checksums = []
 
 proc build(dest) {
     # metapackage — no build step
+    true
 }

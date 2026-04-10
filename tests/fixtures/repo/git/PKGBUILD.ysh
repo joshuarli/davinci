@@ -20,17 +20,17 @@ proc build(dest) {
     if (_kr === '/') { setvar _kr = '' }
 
     cat > config.mak << 'EOF'
-    NO_GETTEXT=YesPlease
-    NO_SVN_TESTS=YesPlease
-    NO_TCLTK=YesPlease
-    NO_EXPAT=YesPlease
-    NO_NSEC=YesPlease
-    NO_PYTHON=YesPlease
-    NO_PERL=YesPlease
-    NO_SYS_POLL_H=1
-    NO_CROSS_DIRECTORY_HARDLINKS=1
-    NO_INSTALL_HARDLINKS=1
-    EOF
+NO_GETTEXT=YesPlease
+NO_SVN_TESTS=YesPlease
+NO_TCLTK=YesPlease
+NO_EXPAT=YesPlease
+NO_NSEC=YesPlease
+NO_PYTHON=YesPlease
+NO_PERL=YesPlease
+NO_SYS_POLL_H=1
+NO_CROSS_DIRECTORY_HARDLINKS=1
+NO_INSTALL_HARDLINKS=1
+EOF
 
     var _cppflags = ''
     var _ldflags = ''

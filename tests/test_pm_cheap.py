@@ -638,5 +638,29 @@ class YSH_RemoveDependentTests(CheapPMTestCase, RemoveDependentTests):
     PM_SCRIPT = PM_YSH
 
 
+@unittest.skipUnless(HAS_YSH, "ysh interpreter not found")
+class YSH_SyntaxTests(unittest.TestCase):
+    """Static syntax checks: ysh -n catches parse errors without execution."""
+
+    def _check(self, path):
+        result = subprocess.run(
+            [YSH, "-n", str(path)],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            self.fail(f"{path.name}: {result.stderr.strip()}")
+
+    def test_pm_ysh_parses(self):
+        self._check(PM_YSH)
+
+    def test_pkgbuilds_parse(self):
+        pkgbuilds = sorted(REPO.glob("*/PKGBUILD.ysh"))
+        self.assertTrue(pkgbuilds, "No PKGBUILD.ysh fixtures found")
+        for pkgbuild in pkgbuilds:
+            with self.subTest(pkg=pkgbuild.parent.name):
+                self._check(pkgbuild)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -19,12 +19,12 @@ proc build(dest) {
     # only when compiling (-c flag present), not when linking.
     var CC_PATH = $(command -v cc)
     cat > $CC_PATH << EOF
-    #!/bin/sh
-    for a in "\$@"; do
-        case "\$a" in -c) exec zig c++ -target $MUSL_TARGET -xc++ "\$@";; esac
-    done
-    exec zig c++ -target $MUSL_TARGET "\$@"
-    EOF
+#!/bin/sh
+for a in "\$@"; do
+    case "\$a" in -c) exec zig c++ -target $MUSL_TARGET -xc++ "\$@";; esac
+done
+exec zig c++ -target $MUSL_TARGET "\$@"
+EOF
     cp $CC_PATH "$(command -v c++)" 2>/dev/null || true
     chmod +x $CC_PATH
     chmod +x "$(command -v c++)" 2>/dev/null || true

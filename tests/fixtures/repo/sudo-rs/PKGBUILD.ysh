@@ -19,8 +19,8 @@ proc build(dest) {
 
     mkdir -p "${dest}/etc"
     cat > "${dest}/etc/sudoers" << 'EOF'
-    root ALL=(ALL:ALL) ALL
-    %wheel ALL=(ALL:ALL) ALL
-    EOF
+root ALL=(ALL:ALL) ALL
+%wheel ALL=(ALL:ALL) ALL
+EOF
     chmod 440 "${dest}/etc/sudoers"
 }
