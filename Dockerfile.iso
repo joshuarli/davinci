@@ -32,6 +32,15 @@ RUN pm i liveiso
 # Add sudo-rs for privilege escalation.
 RUN pm i sudo-rs
 
+# The R2 binary may predate the PAM + NOPASSWD fixes, so apply them
+# directly here rather than waiting for a new binary upload.
+RUN mkdir -p /etc/pam.d && \
+    for svc in sudo sudo-rs su; do \
+        printf 'auth     sufficient  pam_permit.so\naccount  sufficient  pam_permit.so\npassword sufficient  pam_permit.so\nsession  optional    pam_unix.so\n' \
+            > /etc/pam.d/$svc; \
+    done && \
+    sed -i 's/ALL:ALL) ALL$/ALL:ALL) NOPASSWD: ALL/' /etc/sudoers
+
 # Kernel — lives on the rootfs so install.sh can access it.
 COPY --from=kernel-image /Image /usr/share/kominka/Image
 
