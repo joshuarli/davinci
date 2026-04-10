@@ -4,12 +4,13 @@ name: Rebuild packages
 # by Apple Virtualization.framework (SVE, PAC/BTI, etc.).
 #
 # Uses ubuntu:24.04 + apt for build tools — no R2 dependency for the
-# toolchain, which avoids the libssl.so.3/zig-404 bootstrap failures.
-# pm.ysh applies the march baseline to all source builds:
-#   aarch64: armv8-a+lse+crypto  (zig-compatible; LSE atomics + hw crypto)
+# toolchain. CFLAGS/CXXFLAGS are set per-arch to a conservative baseline:
+#   aarch64: armv8-a+lse+crypto  (LSE atomics + hw AES/SHA/PMULL)
 #   x86_64:  x86-64-v3           (AVX2/FMA/BMI2, 2013+)
 #
-# Add packages to the RUN step in dependency order.
+# boringssl and curl are done. This run rebuilds the packages with SIMD
+# hash/compress code: zlib (NEON CRC/Adler32), xz (NEON CRC64), libevent.
+# Build order: zlib first (libevent runtime dep), then xz and libevent.
 
 on:
   workflow_dispatch:
@@ -33,7 +34,7 @@ jobs:
           FROM ubuntu:24.04
           ENV DEBIAN_FRONTEND=noninteractive
           RUN apt-get update && apt-get install -y --no-install-recommends \
-                cmake ninja-build gcc g++ golang-go make pkg-config wget \
+                gcc g++ make pkg-config wget \
                 xz-utils ca-certificates && rm -rf /var/lib/apt/lists/*
 
           # Fetch ysh from R2 — Ubuntu wget speaks modern TLS.
@@ -51,11 +52,8 @@ jobs:
 
           RUN mkdir -p /var/db/kominka/installed /var/db/kominka/choices
 
-          # Pre-register system and build-tool packages so pm doesn't
-          # try to fetch them from R2.  Build tools come from apt above.
-          RUN for pkg in \
-                glibc zlib linux-headers \
-                cmake samurai go zig make m4 bison pkgconf; do \
+          # Pre-register only system packages that pm must not try to build.
+          RUN for pkg in glibc linux-headers make pkgconf; do \
               mkdir -p /var/db/kominka/installed/$pkg && \
               echo "0 0" > /var/db/kominka/installed/$pkg/version && \
               printf '#!/bin/sh\n:\n' > /var/db/kominka/installed/$pkg/build && \
@@ -71,16 +69,14 @@ jobs:
               LOGNAME=root \
               HOME=/root
 
-          # Set arch-specific CFLAGS and static C++ runtime so the shared
-          # libraries work on any ARM64/x86_64 VM regardless of host CPU.
           RUN case $(uname -m) in \
                 x86_64)  ARCH_FLAGS="-march=x86-64-v3" ;; \
                 aarch64) ARCH_FLAGS="-march=armv8-a+lse+crypto" ;; \
               esac && \
               CFLAGS="-O2 -DNDEBUG $ARCH_FLAGS" \
               CXXFLAGS="-O2 -DNDEBUG $ARCH_FLAGS" \
-              LDFLAGS="-static-libstdc++ -static-libgcc" \
-              sh -c 'pm b boringssl && pm i boringssl && pm b curl'
+              LDFLAGS="-static-libgcc" \
+              sh -c 'pm b zlib && pm i zlib && pm b xz && pm b libevent'
           DEOF
 
           docker create --name extract builder
