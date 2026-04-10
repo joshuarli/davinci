@@ -1,15 +1,15 @@
 name: Rebuild packages
 
-# Rebuilds packages whose R2 binaries were compiled with CPU instructions
-# not exposed by Apple Virtualization.framework (SVE, etc.).
-# Each package is an independent job — a failure loses only that package.
+# Rebuilds packages for R2. Uses kominka:core as the build environment —
+# the same isolated Kominka system that runs the packages, so pm works
+# correctly without pre-registration hacks.
 #
-# CFLAGS baseline per arch:
-#   aarch64: armv8-a+lse+crypto  (LSE atomics + hw AES/SHA/PMULL)
-#   x86_64:  x86-64-v3           (AVX2/FMA/BMI2, 2013+)
+# Done: boringssl, curl, samurai, zlib, xz, sqlite, busybox, bzip2,
+#       e2fsprogs, libevent
 #
-# Binary downloads (zig, go, cargo) are excluded — their official upstream
-# releases already target a conservative baseline.
+# To add a package:
+#   - { pkg: NAME, arch: amd64, runner: ubuntu-latest     }
+#   - { pkg: NAME, arch: arm64, runner: ubuntu-24.04-arm  }
 
 on:
   workflow_dispatch:
@@ -19,79 +19,47 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # All current packages are in R2. Add entries here when new packages
-        # need rebuilding (see comment at top of file for format).
-        #
-        # Done: boringssl, curl, samurai, zlib, xz, sqlite, busybox, bzip2,
-        #       e2fsprogs, libevent
-        #
-        # To add a package:
-        #   - { pkg: NAME, arch: amd64, runner: ubuntu-latest,    apt_extra: '', prereg: '' }
-        #   - { pkg: NAME, arch: arm64, runner: ubuntu-24.04-arm, apt_extra: '', prereg: '' }
         include:
-          - { pkg: _none, arch: amd64, runner: ubuntu-latest, apt_extra: '', prereg: '' }
-
+          - { pkg: _none, arch: amd64, runner: ubuntu-latest }
     runs-on: ${{ matrix.runner }}
 
     steps:
       - uses: actions/checkout@v4
 
+      - name: Cache kominka:core
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/kominka-core.tar.gz
+          key: kominka-core-${{ matrix.arch }}-${{ hashFiles('Dockerfile', 'pm.ysh', 'tests/fixtures/repo/**/PKGBUILD.ysh') }}
+
+      - name: Build kominka:core
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          docker build --no-cache -t kominka:core .
+          docker save kominka:core | gzip > /tmp/kominka-core.tar.gz
+
+      - name: Load kominka:core
+        if: steps.cache.outputs.cache-hit == 'true'
+        run: docker load < /tmp/kominka-core.tar.gz
+
       - name: Build ${{ matrix.pkg }}
         run: |
           docker build -t builder \
             --build-arg PKG="${{ matrix.pkg }}" \
-            --build-arg APT_EXTRA="${{ matrix.apt_extra }}" \
-            --build-arg PREREG="${{ matrix.prereg }}" \
             -f - . <<'DEOF'
-          FROM ubuntu:24.04
+          FROM kominka:core
           ARG PKG
-          ARG APT_EXTRA
-          ARG PREREG
-          ENV DEBIAN_FRONTEND=noninteractive
-          RUN apt-get update && apt-get install -y --no-install-recommends \
-                gcc g++ make pkg-config wget xz-utils bzip2 ca-certificates $APT_EXTRA \
-                && rm -rf /var/lib/apt/lists/*
-
-          RUN case $(uname -m) in \
-                x86_64)  ARCH=x86_64-linux-gnu ;; \
-                aarch64) ARCH=aarch64-linux-gnu ;; \
-              esac && \
-              wget -qO- \
-                "https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev/${ARCH}/ysh/0.37.0-2.tar.gz" | \
-              tar xzf - -C / ./usr/local/bin/
-
-          COPY pm.ysh /usr/bin/pm
-          RUN chmod +x /usr/bin/pm
           COPY tests/fixtures/repo /packages
-
-          RUN mkdir -p /var/db/kominka/installed /var/db/kominka/choices
-
-          # Base pre-register: system packages pm must not try to fetch.
-          # PREREG adds package-specific extras (e.g. zlib for libevent).
-          RUN for pkg in glibc linux-headers make pkgconf $PREREG; do \
-                mkdir -p /var/db/kominka/installed/$pkg && \
-                echo "0 0" > /var/db/kominka/installed/$pkg/version && \
-                printf '#!/bin/sh\n:\n' > /var/db/kominka/installed/$pkg/build && \
-                chmod +x /var/db/kominka/installed/$pkg/build && \
-                touch /var/db/kominka/installed/$pkg/manifest; \
-              done
-
           ENV KOMINKA_PATH=/packages \
+              KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
               KOMINKA_COMPRESS=gz \
               KOMINKA_COLOR=0 \
               KOMINKA_PROMPT=0 \
               KOMINKA_FORCE=1 \
               LOGNAME=root \
               HOME=/root
-
-          RUN case $(uname -m) in \
-                x86_64)  ARCH_FLAGS="-march=x86-64-v3" ;; \
-                aarch64) ARCH_FLAGS="-march=armv8-a+lse+crypto" ;; \
-              esac && \
-              CFLAGS="-O2 -DNDEBUG $ARCH_FLAGS" \
-              CXXFLAGS="-O2 -DNDEBUG $ARCH_FLAGS" \
-              LDFLAGS="-static-libgcc" \
-              sh -c "pm b $PKG"
+          RUN pm i build-essential && pm b $PKG
           DEOF
 
           docker create --name extract builder
