@@ -2227,7 +2227,13 @@ proc args (action='', ...pkgs) {
                 *           { setglobal order_mode = 'raw' }
             }
             pkg_order @pkgs
-            setvar pkgs = order
+            # build resolves deps internally in pkg_build_all; using the order
+            # list here would mark implicit make-deps as "explicit", bypassing
+            # the pre-built binary cache check.
+            case (action) {
+                b | build { true }
+                *         { setvar pkgs = order }
+            }
         }
     }
 
