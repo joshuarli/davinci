@@ -1776,6 +1776,7 @@ proc pkg_installable (pkg, depends_file) {
         try { read -r dep dep_type }
         if (dep === '' and _status !== 0) { break }
         if (dep === '' or dep => startsWith('#')) { continue }
+        if (dep_type === 'make') { continue }
 
         if ! test -d "${sys_db}/${dep}" {
             write -- "$dep $dep_type"
