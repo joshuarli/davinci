@@ -2080,9 +2080,8 @@ proc pkg_update_git (need_su) {
     }
 }
 
-proc pkg_upgrade () {
-    log "Checking for new package versions"
-
+proc pkg_outdated (; result Ref = null) {
+    ### List installed packages with newer versions available in the repository.
     var to_update = []
     var repo_orphans = []
 
@@ -2114,6 +2113,19 @@ proc pkg_upgrade () {
         war "Packages without repository${newline}${orphan_list}"
     }
 
+    if (len(to_update) === 0 and len(repo_orphans) === 0) {
+        log "All packages up to date"
+    }
+
+    if (result !== null) { call result->setValue(to_update) }
+}
+
+proc pkg_upgrade () {
+    log "Checking for new package versions"
+
+    var to_update = []
+    pkg_outdated (&to_update)
+
     setglobal build_install = '0'
     setglobal prefer_cache = '1'
 
@@ -2135,8 +2147,6 @@ proc pkg_upgrade () {
         log "Updated all packages"
         return
     }
-
-    log "Nothing to do"
 }
 
 proc pkg_clean () {
@@ -2308,6 +2318,7 @@ proc args (action='', ...pkgs) {
         i | install      { pkg_install_all @pkgs }
         l | list         { pkg_list_version @pkgs }
         n | info         { for pkg in (pkgs) { pkg_info $pkg } }
+        o | outdated     { pkg_outdated }
         r | remove       { for pkg in (redro) { pkg_remove $pkg } }
         s | search       { for pkg in (pkgs) { pkg_find $pkg all } }
         u | update       { pkg_update }
@@ -2324,6 +2335,7 @@ proc args (action='', ...pkgs) {
             log 'help         Show this message'
             log 'info         Show package details'
             log 'install      Install packages'
+            log 'outdated     Show packages with newer versions available'
             log 'list         List installed packages'
             log 'remove       Remove packages'
             log 'upload       Upload built packages to R2'
@@ -2455,7 +2467,7 @@ proc main (...argv) {
     }
 
     # CPU count for parallel make.
-    try { setglobal _nproc = $(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4) }
+    try { setglobal _nproc = $(nproc 2>/dev/null || grep -c '^processor' /proc/cpuinfo 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4) }
 
 
     # Discover tools via fallback chains.
