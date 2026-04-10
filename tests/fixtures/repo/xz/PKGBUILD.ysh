@@ -1,0 +1,21 @@
+#!/usr/local/bin/ysh
+
+var name    = 'xz'
+var ver     = '5.2.5'
+var rel     = '1'
+var deps    = []
+var mkdeps  = []
+
+var sources = ['https://tukaani.org/xz/xz-VERSION.tar.gz']
+var checksums = ['f6f4910fd033078738bd82bfba4f49219d03b17eb0794eb91efbae419f4aba10']
+
+proc build(dest) {
+
+    ./configure \
+        --prefix=/usr \
+        --disable-doc \
+        --disable-nls
+
+    make
+    make DESTDIR=$dest install
+}

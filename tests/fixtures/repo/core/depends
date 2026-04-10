@@ -1,9 +1,0 @@
-baselayout
-glibc
-busybox
-baseinit
-runit
-boringssl
-curl
-ca-certificates
-ysh

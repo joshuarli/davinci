@@ -1,0 +1,25 @@
+#!/usr/local/bin/ysh
+
+var name    = 'libudev-zero'
+var ver     = '1.0.0'
+var rel     = '1'
+var deps    = []
+var mkdeps  = ['linux-headers']
+
+var sources = ['https://github.com/illiliti/libudev-zero/archive/refs/tags/VERSION.tar.gz']
+var checksums = ['68c20aefd7aa89abe446cf5ec76f5846315ded719f0665eabed9261cc3c7f47a']
+
+proc build(dest) {
+    var CC = ENV => get("CC", "cc")
+    var LDFLAGS = ENV => get("LDFLAGS", "")
+    var CFLAGS = ENV => get("CFLAGS", "")
+    var CPPFLAGS = ENV => get("CPPFLAGS", "")
+
+    make PREFIX=/usr
+    make PREFIX=/usr install
+
+    mkdir -p "${dest}/usr/bin"
+
+    $CC $LDFLAGS $CFLAGS $CPPFLAGS \
+        -o "${dest}/usr/bin/libudev-zero-helper" contrib/helper.c
+}

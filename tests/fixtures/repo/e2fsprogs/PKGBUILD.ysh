@@ -1,0 +1,41 @@
+#!/usr/local/bin/ysh
+
+var name    = 'e2fsprogs'
+var ver     = '1.46.4'
+var rel     = '3'
+var deps    = ['glibc']
+var mkdeps  = []
+
+var sources = ['https://mirrors.edge.kernel.org/pub/linux/kernel/people/tytso/e2fsprogs/vVERSION/e2fsprogs-VERSION.tar.xz']
+var checksums = ['b11042533c1b1dcf17512f0da48e05b0c573dada1dd8b762864d10f4dc399713']
+
+proc build(dest) {
+
+    ./configure \
+        --prefix=/usr \
+        --sbindir=/usr/bin \
+        --sysconfdir=/etc \
+        --enable-symlink-install \
+        --enable-libuuid \
+        --enable-libblkid \
+        --disable-nls \
+        --disable-uuidd \
+        --disable-fsck \
+        --disable-elf-shlibs
+
+    make
+
+    var install_args = [
+        'MKDIR_P=mkdir -p',
+        'BLKID_MAN=',
+        'BLKID_PROG=',
+        'FINDFS_LINK=',
+        'FINDFS_MAN=',
+        'UMANPAGES=chattr.1 lsattr.1',
+        'UPROGS=chattr lsattr',
+    ]
+
+    for p in (:| debugfs e2fsck lib/e2p lib/et lib/ext2fs lib/ss misc resize scrub |) {
+        make -C $p DESTDIR=$dest @install_args install
+    }
+}

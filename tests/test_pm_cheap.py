@@ -106,21 +106,56 @@ class CheapPMTestCase(unittest.TestCase):
 
     def create_repo_pkg(self, name, version="1.0 1", depends="", sources="",
                         build=None):
-        """Create a minimal package in a temporary repo directory."""
+        """Create a minimal package as a PKGBUILD.ysh in a temporary repo."""
         repo = Path(self.tmpdir) / "extra-repo" / name
         repo.mkdir(parents=True)
-        (repo / "version").write_text(version + "\n")
+
+        ver_parts = version.split()
+        pkgver = ver_parts[0]
+        pkgrel = ver_parts[1] if len(ver_parts) > 1 else "1"
+
+        # Parse depends into runtime and make deps.
+        runtime_deps = []
+        make_deps = []
         if depends:
-            (repo / "depends").write_text(depends + "\n")
-        if sources:
-            (repo / "sources").write_text(sources + "\n")
-        build_script = build or textwrap.dedent("""\
-            #!/bin/sh -e
-            mkdir -p "$1/usr/bin"
-            printf 'mock' > "$1/usr/bin/{name}"
+            for line in depends.strip().splitlines():
+                parts = line.split()
+                if not parts:
+                    continue
+                if len(parts) >= 2 and parts[1] == "make":
+                    make_deps.append(parts[0])
+                else:
+                    runtime_deps.append(parts[0])
+
+        deps_str = repr(runtime_deps)
+        mkdeps_str = repr(make_deps)
+
+        sources_list = [s for s in sources.splitlines() if s] if sources else []
+        sources_str = repr(sources_list)
+
+        build_body = build or textwrap.dedent("""\
+            mkdir -p "$dest/usr/bin"
+            printf 'mock' > "$dest/usr/bin/{name}"
         """).format(name=name)
-        (repo / "build").write_text(build_script)
-        (repo / "build").chmod(0o755)
+
+        pkgbuild = textwrap.dedent(f"""\
+            #!/usr/local/bin/ysh
+
+            var name    = {name!r}
+            var ver     = {pkgver!r}
+            var rel     = {pkgrel!r}
+            var deps    = {deps_str}
+            var mkdeps  = {mkdeps_str}
+            var nostrip = false
+            var sources = {sources_str}
+            var checksums = []
+
+            proc build(dest) {{
+                {build_body.strip()}
+            }}
+        """)
+        (repo / "PKGBUILD.ysh").write_text(pkgbuild)
+        (repo / "PKGBUILD.ysh").chmod(0o755)
         self.env["KOMINKA_PATH"] = str(repo.parent) + ":" + self.env["KOMINKA_PATH"]
         return repo
 
@@ -249,16 +284,16 @@ class DependencyTests:
 
 class ChecksumTests:
     def test_checksum_generates_file(self):
-        repo = self.create_repo_pkg("ckpkg")
+        repo = self.create_repo_pkg("ckpkg", sources="data.tar.gz")
         (repo / "data.tar.gz").write_bytes(b"fake tarball content")
-        (repo / "sources").write_text("data.tar.gz\n")
 
-        self.pm("c", "ckpkg")
-        checksums_file = repo / "checksums"
-        self.assertTrue(checksums_file.exists())
-        content = checksums_file.read_text().strip()
-        self.assertEqual(len(content), 64)
-        self.assertTrue(all(c in "0123456789abcdef" for c in content))
+        r = self.pm("c", "ckpkg")
+        # pm c prints checksums to stdout for pasting into PKGBUILD.ysh.
+        content = (r.stdout + r.stderr).strip()
+        # Find the hash line (64 hex chars).
+        lines = [l for l in content.splitlines() if len(l) == 64 and
+                 all(c in "0123456789abcdef" for c in l)]
+        self.assertEqual(len(lines), 1)
 
     def test_checksum_no_sources(self):
         self.create_repo_pkg("nosrc")
@@ -266,47 +301,43 @@ class ChecksumTests:
         self.assertEqual(r.returncode, 0)
 
     def test_checksum_multiple_sources(self):
-        repo = self.create_repo_pkg("multi")
+        repo = self.create_repo_pkg("multi", sources="file1.txt\nfile2.txt")
         (repo / "file1.txt").write_text("aaa")
         (repo / "file2.txt").write_text("bbb")
-        (repo / "sources").write_text("file1.txt\nfile2.txt\n")
 
-        self.pm("c", "multi")
-        lines = (repo / "checksums").read_text().strip().split("\n")
+        r = self.pm("c", "multi")
+        combined = r.stdout + r.stderr
+        lines = [l for l in combined.splitlines() if len(l) == 64 and
+                 all(c in "0123456789abcdef" for c in l)]
         self.assertEqual(len(lines), 2)
 
     def test_checksum_deterministic(self):
         """Running checksum twice should produce the same result."""
-        repo = self.create_repo_pkg("det")
+        repo = self.create_repo_pkg("det", sources="payload.bin")
         (repo / "payload.bin").write_bytes(b"\x00\x01\x02" * 100)
-        (repo / "sources").write_text("payload.bin\n")
 
-        self.pm("c", "det")
-        first = (repo / "checksums").read_text()
-        self.pm("c", "det")
-        second = (repo / "checksums").read_text()
-        self.assertEqual(first, second)
+        r1 = self.pm("c", "det")
+        r2 = self.pm("c", "det")
+        self.assertEqual(r1.stdout + r1.stderr, r2.stdout + r2.stderr)
 
     def test_checksum_skips_git_sources(self):
         """git+ sources should not generate checksums."""
-        repo = self.create_repo_pkg("gitpkg")
+        repo = self.create_repo_pkg("gitpkg",
+                                    sources="git+https://example.com/repo\nlocal.txt")
         (repo / "local.txt").write_text("data")
-        (repo / "sources").write_text(
-            "git+https://example.com/repo\nlocal.txt\n"
-        )
-        self.pm("c", "gitpkg")
-        checksums = (repo / "checksums").read_text().strip()
-        # Generation skips git sources entirely — only local.txt gets a hash.
-        lines = checksums.split("\n")
+
+        r = self.pm("c", "gitpkg")
+        combined = r.stdout + r.stderr
+        # Only local.txt gets a hash — git sources are skipped.
+        lines = [l for l in combined.splitlines() if len(l) == 64 and
+                 all(c in "0123456789abcdef" for c in l)]
         self.assertEqual(len(lines), 1)
-        self.assertEqual(len(lines[0]), 64)
 
 
 class DownloadTests:
     def test_download_local_sources(self):
-        repo = self.create_repo_pkg("localpkg")
+        repo = self.create_repo_pkg("localpkg", sources="localfile.txt")
         (repo / "localfile.txt").write_text("content")
-        (repo / "sources").write_text("localfile.txt\n")
 
         r = self.pm("d", "localpkg")
         self.assertEqual(r.returncode, 0)
@@ -314,8 +345,7 @@ class DownloadTests:
         self.assertIn("found", combined)
 
     def test_download_missing_source_fails(self):
-        repo = self.create_repo_pkg("badpkg")
-        (repo / "sources").write_text("nonexistent-file.tar.gz\n")
+        self.create_repo_pkg("badpkg", sources="nonexistent-file.tar.gz")
 
         r = self.pm("d", "badpkg", check=False)
         self.assertNotEqual(r.returncode, 0)
@@ -328,18 +358,18 @@ class DownloadTests:
 
 class VersionSubstitutionTests:
     def test_version_placeholder(self):
-        repo = self.create_repo_pkg("subst", version="2.5.3 1")
+        repo = self.create_repo_pkg("subst", version="2.5.3 1",
+                                    sources="data-VERSION.txt")
         (repo / "data-2.5.3.txt").write_text("content")
-        (repo / "sources").write_text("data-VERSION.txt\n")
 
         r = self.pm("d", "subst")
         self.assertEqual(r.returncode, 0)
 
     def test_major_minor_patch_placeholders(self):
         """MAJOR, MINOR, PATCH should also be substituted."""
-        repo = self.create_repo_pkg("mmp", version="3.7.11 1")
+        repo = self.create_repo_pkg("mmp", version="3.7.11 1",
+                                    sources="data-MAJOR-MINOR-PATCH.txt")
         (repo / "data-3-7-11.txt").write_text("content")
-        (repo / "sources").write_text("data-MAJOR-MINOR-PATCH.txt\n")
 
         r = self.pm("d", "mmp")
         self.assertEqual(r.returncode, 0)
@@ -419,8 +449,9 @@ class UpdateTests:
         # Verify installed.
         r = self.pm("l")
         self.assertIn("upgpkg 1.0-1", r.stdout)
-        # Bump release in repo.
-        (repo / "version").write_text("1.0 2\n")
+        # Bump release in PKGBUILD.ysh.
+        txt = (repo / "PKGBUILD.ysh").read_text()
+        (repo / "PKGBUILD.ysh").write_text(txt.replace("var rel     = '1'", "var rel     = '2'"))
         # pm U should detect the update.
         r = self.pm("U", env_override={"KOMINKA_PROMPT": "0"})
         combined = r.stdout + r.stderr
@@ -431,8 +462,9 @@ class UpdateTests:
         repo = self.create_repo_pkg("relup", version="2.0 1")
         self.pm("b", "relup")
         self.pm("i", "relup", env_override={"KOMINKA_FORCE": "1"})
-        # Bump release.
-        (repo / "version").write_text("2.0 2\n")
+        # Bump release in PKGBUILD.ysh.
+        txt = (repo / "PKGBUILD.ysh").read_text()
+        (repo / "PKGBUILD.ysh").write_text(txt.replace("var rel     = '1'", "var rel     = '2'"))
         self.pm("U", env_override={"KOMINKA_PROMPT": "0"})
         r = self.pm("l")
         self.assertIn("relup 2.0-2", r.stdout)
@@ -451,7 +483,9 @@ class UpdateTests:
         repo = self.create_repo_pkg("verbump", version="1.0 1")
         self.pm("b", "verbump")
         self.pm("i", "verbump", env_override={"KOMINKA_FORCE": "1"})
-        (repo / "version").write_text("2.0 1\n")
+        # Update version in PKGBUILD.ysh
+        txt = (repo / "PKGBUILD.ysh").read_text()
+        (repo / "PKGBUILD.ysh").write_text(txt.replace("var ver     = '1.0'", "var ver     = '2.0'"))
         r = self.pm("U", env_override={"KOMINKA_PROMPT": "0"})
         combined = r.stdout + r.stderr
         self.assertIn("verbump 1.0-1 => 2.0-1", combined)

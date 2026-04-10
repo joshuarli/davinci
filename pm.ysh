@@ -77,6 +77,19 @@ var repo_parts = {major: '', minor: '', patch: '', ident: ''}
 var ver_pre = ''
 var rel_pre = ''
 
+# PKGBUILD.ysh state — populated by _pkg_load_pkgbuild.
+# Use pkgdeps/pkgmkdeps to avoid collision with pm's internal deps list.
+var pkgname       = ''
+var pkgver        = ''
+var pkgrel        = ''
+var pkgdeps       = []
+var pkgmkdeps     = []
+var nostrip       = false
+var sources       = []
+var checksums     = []
+var checksums_aarch64 = []
+var checksums_x86_64  = []
+
 # Temp file stack — access via tf[-1] (newest), tf[-2], tf[-3].
 var tf = []
 
@@ -360,25 +373,69 @@ proc pkg_find_version (pkg, arg2='', arg3='', search_path='') {
 
     pkg_find $pkg $arg2 $arg3 $search_path
 
-    var repo_ver_line = ''
-    read -r repo_ver_line 2>/dev/null < "${repo_dir}/version" \
-        || die $pkg "Failed to read version file (${repo_dir}/version)"
+    _pkg_load_pkgbuild
 
-    var parts = repo_ver_line => split(" ")
-    setglobal repo_ver = parts[0]
-    if (len(parts) > 1) {
-        setglobal repo_rel = parts[1]
-    } else {
-        setglobal repo_rel = ''
+    if (repo_ver === '') {
+        die $pkg "pkgver not set in PKGBUILD.ysh"
     }
-
     if (repo_rel === '') {
-        die $pkg "Release field not found in version file"
+        die $pkg "pkgrel not set in PKGBUILD.ysh"
     }
+}
 
-    if ! test -f "${repo_dir}/build.ysh" {
-        if ! test -x "${repo_dir}/build" {
-            die $pkg "Build file not found or not executable"
+proc _pkg_load_pkgbuild () {
+    ### Source PKGBUILD.ysh and populate package globals.
+    # Reset to defaults so stale values from the previous package don't leak.
+    setglobal pkgname           = ''
+    setglobal pkgver            = ''
+    setglobal pkgrel            = ''
+    setglobal pkgdeps           = []
+    setglobal pkgmkdeps         = []
+    setglobal nostrip           = false
+    setglobal sources           = []
+    setglobal checksums         = []
+    setglobal checksums_aarch64 = []
+    setglobal checksums_x86_64  = []
+
+    if test -f "${repo_dir}/PKGBUILD.ysh" {
+        source "${repo_dir}/PKGBUILD.ysh"
+        # PKGBUILD.ysh uses var (locals in this scope) — copy to globals.
+        # Use pkgdeps/pkgmkdeps to avoid colliding with pm's internal deps list.
+        setglobal pkgver            = ver
+        setglobal pkgrel            = rel
+        setglobal repo_ver          = ver
+        setglobal repo_rel          = rel
+        setglobal repo_name         = name
+        setglobal pkgdeps           = deps
+        setglobal pkgmkdeps         = mkdeps
+        setglobal nostrip           = nostrip
+        setglobal sources           = sources
+        setglobal checksums         = checksums
+        setglobal checksums_aarch64 = checksums_aarch64
+        setglobal checksums_x86_64  = checksums_x86_64
+    } elif test -f "${repo_dir}/version" {
+        # Installed package db — read the old-format version file.
+        var _vline = ''
+        read -r _vline < "${repo_dir}/version"
+        var _vparts = _vline => split(" ")
+        setglobal repo_ver  = _vparts[0]
+        setglobal repo_rel  = _vparts[1] if (len(_vparts) > 1) else ''
+        setglobal pkgver    = repo_ver
+        setglobal pkgrel    = repo_rel
+        setglobal repo_name = ${repo_dir##*/}
+        # Read deps from the installed depends file if present.
+        setglobal pkgdeps   = []
+        setglobal pkgmkdeps = []
+        if test -f "${repo_dir}/depends" {
+            while true {
+                try { read -r _dep _dtype }
+                if (_dep === '' and _status !== 0) { break }
+                if (_dtype === 'make') {
+                    call pkgmkdeps->append(_dep)
+                } else {
+                    call pkgdeps->append(_dep)
+                }
+            } < "${repo_dir}/depends"
         }
     }
 }
@@ -604,15 +661,15 @@ proc pkg_source (pkg, checksum_mode='') {
     pkg_find_version_split $pkg
 
     # Support packages without sources.
-    if ! test -f "${repo_dir}/sources" {
-        return
-    }
+    if (len(sources) === 0) { return }
 
     log $pkg "Reading sources"
 
-    while true {
-        try { read -r src dest }
-        if (src === '' and _status !== 0) { break }
+    for src_line in (sources) {
+        var src  = ${src_line%% *}
+        var dest = ''
+        if (src_line !== src) { setvar dest = ${src_line#* } }
+
         pkg_source_resolve $pkg $src $dest $checksum_mode
 
         run_hook pre-source $pkg $src $_fnr_val
@@ -639,7 +696,7 @@ proc pkg_source (pkg, checksum_mode='') {
         }
 
         run_hook post-source $pkg $src "${_des:-"$_res"}"
-    } < "${repo_dir}/sources"
+    }
 }
 
 proc pkg_source_url (dest, url, fatal='y') {
@@ -736,9 +793,11 @@ proc pkg_extract (pkg) {
 
     run_hook pre-extract $pkg "${pkg_dir}/${pkg}"
 
-    while true {
-        try { read -r src dest }
-        if (src === '' and _status !== 0) { break }
+    for src_line in (sources) {
+        var src  = ${src_line%% *}
+        var dest = ''
+        if (src_line !== src) { setvar dest = ${src_line#* } }
+
         pkg_source_resolve $pkg $src $dest >/dev/null
 
         if (_res !== '') {
@@ -750,7 +809,7 @@ proc pkg_extract (pkg) {
             *.tar | *.tar.?? | *.tar.??? | *.tar.???? | *.t?z { pkg_source_tar $_res }
             ?*                                           { cp -LRf $_res . }
         }
-    } < "${repo_dir}/sources"
+    }
 }
 
 proc pkg_depends (pkg, mode='', filter='', chain='', dep_type='') {
@@ -787,23 +846,20 @@ proc pkg_depends (pkg, mode='', filter='', chain='', dep_type='') {
     # Recurse through child dependencies.
     try { _pkg_find $pkg }
     if (_status === 0) {
-        if test -e "${repo_dir}/depends" {
-            while true {
-                try { read -r dep dep_type_line }
-                if (dep === '' and _status !== 0) { break }
-                case (dep) {
-                    \#* { continue }
-                }
-                if (dep !== '') {
-                    # Skip make deps of already-installed packages.
-                    # e.g. don't pull cmake/go/samurai just because
-                    # boringssl (installed) lists them as build deps.
-                    if (dep_type_line === 'make') {
-                        if test -d "${sys_db}/${pkg}" { continue }
-                    }
-                    pkg_depends $dep '' $filter "$chain $pkg" $dep_type_line
-                }
-            } < "${repo_dir}/depends"
+        # Load this package's PKGBUILD.ysh to get its deps/mkdeps.
+        _pkg_load_pkgbuild
+        # Save before recursion overwrites globals with sub-package data.
+        var _this_deps   = pkgdeps
+        var _this_mkdeps = pkgmkdeps
+        for dep in (_this_deps) {
+            # Skip make deps of already-installed packages.
+            if test -d "${sys_db}/${dep}" { continue }
+            pkg_depends $dep '' $filter "$chain $pkg" ''
+        }
+        for dep in (_this_mkdeps) {
+            # Skip make deps of already-installed packages.
+            if test -d "${sys_db}/${dep}" { continue }
+            pkg_depends $dep '' $filter "$chain $pkg" 'make'
         }
     }
 
@@ -896,9 +952,8 @@ proc pkg_clean_dev (pkg) {
 
 proc pkg_strip (pkg) {
     ### Strip package binaries and libraries.
-    if test -f "${mak_dir}/${pkg}/nostrip" || test -f "${repo_dir}/nostrip" {
-        return
-    }
+    if (nostrip === true) { return }
+    if test -f "${mak_dir}/${pkg}/nostrip" { return }
     if (KOMINKA_STRIP === '0') {
         return
     }
@@ -1243,39 +1298,40 @@ proc pkg_build (pkg) {
     # Create log file early to catch permission errors.
     true > "${log_dir}/${pkg}-${time_str}-${KOMINKA_PID}"
 
-    # Prefer build.ysh (run with ysh) over build (run with sh).
-    var build_cmd = []
-    if test -f "${repo_dir}/build.ysh" {
-        setvar build_cmd = ['ysh', "${repo_dir}/build.ysh"]
-    } else {
-        setvar build_cmd = ["${repo_dir}/build"]
-    }
+    # Source PKGBUILD.ysh to bring the build proc into scope, then call it.
+    source "${repo_dir}/PKGBUILD.ysh"
 
     {
-        AR="${AR:-ar}" \
-        MAKEFLAGS="${MAKEFLAGS:--j${_nproc}}" \
-        CC="${CC:-cc}" \
-        CXX="${CXX:-c++}" \
-        CFLAGS="${CFLAGS:--O2 -DNDEBUG}" \
-        CXXFLAGS="${CXXFLAGS:--O2 -DNDEBUG}" \
-        NM="${NM:-nm}" \
-        RANLIB="${RANLIB:-ranlib}" \
-        DESTDIR="${pkg_dir}/${pkg}" \
-        RUSTFLAGS="--remap-path-prefix=$PWD=. ${RUSTFLAGS:-}" \
-        GOFLAGS="-trimpath -modcacherw ${GOFLAGS:-}" \
-        GOPATH="${PWD}/go" \
-        KOMINKA_ROOT="${KOMINKA_ROOT}" \
-        \
-        @build_cmd "${pkg_dir}/${pkg}" $repo_ver 2>&1 || {
-            log $pkg "Build failed"
-            log $pkg "Log stored to ${log_dir}/${pkg}-${time_str}-${KOMINKA_PID}"
+        setglobal ENV.AR          = "${AR:-ar}"
+        setglobal ENV.MAKEFLAGS   = "${MAKEFLAGS:--j${_nproc}}"
+        setglobal ENV.CC          = "${CC:-cc}"
+        setglobal ENV.CXX         = "${CXX:-c++}"
+        setglobal ENV.CFLAGS      = "${CFLAGS:--O2 -DNDEBUG}"
+        setglobal ENV.CXXFLAGS    = "${CXXFLAGS:--O2 -DNDEBUG}"
+        setglobal ENV.NM          = "${NM:-nm}"
+        setglobal ENV.RANLIB      = "${RANLIB:-ranlib}"
+        setglobal ENV.DESTDIR     = "${pkg_dir}/${pkg}"
+        setglobal ENV.RUSTFLAGS   = "--remap-path-prefix=$PWD=. ${RUSTFLAGS:-}"
+        setglobal ENV.GOFLAGS     = "-trimpath -modcacherw ${GOFLAGS:-}"
+        setglobal ENV.GOPATH      = "${PWD}/go"
+        setglobal ENV.KOMINKA_ROOT = KOMINKA_ROOT
 
-            try { forkwait { run_hook build-fail $pkg "${mak_dir}/${pkg}" } }
-
-            pkg_clean
-            kill 0
-        }
+        build "${pkg_dir}/${pkg}" 2>&1
+        write -- $? > "${log_dir}/${pkg}-${time_str}-${KOMINKA_PID}.exit"
     } | tee "${log_dir}/${pkg}-${time_str}-${KOMINKA_PID}"
+
+    var _build_exit = $(cat "${log_dir}/${pkg}-${time_str}-${KOMINKA_PID}.exit" 2>/dev/null || echo 1)
+    rm -f "${log_dir}/${pkg}-${time_str}-${KOMINKA_PID}.exit"
+
+    if (_build_exit !== '0') {
+        log $pkg "Build failed"
+        log $pkg "Log stored to ${log_dir}/${pkg}-${time_str}-${KOMINKA_PID}"
+
+        try { forkwait { run_hook build-fail $pkg "${mak_dir}/${pkg}" } }
+
+        pkg_clean
+        kill 0
+    }
 
     if (KOMINKA_KEEPLOG !== '1') {
         rm -f "${log_dir}/${pkg}-${time_str}-${KOMINKA_PID}"
@@ -1283,20 +1339,29 @@ proc pkg_build (pkg) {
 
     cp -LRf $repo_dir "${pkg_dir}/${pkg}/${pkg_db}/"
 
+    # Generate a depends file from pkgdeps/pkgmkdeps for pkg_installable.
+    var _deps_path = "${pkg_dir}/${pkg}/${pkg_db}/${repo_name}/depends"
+    true > $_deps_path
+    for d in (pkgdeps)   { write -- $d        >> $_deps_path }
+    for d in (pkgmkdeps) { write -- "$d make" >> $_deps_path }
+
+    # Write version file.
+    write -- "$repo_ver $repo_rel" > "${pkg_dir}/${pkg}/${pkg_db}/${repo_name}/version"
+
     log $pkg "Successfully built package"
 
     run_hook post-build $pkg "${pkg_dir}/${pkg}"
 }
 
 proc pkg_checksum (pkg) {
+    ### Download sources and print checksums for pasting into PKGBUILD.ysh.
     pkg_source $pkg c
 
-    if ! test -f "${repo_dir}/sources" { return }
+    if (len(sources) === 0) { return }
 
     pkg_checksum_gen
 
     if (hash !== '') {
-        write -- $hash > "${repo_dir}/checksums"
         log $pkg "Generated checksums"
     } else {
         log $pkg "No sources needing checksums"
@@ -1307,26 +1372,32 @@ proc pkg_checksum_gen () {
     ### Generate checksums for a package's sources.
     var files = []
 
-    while true {
-        try { read -r src dest }
-        if (src === '' and _status !== 0) { break }
+    for src_line in (sources) {
+        var src  = ${src_line%% *}
+        var dest = ''
+        if (src_line !== src) { setvar dest = ${src_line#* } }
+
         pkg_source_resolve $repo_name $src $dest >/dev/null
 
         var _res_stripped = ${_res##git+*}
         case (_res_stripped) {
             */*[!.] { call files->append(_res) }
         }
-    } < "${repo_dir}/sources"
+    }
 
     _sh256 @files
 }
 
 proc pkg_verify (pkg) {
-    ### Verify package checksums against the stored checksums file.
-    # Prefer arch-specific checksums (checksums.aarch64, checksums.x86_64).
-    var _arch_ck = "${repo_dir}/checksums.${sys_arch%%-*}"
-    var _ckfile = "${repo_dir}/checksums"
-    if test -f $_arch_ck { setvar _ckfile = _arch_ck }
+    ### Verify package checksums against the stored checksums in PKGBUILD.ysh.
+    # Prefer arch-specific: checksums_aarch64 / checksums_x86_64.
+    var _arch = ${sys_arch%%-*}
+    var _stored = []
+    case (_arch) {
+        aarch64 { if (len(checksums_aarch64) > 0) { setvar _stored = checksums_aarch64 } }
+        x86_64  { if (len(checksums_x86_64)  > 0) { setvar _stored = checksums_x86_64  } }
+    }
+    if (len(_stored) === 0) { setvar _stored = checksums }
 
     log $repo_name "Verifying sources"
 
@@ -1337,26 +1408,22 @@ proc pkg_verify (pkg) {
 
     if (len(new_sums) === 0) { return }
 
-    while true {
-        try { read -r chk _rest }
-        if (chk === '' and _status !== 0 and idx >= len(new_sums)) { break }
+    for stored_sum in (_stored) {
         var expected = ''
         if (idx < len(new_sums)) {
             setvar expected = new_sums[idx]
         } else {
             setvar expected = 'no source'
         }
-        var stored = ${chk:-missing}
 
-        write -- "- $stored"
+        write -- "- $stored_sum"
         write -- "+ $expected"
 
-        if (expected !== stored and stored !== 'SKIP') {
+        if (expected !== stored_sum and stored_sum !== 'SKIP') {
             die $repo_name "Checksum mismatch"
         }
-
         setvar idx += 1
-    } < $_ckfile
+    }
 }
 
 proc pkg_conflicts (pkg) {
@@ -1800,12 +1867,13 @@ proc pkg_install (pkg) {
             if failed {
                 # Metapackage — no sources, no tarball. Just register as installed.
                 pkg_find_version $pkg
-                if ! test -s "${repo_dir}/sources" {
+                if (len(sources) === 0) {
                     mkdir -p "${sys_db}/${pkg}"
-                    cp -f "${repo_dir}/version" "${sys_db}/${pkg}/"
-                    test -f "${repo_dir}/depends" && cp -f "${repo_dir}/depends" "${sys_db}/${pkg}/"
-                    cp -f "${repo_dir}/build" "${sys_db}/${pkg}/" 2>/dev/null || \
-                        printf '#!/bin/sh\n:\n' > "${sys_db}/${pkg}/build"
+                    write -- "$repo_ver $repo_rel" > "${sys_db}/${pkg}/version"
+                    true > "${sys_db}/${pkg}/depends"
+                    for d in (pkgdeps)   { write -- $d        >> "${sys_db}/${pkg}/depends" }
+                    for d in (pkgmkdeps) { write -- "$d make"  >> "${sys_db}/${pkg}/depends" }
+                    printf '#!/bin/sh\n:\n' > "${sys_db}/${pkg}/build"
                     chmod +x "${sys_db}/${pkg}/build"
                     true > "${sys_db}/${pkg}/manifest"
                     log $pkg "Registered metapackage"

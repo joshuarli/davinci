@@ -1,0 +1,29 @@
+#!/usr/local/bin/ysh
+
+var name    = 'make'
+var ver     = '4.3'
+var rel     = '1'
+var deps    = ['glibc']
+var mkdeps  = []
+
+var sources = ['https://ftp.gnu.org/gnu/make/make-VERSION.tar.gz']
+var checksums = ['e05fdde47c5f7ca45cb697e973894ff4f5d79e13b750ed57d7b66d8defc78e19']
+
+proc build(dest) {
+    var CFLAGS = ENV => get("CFLAGS", "")
+    setglobal ENV.CFLAGS = "${CFLAGS} -Wno-error -Wno-int-conversion -Wno-implicit-function-declaration"
+
+    ./configure \
+        --prefix=/usr \
+        --disable-nls
+
+    # Fix gnulib compat: replace all K&R-style zero-arg prototypes that
+    # conflict with strict POSIX declarations in modern libc headers.
+    find . \( -name '*.c' -o -name '*.h' \) -exec sed -i \
+        -e 's/extern char \*getenv ();/\/* getenv *\//' \
+        -e 's/^extern int getopt ();/\/* getopt *\//' \
+        {} +
+
+    make
+    make DESTDIR=$dest install
+}

@@ -1,0 +1,20 @@
+#!/usr/local/bin/ysh
+
+var name    = 'strace'
+var ver     = '5.15'
+var rel     = '1'
+var deps    = ['glibc']
+var mkdeps  = ['linux-headers']
+
+var sources = ['https://strace.io/files/VERSION/strace-VERSION.tar.xz']
+var checksums = ['ebcac22f297335294dc654425cbc3ce013343bece6da2699e3aec86aee8d72dc']
+
+proc build(dest) {
+
+    ./configure \
+        --prefix=/usr \
+        --disable-mpers
+
+    make
+    make install
+}
