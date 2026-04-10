@@ -1,13 +1,13 @@
 #!/usr/local/bin/ysh
 
 var name    = 'curl'
-var ver     = '7.80.0'
-var rel     = '5'
+var ver     = '8.19.0'
+var rel     = '6'
 var deps    = ['boringssl', 'zlib']
 var mkdeps  = ['zig']
 
-var sources = ['https://curl.haxx.se/download/curl-VERSION.tar.xz']
-var checksums = ['a132bd93188b938771135ac7c1f3ac1d3ce507c1fcbef8c471397639214ae2ab']
+var sources = ['https://curl.se/download/curl-VERSION.tar.xz']
+var checksums = ['4eb41489790d19e190d7ac7e18e82857cdd68af8f4e66b292ced562d333f11df']
 
 proc build(dest) {
     var _kr = ENV => get("KOMINKA_ROOT", "")

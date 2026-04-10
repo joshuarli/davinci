@@ -1,8 +1,8 @@
 #!/usr/local/bin/ysh
 
 var name    = 'git'
-var ver     = '2.34.1'
-var rel     = '1'
+var ver     = '2.53.0'
+var rel     = '2'
 var deps    = ['glibc', 'curl', 'boringssl', 'zlib']
 var mkdeps  = []
 
@@ -11,8 +11,8 @@ var sources = [
     'https://mirrors.edge.kernel.org/pub/software/scm/git/git-manpages-VERSION.tar.xz man',
 ]
 var checksums = [
-    '3a0755dd1cfab71a24dd96df3498c29cd0acd13b04f3d08bf933e81286db802c',
-    '9c635dd772ff21bcc4b7bab9f0de0dd01afb34b0eda3c83907e026bd3b3c7eb8',
+    '5818bd7d80b061bbbdfec8a433d609dc8818a05991f731ffc4a561e2ca18c653',
+    '957ffe4409eeb90c7332bff4abee8d5169d28ef5c7c3bf08419f4239be13f77f',
 ]
 
 proc build(dest) {

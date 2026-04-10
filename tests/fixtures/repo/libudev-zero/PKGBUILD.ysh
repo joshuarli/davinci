@@ -1,13 +1,13 @@
 #!/usr/local/bin/ysh
 
 var name    = 'libudev-zero'
-var ver     = '1.0.0'
-var rel     = '1'
+var ver     = '1.0.3'
+var rel     = '2'
 var deps    = []
 var mkdeps  = ['linux-headers']
 
 var sources = ['https://github.com/illiliti/libudev-zero/archive/refs/tags/VERSION.tar.gz']
-var checksums = ['68c20aefd7aa89abe446cf5ec76f5846315ded719f0665eabed9261cc3c7f47a']
+var checksums = ['0bd89b657d62d019598e6c7ed726ff8fed80e8ba092a83b484d66afb80b77da5']
 
 proc build(dest) {
     var CC = ENV => get("CC", "cc")

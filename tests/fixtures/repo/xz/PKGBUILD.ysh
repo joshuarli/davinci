@@ -1,13 +1,13 @@
 #!/usr/local/bin/ysh
 
 var name    = 'xz'
-var ver     = '5.2.5'
-var rel     = '1'
+var ver     = '5.8.3'
+var rel     = '2'
 var deps    = []
 var mkdeps  = []
 
-var sources = ['https://tukaani.org/xz/xz-VERSION.tar.gz']
-var checksums = ['f6f4910fd033078738bd82bfba4f49219d03b17eb0794eb91efbae419f4aba10']
+var sources = ['https://github.com/tukaani-project/xz/releases/download/vVERSION/xz-VERSION.tar.xz']
+var checksums = ['fff1ffcf2b0da84d308a14de513a1aa23d4e9aa3464d17e64b9714bfdd0bbfb6']
 
 proc build(dest) {
 

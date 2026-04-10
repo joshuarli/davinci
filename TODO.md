@@ -1,5 +1,8 @@
 # TODO
 
+come up with a real repository model then rebuild+reupload everything
+
+
 ## Packaging
 
 - dropbear (SSH server/client) — PKGBUILD done, CI build pending for R2

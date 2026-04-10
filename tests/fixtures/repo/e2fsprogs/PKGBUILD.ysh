@@ -1,13 +1,13 @@
 #!/usr/local/bin/ysh
 
 var name    = 'e2fsprogs'
-var ver     = '1.46.4'
-var rel     = '3'
+var ver     = '1.47.4'
+var rel     = '4'
 var deps    = ['glibc']
 var mkdeps  = []
 
 var sources = ['https://mirrors.edge.kernel.org/pub/linux/kernel/people/tytso/e2fsprogs/vVERSION/e2fsprogs-VERSION.tar.xz']
-var checksums = ['b11042533c1b1dcf17512f0da48e05b0c573dada1dd8b762864d10f4dc399713']
+var checksums = ['fd5bf388cbdbe006a3d3b318d983b2948382440acc85a87f1e7d108653e8db0b']
 
 proc build(dest) {
 

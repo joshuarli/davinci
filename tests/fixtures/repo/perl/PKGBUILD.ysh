@@ -1,13 +1,13 @@
 #!/usr/local/bin/ysh
 
 var name    = 'perl'
-var ver     = '5.34.0'
-var rel     = '1'
+var ver     = '5.42.2'
+var rel     = '2'
 var deps    = ['bzip2', 'zlib']
 var mkdeps  = []
 
 var sources = ['https://www.cpan.org/src/5.0/perl-VERSION.tar.xz']
-var checksums = ['82c2e5e5c71b0e10487a80d79140469ab1f8056349ca8545140a224dbbed7ded']
+var checksums = ['0a585eeb9e363c0f80482ddb3571625250c2c86aeb408853e8ea50805cfb14bb']
 
 proc build(dest) {
     var CC = ENV => get("CC", "cc")

@@ -1,13 +1,13 @@
 #!/usr/local/bin/ysh
 
 var name    = 'strace'
-var ver     = '5.15'
-var rel     = '1'
+var ver     = '6.19'
+var rel     = '2'
 var deps    = ['glibc']
 var mkdeps  = ['linux-headers']
 
 var sources = ['https://strace.io/files/VERSION/strace-VERSION.tar.xz']
-var checksums = ['ebcac22f297335294dc654425cbc3ce013343bece6da2699e3aec86aee8d72dc']
+var checksums = ['e076c851eec0972486ec842164fdc54547f9d17abd3d1449de8b120f5d299143']
 
 proc build(dest) {
 

@@ -1,8 +1,8 @@
 #!/usr/local/bin/ysh
 
 var name    = 'glibc'
-var ver     = '2.38'
-var rel     = '3'
+var ver     = '2.43'
+var rel     = '4'
 var deps    = []
 var mkdeps  = []
 
@@ -15,7 +15,7 @@ var sources = [
     'files/getent.c',
 ]
 var checksums = [
-    'fb82998998b2b29965467bc1b69d152e9c307d2cf301c9eafb4555b770ef3fd2',
+    'd9c86c6b5dbddb43a3e08270c5844fc5177d19442cf5b8df4be7c07cd5fa3831',
     'a83818007069c222d24d283a99348c2376f35bac3282d8142004c47d3dc5ecac',
     'c13407edd0e33be73cae72514cb234f8612e1c0e54401c9448daffd3a240158b',
     'e1e498a79bf160a5766fa560f2b07b206fe89fe21a62600c77d72e00a6992f92',
