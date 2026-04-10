@@ -29,6 +29,9 @@ ENV KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
 # Add filesystem tools for the installer.
 RUN pm i liveiso
 
+# Add sudo-rs for privilege escalation.
+RUN pm i sudo-rs
+
 # Kernel — lives on the rootfs so install.sh can access it.
 COPY --from=kernel-image /Image /usr/share/kominka/Image
 
@@ -36,8 +39,24 @@ COPY --from=kernel-image /Image /usr/share/kominka/Image
 COPY install.sh /usr/bin/pm-install
 RUN chmod +x /usr/bin/pm-install
 
-# Allow root login with no password (installer).
-RUN sed -i 's|^root:!:|root::|' /etc/shadow
+# Create user josh with wheel group and sudo access.
+RUN grep -q '^wheel:' /etc/group || echo "wheel:x:10:" >> /etc/group && \
+    echo "josh:x:1000:1000:josh:/home/josh:/bin/sh" >> /etc/passwd && \
+    echo "josh::14871::::::" >> /etc/shadow && \
+    sed -i 's/^wheel:\(.*\):/wheel:\1:josh/' /etc/group && \
+    echo "josh:x:1000:" >> /etc/group && \
+    mkdir -p /home/josh && \
+    chown 1000:1000 /home/josh
+
+# Auto-login josh on the serial console.
+# getty -n skips the login prompt; -l runs a program instead of /bin/login.
+RUN printf '#!/bin/busybox sh\nexec busybox login -f josh\n' \
+        > /usr/local/bin/autologin && \
+    chmod +x /usr/local/bin/autologin && \
+    mkdir -p /etc/sv/getty-hvc0 && \
+    printf '#!/bin/busybox sh\nexec getty 115200 hvc0 -n -l /usr/local/bin/autologin\n' \
+        > /etc/sv/getty-hvc0/run && \
+    chmod +x /etc/sv/getty-hvc0/run
 
 # Enable services for live environment.
 RUN mkdir -p /var/service && \
