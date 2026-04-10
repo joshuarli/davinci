@@ -32,6 +32,9 @@ RUN pm i liveiso
 # Add sudo-rs for privilege escalation.
 RUN pm i sudo-rs
 
+# Pre-install build tools so the live VM can run pm b without manual setup.
+RUN pm i build-essential
+
 # pm.ysh escalates via 'su' when KOMINKA_SU=su (see as_user proc).
 # Busybox su checks /etc/shadow directly — no PAM involved.
 # Restore the busybox-suid su symlink (sudo-rs overwrites it with its own
