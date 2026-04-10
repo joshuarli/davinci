@@ -40,13 +40,9 @@ COPY install.sh /usr/bin/pm-install
 RUN chmod +x /usr/bin/pm-install
 
 # Create user josh with wheel group and sudo access.
-RUN grep -q '^wheel:' /etc/group || echo "wheel:x:10:" >> /etc/group && \
-    echo "josh:x:1000:1000:josh:/home/josh:/bin/sh" >> /etc/passwd && \
-    echo "josh::14871::::::" >> /etc/shadow && \
-    sed -i 's/^wheel:\(.*\):/wheel:\1:josh/' /etc/group && \
-    echo "josh:x:1000:" >> /etc/group && \
-    mkdir -p /home/josh && \
-    chown 1000:1000 /home/josh
+RUN busybox adduser -D -s /bin/sh -u 1000 josh && \
+    grep -q '^wheel:' /etc/group || echo "wheel:x:10:" >> /etc/group && \
+    busybox addgroup josh wheel
 
 # Auto-login josh on the serial console.
 # getty -n skips the login prompt; -l runs a program instead of /bin/login.
