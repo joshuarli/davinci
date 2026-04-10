@@ -4,7 +4,7 @@ var name    = 'glibc'
 var ver     = '2.43'
 var rel     = '4'
 var deps    = []
-var mkdeps  = []
+var mkdeps  = ['zig', 'make']
 
 var sources = [
     'https://ftp.gnu.org/gnu/glibc/glibc-VERSION.tar.xz',

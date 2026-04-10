@@ -4,7 +4,7 @@ var name    = 'sqlite'
 var ver     = '3.53.0'
 var rel     = '2'
 var deps    = ['zlib']
-var mkdeps  = []
+var mkdeps  = ['zig', 'make']
 
 var sources = ['https://www.sqlite.org/2026/sqlite-autoconf-3530000.tar.gz']
 var checksums = ['851e9b38192fe2ceaa65e0baa665e7fa06230c3d9bd1a6a9662d02380d73365a']

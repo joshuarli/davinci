@@ -4,7 +4,7 @@ var name    = 'cmake'
 var ver     = '4.3.1'
 var rel     = '2'
 var deps    = ['glibc']
-var mkdeps  = ['make']
+var mkdeps  = ['zig', 'make']
 
 var sources = [
     'https://cmake.org/files/vMAJOR.MINOR/cmake-VERSION.tar.gz',

@@ -4,7 +4,7 @@ var name    = 'm4'
 var ver     = '1.4.21'
 var rel     = '2'
 var deps    = ['glibc']
-var mkdeps  = []
+var mkdeps  = ['zig', 'make']
 
 var sources = ['https://ftp.gnu.org/gnu/m4/m4-VERSION.tar.xz']
 var checksums = ['f25c6ab51548a73a75558742fb031e0625d6485fe5f9155949d6486a2408ab66']

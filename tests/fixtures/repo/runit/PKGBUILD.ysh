@@ -4,7 +4,7 @@ var name    = 'runit'
 var ver     = '2.1.2'
 var rel     = '1'
 var deps    = ['glibc']
-var mkdeps  = []
+var mkdeps  = ['zig', 'make']
 
 var sources = ['http://smarden.org/runit/runit-VERSION.tar.gz']
 var checksums = ['6fd0160cb0cf1207de4e66754b6d39750cff14bb0aa66ab49490992c0c47ba18']

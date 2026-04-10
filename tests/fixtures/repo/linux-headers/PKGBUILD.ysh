@@ -4,7 +4,7 @@ var name    = 'linux-headers'
 var ver     = '5.10.54'
 var rel     = '1'
 var deps    = []
-var mkdeps  = []
+var mkdeps  = ['make']
 
 var sources = ['https://mirrors.edge.kernel.org/pub/linux/kernel/vMAJOR.x/linux-VERSION.tar.xz']
 var checksums = ['bf50c63261847187eca4a1793e5df5c1355b21697409589f6ca03e32b629be44']

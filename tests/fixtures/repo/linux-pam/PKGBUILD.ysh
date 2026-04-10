@@ -4,7 +4,7 @@ var name    = 'linux-pam'
 var ver     = '1.7.0'
 var rel     = '1'
 var deps    = ['glibc']
-var mkdeps  = ['muon', 'samurai']
+var mkdeps  = ['zig', 'muon', 'samurai']
 
 var sources = [
     'https://github.com/linux-pam/linux-pam/releases/download/vVERSION/Linux-PAM-VERSION.tar.xz',

@@ -4,7 +4,7 @@ var name    = 'git'
 var ver     = '2.53.0'
 var rel     = '2'
 var deps    = ['glibc', 'curl', 'boringssl', 'zlib']
-var mkdeps  = []
+var mkdeps  = ['zig', 'make']
 
 var sources = [
     'https://mirrors.edge.kernel.org/pub/software/scm/git/git-VERSION.tar.xz',

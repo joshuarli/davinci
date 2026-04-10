@@ -4,7 +4,7 @@ var name    = 'bison'
 var ver     = '3.8.2'
 var rel     = '1'
 var deps    = ['glibc']
-var mkdeps  = ['m4']
+var mkdeps  = ['zig', 'make', 'm4']
 
 var sources = ['https://ftp.gnu.org/gnu/bison/bison-VERSION.tar.xz']
 var checksums = ['9bba0214ccf7f1079c5d59210045227bcf619519840ebfa80cd3849cff5a5bf2']
