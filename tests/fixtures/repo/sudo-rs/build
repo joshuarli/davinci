@@ -1,0 +1,15 @@
+#!/bin/sh -e
+dest=$1
+
+cargo build --release
+
+install -Dm4755 target/release/sudo "$dest/usr/bin/sudo"
+install -Dm4755 target/release/su "$dest/usr/bin/su"
+install -Dm755 target/release/visudo "$dest/usr/bin/visudo"
+
+mkdir -p "$dest/etc"
+cat > "$dest/etc/sudoers" <<'EOF'
+root ALL=(ALL:ALL) ALL
+%wheel ALL=(ALL:ALL) ALL
+EOF
+chmod 440 "$dest/etc/sudoers"

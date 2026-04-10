@@ -1,0 +1,23 @@
+#!/bin/sh -e
+dest=$1
+
+muon setup \
+    -Dprefix=/usr \
+    -Dlibdir=lib \
+    -Dsysconfdir=/etc \
+    -Ddocs=disabled \
+    -Di18n=disabled \
+    -Daudit=disabled \
+    -Dselinux=disabled \
+    -Deconf=disabled \
+    -Dnis=disabled \
+    -Dlogind=disabled \
+    -Dopenssl=disabled \
+    -Dpam_userdb=disabled \
+    -Dexamples=false \
+    -Dpam_lastlog=disabled \
+    -Dxtests=false \
+    build
+
+samu -C build
+DESTDIR="$dest" muon -C build install

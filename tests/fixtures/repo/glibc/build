@@ -32,6 +32,13 @@ esac
 mkdir -p "$1/usr/bin"
 ln -sf "/usr/lib/$LDSO" "$1/usr/bin/ldd"
 
+# Compat symlinks: libdl, libpthread, librt were merged into libc in
+# glibc 2.34+ but pre-built binaries still link against them.
+for lib in dl pthread rt; do
+    ln -sf libc.so.6 "$1/usr/lib/lib${lib}.so.2"
+    ln -sf libc.so.6 "$1/usr/lib/lib${lib}.so"
+done
+
 # Install BSD compatibility headers.
 cp -f ../cdefs.h ../queue.h ../tree.h \
     "$1/usr/include/sys"
