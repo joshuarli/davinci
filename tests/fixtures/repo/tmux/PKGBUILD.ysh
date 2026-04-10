@@ -15,13 +15,9 @@ proc build(dest) {
     var _kr = ENV => get("KOMINKA_ROOT", "")
     if (_kr === '/') { setvar _kr = '' }
 
-    # configure checks for 'ninja'; samurai installs as 'samu'. Symlink it.
-    ln -sf $(command -v samu) "$PWD/ninja"
-
     YACC='bison -y' \
     PKG_CONFIG_PATH="${_kr}/usr/lib/pkgconfig" \
     LDFLAGS="-L${_kr}/usr/lib" \
-    PATH="$PWD:$PATH" \
     ./configure --prefix=/usr --sysconfdir=/etc
 
     samu
