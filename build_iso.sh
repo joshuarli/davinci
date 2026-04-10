@@ -24,7 +24,7 @@ kernel_mb=$(( $(busybox stat -c%s /usr/share/kominka/Image) / 1048576 + 1 ))
 efi_mb=$(( kernel_mb + 4 ))
 [ "$efi_mb" -lt 34 ] && efi_mb=34
 rootfs_mb=$(busybox du -sm /bin /etc /lib /sbin /usr /var /root 2>/dev/null | busybox awk '{s+=$1} END{print s}')
-root_mb=$(( rootfs_mb * 120 / 100 + 4 ))
+root_mb=$(( rootfs_mb * 120 / 100 + 4 + 2048 ))
 img_mb=$(( 1 + efi_mb + root_mb + 1 ))
 
 echo "==> Sizing: EFI=${efi_mb}M  root=${root_mb}M (${rootfs_mb}M content)  total=${img_mb}M"
