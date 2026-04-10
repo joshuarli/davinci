@@ -14,7 +14,7 @@ jobs:
           FROM debian:bookworm-slim
           RUN apt-get update && apt-get install -y --no-install-recommends \
               build-essential curl ca-certificates tar gzip xz-utils \
-              pkg-config && rm -rf /var/lib/apt/lists/*
+              pkg-config libssl-dev zlib1g-dev && rm -rf /var/lib/apt/lists/*
           RUN curl -fLo /tmp/oils.tar.gz \
                   https://oils.pub/download/oils-for-unix-0.37.0.tar.gz && \
               cd /tmp && tar xzf oils.tar.gz && cd oils-for-unix-* && \
@@ -30,12 +30,17 @@ jobs:
               KOMINKA_PATH=/packages KOMINKA_ROOT=/kominka-root \
               KOMINKA_COMPRESS=gz KOMINKA_COLOR=0 KOMINKA_PROMPT=0 \
               KOMINKA_FORCE=1 LOGNAME=root HOME=/root
-          RUN mkdir -p /kominka-root/var/db/kominka/installed/glibc && \
-              echo "2.38 3" > /kominka-root/var/db/kominka/installed/glibc/version && \
-              printf '#!/bin/sh\n:\n' > /kominka-root/var/db/kominka/installed/glibc/build && \
-              chmod +x /kominka-root/var/db/kominka/installed/glibc/build && \
-              true > /kominka-root/var/db/kominka/installed/glibc/manifest && \
-              pm i zlib boringssl
+          # Use Debian's ssl/zlib — our boringssl links against glibc 2.38
+          # but Debian bookworm has 2.36, causing undefined symbol errors.
+          # Register all deps as installed so pm b curl only builds curl.
+          ENV KOMINKA_ROOT=""
+          RUN for pkg in glibc make cmake go samurai boringssl zlib linux-headers m4 bison pkgconf; do \
+                  mkdir -p "/var/db/kominka/installed/$pkg" && \
+                  echo "0 0" > "/var/db/kominka/installed/$pkg/version" && \
+                  printf '#!/bin/sh\n:\n' > "/var/db/kominka/installed/$pkg/build" && \
+                  chmod +x "/var/db/kominka/installed/$pkg/build" && \
+                  true > "/var/db/kominka/installed/$pkg/manifest"; \
+              done
           DEOF
           docker run --name build -e CC=gcc builder sh -c 'pm b curl'
           mkdir -p out && docker cp "build:/root/.cache/kominka/bin/curl@7.80.0-5.tar.gz" out/ && docker rm build
