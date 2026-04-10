@@ -32,14 +32,13 @@ RUN pm i liveiso
 # Add sudo-rs for privilege escalation.
 RUN pm i sudo-rs
 
-# The R2 binary may predate the PAM + NOPASSWD fixes, so apply them
-# directly here rather than waiting for a new binary upload.
-RUN mkdir -p /etc/pam.d && \
-    for svc in sudo sudo-rs su; do \
-        printf 'auth     sufficient  pam_permit.so\naccount  sufficient  pam_permit.so\npassword sufficient  pam_permit.so\nsession  optional    pam_unix.so\n' \
-            > /etc/pam.d/$svc; \
-    done && \
-    sed -i 's/ALL:ALL) ALL$/ALL:ALL) NOPASSWD: ALL/' /etc/sudoers
+# pm.ysh escalates via 'su' when KOMINKA_SU=su (see as_user proc).
+# Busybox su checks /etc/shadow directly — no PAM involved.
+# Restore the busybox-suid su symlink (sudo-rs overwrites it with its own
+# PAM-using binary) and clear root's password so su root succeeds without
+# a prompt.
+RUN ln -sf /usr/bin/busybox-suid /usr/bin/su && \
+    busybox sed -i 's/^root:[^:]*:/root::/' /etc/shadow
 
 # Kernel — lives on the rootfs so install.sh can access it.
 COPY --from=kernel-image /Image /usr/share/kominka/Image
@@ -55,7 +54,7 @@ RUN busybox adduser -D -s /bin/sh -u 1000 josh && \
 
 # Default environment for pm — inherited by all login shells.
 RUN mkdir -p /etc/profile.d && \
-    printf 'export KOMINKA_PATH=/packages\nexport KOMINKA_ROOT=/\nexport KOMINKA_COMPRESS=gz\nexport KOMINKA_GET=/usr/bin/wget\n' \
+    printf 'export KOMINKA_PATH=/packages\nexport KOMINKA_ROOT=/\nexport KOMINKA_COMPRESS=gz\nexport KOMINKA_GET=/usr/bin/wget\nexport KOMINKA_SU=su\n' \
         > /etc/profile.d/kominka.sh
 
 # Point wget at the system CA bundle.
