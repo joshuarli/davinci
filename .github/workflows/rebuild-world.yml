@@ -1,0 +1,73 @@
+name: Rebuild packages
+
+# Rebuilds packages whose R2 binaries were compiled with CPU instructions
+# not exposed by Apple Virtualization.framework (SVE, PAC/BTI, etc.).
+# Packages are built with the march baseline set in pm.ysh:
+#   aarch64: armv8.2-a+crypto
+#   x86_64:  x86-64-v3
+#
+# Add packages to the build step in dependency order.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  rebuild:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: amd64, runner: ubuntu-latest      }
+          - { arch: arm64, runner: ubuntu-24.04-arm   }
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache kominka:core
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/kominka-core.tar.gz
+          key: kominka-core-v2-${{ matrix.arch }}-${{ hashFiles('Dockerfile', 'pm.ysh', 'tests/fixtures/repo/**/version', 'tests/fixtures/repo/**/depends') }}
+
+      - name: Build kominka:core
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          docker build --no-cache -t kominka:core .
+          docker save kominka:core | gzip > /tmp/kominka-core.tar.gz
+
+      - name: Load kominka:core
+        if: steps.cache.outputs.cache-hit == 'true'
+        run: docker load < /tmp/kominka-core.tar.gz
+
+      - name: Build packages
+        run: |
+          docker run --name build \
+            -v "$PWD/tests/fixtures/repo:/packages:ro" \
+            -e KOMINKA_PATH=/packages \
+            -e KOMINKA_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
+            -e KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
+            -e KOMINKA_COMPRESS=gz \
+            -e KOMINKA_COLOR=0 \
+            -e KOMINKA_PROMPT=0 \
+            -e KOMINKA_FORCE=1 \
+            kominka:core sh -c '
+              pm i build-essential &&
+              mkdir -p /kominka-root/usr/bin &&
+              ln -sf /usr/bin/m4 /kominka-root/usr/bin/m4 &&
+              pm b boringssl &&
+              pm i boringssl &&
+              pm b curl'
+
+      - name: Collect tarballs
+        run: |
+          mkdir -p out
+          docker cp "build:/root/.cache/kominka/bin/." out/
+          docker rm build
+          ls -lh out/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ matrix.arch }}
+          path: out/*.tar.gz
