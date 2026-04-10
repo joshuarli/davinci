@@ -61,6 +61,7 @@ RUN mkdir -p /etc/profile.d && \
         'export KOMINKA_ROOT=/' \
         'export KOMINKA_COMPRESS=gz' \
         'export KOMINKA_SU=/usr/bin/su' \
+        'export KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev' \
         'if /usr/bin/curl --version >/dev/null 2>&1; then export KOMINKA_GET=/usr/bin/curl; else export KOMINKA_GET=/usr/bin/wget; fi' \
         > /etc/profile.d/kominka.sh
 
