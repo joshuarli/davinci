@@ -16,13 +16,15 @@ FROM kominka:core AS rootfs
 
 COPY --from=packages / /packages
 
-ENV KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
+ARG REPO_URL=
+ENV KOMINKA_REPO=${REPO_URL} \
+    KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
     KOMINKA_PATH=/packages \
     KOMINKA_COMPRESS=gz \
     KOMINKA_COLOR=0 \
     KOMINKA_PROMPT=0 \
     KOMINKA_FORCE=1 \
-    KOMINKA_GET=/usr/bin/wget \
+    KOMINKA_GET=/usr/bin/curl \
     LOGNAME=root \
     HOME=/root
 
@@ -64,8 +66,9 @@ RUN mkdir -p /etc/profile.d && \
         'export KOMINKA_ROOT=/' \
         'export KOMINKA_COMPRESS=gz' \
         'export KOMINKA_SU=/usr/bin/su' \
+        'export KOMINKA_REPO=' \
         'export KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev' \
-        'if /usr/bin/curl --version >/dev/null 2>&1; then export KOMINKA_GET=/usr/bin/curl; else export KOMINKA_GET=/usr/bin/wget; fi' \
+        'export KOMINKA_GET=/usr/bin/curl' \
         > /etc/profile.d/kominka.sh
 
 # Point wget at the system CA bundle.

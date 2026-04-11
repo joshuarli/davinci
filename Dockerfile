@@ -2,17 +2,19 @@
 #
 # Bootstrap: busybox:latest (4MB static musl) provides wget+tar+sh.
 # ysh is static musl — runs directly on the busybox base.
-# pm resolves and installs all packages from R2.
+# pm resolves and installs all packages from the repo server.
 #
 # Usage:
-#   docker build -t kominka:core .
-#   docker build --platform linux/amd64 -t kominka:core-amd64 .
+#   make core   (uses repo server at localhost:3000, --network=host)
+#   docker build --build-context packages=<dir> --network=host \
+#     --build-arg REPO_URL=http://localhost:3000 -t kominka:core .
 
 FROM busybox:latest AS bootstrap
 
 ARG R2_BASE=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev
+ARG REPO_URL=
 
-# Detect architecture for R2 binary path.
+# Detect architecture.
 RUN case "$(busybox uname -m)" in \
         x86_64)  echo "x86_64-linux-gnu" > /tmp/arch ;; \
         *)       echo "aarch64-linux-gnu" > /tmp/arch ;; \
@@ -24,7 +26,7 @@ RUN busybox mkdir -p /usr/local/bin && \
     busybox wget --no-check-certificate -qO- "$R2_BASE/$ARCH/ysh/0.37.0-2.tar.gz" | \
     busybox tar xzf - -C / ./usr/local/bin/
 
-# Install pm and package repo.
+# Install pm and package definitions.
 COPY pm.ysh /usr/bin/pm
 RUN busybox chmod +x /usr/bin/pm
 COPY --from=packages / /packages
@@ -34,13 +36,11 @@ RUN busybox find /packages -name build -exec busybox chmod +x {} + && \
 RUN busybox mkdir -p /kominka-root/var/db/kominka/installed \
                      /kominka-root/var/db/kominka/choices
 
-# pm installs the core metapackage.
-# KOMINKA_REPO: use the new repo server if REPO_URL is set (passed via --build-arg).
-# Falls back to KOMINKA_BIN_MIRROR for bootstrap when server isn't available.
-ARG REPO_URL=
+# Install core. KOMINKA_REPO (passed via --build-arg REPO_URL) pulls packages
+# from the repo server. KOMINKA_BIN_MIRROR is a fallback for packages not yet
+# on the server (old R2 public bucket, read-only).
 RUN KOMINKA_REPO=${REPO_URL} \
     KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
-    KOMINKA_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
     KOMINKA_PATH=/packages \
     KOMINKA_ROOT=/kominka-root \
     KOMINKA_COMPRESS=gz \
