@@ -777,8 +777,10 @@ proc pkg_cache (pkg) {
         return 0
     }
 
-    # Metapackages have no tarball.
-    if (len(p.sources) === 0) { return 1 }
+    # Metapackages have no tarball. For remote-index packages, sha256 is the
+    # authoritative signal — non-empty sha256 means a real tarball exists even
+    # though sources=[] (remote index never stores sources).
+    if (len(p.sources) === 0 and ('sha256' not in p or p.sha256 === '')) { return 1 }
 
     # Try repo server: {arch}/{pkg}/{ver}-{rel}.tar.gz
     if (KOMINKA_REPO !== '') {
@@ -1994,7 +1996,7 @@ proc pkg_install_all (...pkgs) {
         pkg_find_and_load $pkg (&p)
 
         # Metapackages have no tarball to download.
-        if (len(p.sources) === 0) { continue }
+        if (len(p.sources) === 0 and ('sha256' not in p or p.sha256 === '')) { continue }
 
         var _name = "${pkg}@$[p.ver]-$[p.rel].tar.${KOMINKA_COMPRESS}"
         var _dest = "${bin_dir}/${_name}"
@@ -2107,10 +2109,10 @@ proc pkg_install (pkg) {
         * {
             try { pkg_cache $pkg }
             if failed {
-                # Metapackage — no sources, no tarball. Just register as installed.
+                # Metapackage — no tarball. sha256 is authoritative for remote packages.
                 var p = null
                 pkg_find_and_load $pkg (&p)
-                if (len(p.sources) === 0) {
+                if (len(p.sources) === 0 and ('sha256' not in p or p.sha256 === '')) {
                     mkdir -p "${sys_db}/${pkg}"
                     write -- "$[p.ver] $[p.rel]" > "${sys_db}/${pkg}/version"
                     true > "${sys_db}/${pkg}/depends"
