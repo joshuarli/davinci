@@ -141,7 +141,7 @@ clean:
 
 DOCKER_RUN := docker run --rm \
 	-v $(PACKAGES_DIR):/packages:ro \
-	-v $(CURDIR)/pm.ysh:/usr/bin/pm:ro \
+	-v $(PM_DIR)/pm.ysh:/usr/bin/pm:ro \
 	--env-file $(REPO_ENV) \
 	-e KOMINKA_REPO=http://host.docker.internal:3000 \
 	-e KOMINKA_PATH=/packages \
@@ -169,7 +169,7 @@ DEBIAN_SYSREG := bash -ec '\
 		chmod +x "$$DB/$$tool/build"; \
 		touch "$$DB/$$tool/manifest"; \
 	done; \
-	pm b "$(PKG)" && pm u "$(PKG)" || true'
+	pm b "$(PKG)" && pm p "$(PKG)" || true'
 
 # Build with Debian GCC — for packages that need gcc (glibc, git, strace...).
 # Usage: make rebuild-git-debian
@@ -191,9 +191,9 @@ rebuild-%-debian-amd64:
 # Build with zig cc in kominka:core. Usage: make rebuild-curl
 rebuild-%:
 	@test -f $(REPO_ENV) || { echo "error: $(REPO_ENV) not found"; exit 1; }
-	$(DOCKER_RUN) kominka:core sh -c 'pm b "$*"; ldconfig 2>/dev/null; pm u "$*" || true'
+	$(DOCKER_RUN) kominka:core sh -c 'pm b "$*"; ldconfig 2>/dev/null; pm p "$*" || true'
 
 # Same but targeting x86_64. Usage: make rebuild-amd64-curl
 rebuild-amd64-%:
 	@test -f $(REPO_ENV) || { echo "error: $(REPO_ENV) not found"; exit 1; }
-	$(DOCKER_RUN_AMD64) kominka:core-amd64 sh -c 'pm b "$*"; ldconfig 2>/dev/null; pm u "$*" || true'
+	$(DOCKER_RUN_AMD64) kominka:core-amd64 sh -c 'pm b "$*"; ldconfig 2>/dev/null; pm p "$*" || true'
