@@ -13,6 +13,7 @@ VFKIT_CMDLINE := root=/dev/vda2 rw console=hvc0 loglevel=4
 QEMU_CMDLINE  := root=/dev/vda2 rw console=ttyS0 loglevel=4
 
 PACKAGES_DIR := $(realpath packages)
+PM_DIR       := $(HOME)/d/pm
 REPO_ENV     := $(HOME)/d/repo/.env
 
 # Source REPO_URL from .env so docker build can reach the repo server.
@@ -25,26 +26,26 @@ AMD64 := --platform linux/amd64
         core-amd64 kernel-amd64 iso-amd64 boot-amd64 boot-installer-amd64
 
 core:
-	docker build --build-context packages=$(PACKAGES_DIR) \
+	docker build --build-context packages=$(PACKAGES_DIR) --build-context pm=$(PM_DIR) \
 		--network=host \
 		--build-arg REPO_URL=$(REPO_URL) \
 		-t kominka:core .
 
 core-amd64:
-	docker build $(AMD64) --build-context packages=$(PACKAGES_DIR) \
+	docker build $(AMD64) --build-context packages=$(PACKAGES_DIR) --build-context pm=$(PM_DIR) \
 		--network=host \
 		--build-arg REPO_URL=$(REPO_URL) \
 		-t kominka:core-amd64 .
 
 kernel:
-	docker build --build-context packages=$(PACKAGES_DIR) \
+	docker build --build-context packages=$(PACKAGES_DIR) --build-context pm=$(PM_DIR) \
 		--network=host \
 		--build-arg REPO_URL=$(REPO_URL) \
 		-t $(KERNEL_IMAGE) -f Dockerfile.linux .
 	docker run --rm -v "$(CURDIR)":/out $(KERNEL_IMAGE)
 
 kernel-amd64:
-	docker build $(AMD64) --build-context packages=$(PACKAGES_DIR) \
+	docker build $(AMD64) --build-context packages=$(PACKAGES_DIR) --build-context pm=$(PM_DIR) \
 		--network=host \
 		--build-arg REPO_URL=$(REPO_URL) \
 		-t $(KERNEL_IMAGE)-amd64 -f Dockerfile.linux .
@@ -53,14 +54,14 @@ kernel-amd64:
 		$(KERNEL_IMAGE)-amd64
 
 iso: core
-	docker build --build-context packages=$(PACKAGES_DIR) \
+	docker build --build-context packages=$(PACKAGES_DIR) --build-context pm=$(PM_DIR) \
 		--network=host \
 		--build-arg REPO_URL=$(REPO_URL) \
 		-t $(INSTALLER_IMAGE) -f Dockerfile.iso .
 	docker run --rm --privileged -v "$(CURDIR)":/out $(INSTALLER_IMAGE)
 
 iso-amd64: core-amd64
-	docker build $(AMD64) --build-context packages=$(PACKAGES_DIR) \
+	docker build $(AMD64) --build-context packages=$(PACKAGES_DIR) --build-context pm=$(PM_DIR) \
 		--network=host \
 		--build-arg REPO_URL=$(REPO_URL) \
 		-t $(INSTALLER_IMAGE)-amd64 -f Dockerfile.iso .
@@ -174,7 +175,7 @@ DEBIAN_SYSREG := bash -ec '\
 # Usage: make rebuild-git-debian
 rebuild-%-debian:
 	@test -f $(REPO_ENV) || { echo "error: $(REPO_ENV) not found"; exit 1; }
-	docker build --build-context packages=$(PACKAGES_DIR) \
+	docker build --build-context packages=$(PACKAGES_DIR) --build-context pm=$(PM_DIR) \
 		-t kominka-debian-builder -f Dockerfile.glibc .
 	$(DOCKER_RUN) -e KOMINKA_ROOT=/kominka-root -e PKG=$* \
 		kominka-debian-builder $(DEBIAN_SYSREG)
@@ -182,7 +183,7 @@ rebuild-%-debian:
 # Same but targeting x86_64. Usage: make rebuild-git-debian-amd64
 rebuild-%-debian-amd64:
 	@test -f $(REPO_ENV) || { echo "error: $(REPO_ENV) not found"; exit 1; }
-	docker build $(AMD64) --build-context packages=$(PACKAGES_DIR) \
+	docker build $(AMD64) --build-context packages=$(PACKAGES_DIR) --build-context pm=$(PM_DIR) \
 		-t kominka-debian-builder-amd64 -f Dockerfile.glibc .
 	$(DOCKER_RUN_AMD64) -e KOMINKA_ROOT=/kominka-root -e PKG=$* \
 		kominka-debian-builder-amd64 $(DEBIAN_SYSREG)
