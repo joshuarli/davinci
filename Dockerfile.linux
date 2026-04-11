@@ -1,51 +1,27 @@
-# Build a custom minimal Linux kernel for Kominka Linux.
-# Starts from tinyconfig + kernel.config fragment.
-# Supports both ARM64 and x86_64 via Docker --platform.
+# Fetch the pre-built Kominka Linux kernel from the repo server.
+#
+# The kernel is built and uploaded once via: make rebuild-linux-debian
+# After that, this Dockerfile simply installs the package and extracts the image.
 #
 # Usage:
-#   docker build -t kominka-kernel -f Dockerfile.linux .
-#   docker build --platform linux/amd64 -t kominka-kernel-amd64 -f Dockerfile.linux .
+#   make kernel   (or docker build -t kominka-kernel -f Dockerfile.linux .)
 
-FROM debian:bookworm-slim AS builder
+FROM kominka:core
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential bc flex bison perl \
-    libelf-dev libssl-dev \
-    linux-libc-dev \
-    curl xz-utils ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
+ARG REPO_URL=
 
-ARG KERNEL_VERSION=6.19.12
-ARG KERNEL_URL=https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${KERNEL_VERSION}.tar.xz
+RUN KOMINKA_REPO=${REPO_URL} \
+    KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
+    KOMINKA_PATH=/packages \
+    KOMINKA_COMPRESS=gz \
+    KOMINKA_COLOR=0 \
+    KOMINKA_PROMPT=0 \
+    KOMINKA_FORCE=1 \
+    KOMINKA_INSECURE=1 \
+    LOGNAME=root \
+    HOME=/root \
+    pm i linux
 
-RUN curl -fLo /tmp/linux.tar.xz "$KERNEL_URL" && \
-    cd /tmp && tar xf linux.tar.xz && \
-    mv linux-${KERNEL_VERSION} /linux
-
-WORKDIR /linux
-
-RUN make tinyconfig
-
-# Select kernel config based on architecture.
-COPY packages/linux/files/kernel.config /tmp/kernel.config
-COPY packages/linux/files/kernel-x86_64.config /tmp/kernel-x86_64.config
-RUN case "$(uname -m)" in \
-        x86_64) cp /tmp/kernel-x86_64.config /tmp/active.config ;; \
-        *)      cp /tmp/kernel.config /tmp/active.config ;; \
-    esac && \
-    scripts/kconfig/merge_config.sh -m .config /tmp/active.config && \
-    make olddefconfig
-
-# Build and copy to /Image regardless of architecture.
-RUN case "$(uname -m)" in \
-        x86_64) make -j"$(nproc)" bzImage && cp arch/x86/boot/bzImage /Image ;; \
-        *)      make -j"$(nproc)" Image   && cp arch/arm64/boot/Image /Image ;; \
-    esac
-
-FROM debian:bookworm-slim
-
-COPY --from=builder /Image /Image
-COPY --from=builder /linux/.config /kernel-config
-
-CMD cat /Image > /out/Image && cat /kernel-config > /out/kernel-config && \
-    echo "Kernel Image: $(du -h /Image | cut -f1)"
+CMD cp /usr/share/kominka/Image /out/Image && \
+    cp /usr/share/kominka/kernel.config /out/kernel-config 2>/dev/null; \
+    echo "Kernel: $(du -h /usr/share/kominka/Image | cut -f1)"

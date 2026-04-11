@@ -1,16 +1,11 @@
 # Build a bootable Kominka Linux installer disk image.
 #
-# Uses kominka:core as the rootfs base, adds e2fsprogs + dosfstools
-# via pm, kernel from kominka-kernel, and the install script.
-# No Debian — all tools from Kominka packages.
-#
-# Requires: kominka:core, kominka-kernel images.
+# Uses kominka:core as the rootfs base. All packages (including the kernel)
+# come from the repo server via pm i.
 #
 # Usage:
-#   docker build -t kominka-iso -f Dockerfile.iso .
+#   make iso   (or docker build ... -f Dockerfile.iso .)
 #   docker run --rm --privileged -v "$(pwd)":/out kominka-iso
-
-FROM kominka-kernel AS kernel-image
 
 FROM kominka:core AS rootfs
 
@@ -28,25 +23,20 @@ ENV KOMINKA_REPO=${REPO_URL} \
     LOGNAME=root \
     HOME=/root
 
-# Add filesystem tools for the installer.
+# Kernel.
+RUN pm i linux
+
+# Filesystem tools, sudo, and build tools for the live environment.
 RUN pm i liveiso
-
-# Add sudo-rs for privilege escalation.
 RUN pm i sudo-rs
-
-# Pre-install build tools so the live VM can run pm b without manual setup.
 RUN pm i build-essential
 
 # pm.ysh escalates via 'su' when KOMINKA_SU=su (see as_user proc).
-# Busybox su checks /etc/shadow directly — no PAM involved.
 # Restore the busybox-suid su symlink (sudo-rs overwrites it with its own
 # PAM-using binary) and clear root's password so su root succeeds without
 # a prompt.
 RUN ln -sf /usr/bin/busybox-suid /usr/bin/su && \
     busybox sed -i 's/^root:[^:]*:/root::/' /etc/shadow
-
-# Kernel — lives on the rootfs so install.sh can access it.
-COPY --from=kernel-image /Image /usr/share/kominka/Image
 
 # Installer script.
 COPY install.sh /usr/bin/pm-install
@@ -58,8 +48,6 @@ RUN busybox adduser -D -s /bin/sh -u 1000 josh && \
     busybox addgroup josh wheel
 
 # Default environment for pm — inherited by all login shells.
-# curl --version is used to detect if the pre-built curl crashes (SIGILL);
-# if so, fall back to wget until curl is rebuilt from source.
 RUN mkdir -p /etc/profile.d && \
     printf '%s\n' \
         'export KOMINKA_PATH=/packages' \
@@ -71,13 +59,10 @@ RUN mkdir -p /etc/profile.d && \
         'export KOMINKA_GET=/usr/bin/curl' \
         > /etc/profile.d/kominka.sh
 
-# Point wget at the system CA bundle.
 RUN printf 'ca_certificate=/etc/ssl/certs/ca-certificates.crt\n' > /etc/wgetrc
 
-# Auto-login josh on the serial console.
-# getty -n skips the login prompt; -l runs a program instead of /bin/login.
-# Mount host package repo via virtiofs (tag "packages") if the hypervisor
-# provides it; falls back silently to the baked /packages on the disk.
+# Auto-login josh on the serial console. Mount host package repo via
+# virtiofs (tag "packages") if provided; falls back to baked /packages.
 RUN printf '#!/bin/busybox sh\nmount -t virtiofs packages /packages 2>/dev/null || true\nexec su -l josh\n' \
         > /usr/local/bin/autologin && \
     chmod +x /usr/local/bin/autologin && \
@@ -86,7 +71,6 @@ RUN printf '#!/bin/busybox sh\nmount -t virtiofs packages /packages 2>/dev/null 
         > /etc/sv/getty-hvc0/run && \
     chmod +x /etc/sv/getty-hvc0/run
 
-# Enable services for live environment.
 RUN mkdir -p /var/service && \
     for svc in mdev syslogd getty-hvc0 udhcpc ntpd; do \
         [ -d /etc/sv/$svc ] && ln -sf "/etc/sv/$svc" "/var/service/$svc"; \

@@ -23,20 +23,23 @@ core:
 		-t kominka:core .
 
 kernel:
-	docker build -t $(KERNEL_IMAGE) -f Dockerfile.linux .
+	docker build --build-context packages=$(PACKAGES_DIR) \
+		--network=host \
+		--build-arg REPO_URL=$(REPO_URL) \
+		-t $(KERNEL_IMAGE) -f Dockerfile.linux .
 	docker run --rm -v "$(CURDIR)":/out $(KERNEL_IMAGE)
 
-iso: core kernel
+iso: core
 	docker build --build-context packages=$(PACKAGES_DIR) \
 		--network=host \
 		--build-arg REPO_URL=$(REPO_URL) \
 		-t $(INSTALLER_IMAGE) -f Dockerfile.iso .
 	docker run --rm --privileged -v "$(CURDIR)":/out $(INSTALLER_IMAGE)
 
-$(KERNEL): kernel.config Dockerfile.linux
+$(KERNEL): Dockerfile.linux packages/linux/PKGBUILD.ysh
 	$(MAKE) kernel
 
-$(INSTALLER_IMG): Dockerfile.iso build_iso.sh install.sh $(KERNEL) Dockerfile pm.ysh
+$(INSTALLER_IMG): Dockerfile.iso build_iso.sh install.sh Dockerfile pm.ysh
 	$(MAKE) iso
 
 boot: $(KERNEL) $(INSTALLER_IMG)
