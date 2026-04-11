@@ -8,9 +8,6 @@
 
 FROM kominka:core
 
-# Always use the latest pm.ysh — the version in kominka:core may lag.
-COPY pm.ysh /usr/bin/pm
-
 ARG REPO_URL=
 
 # pm u fetches the package index from the repo server before installing.
