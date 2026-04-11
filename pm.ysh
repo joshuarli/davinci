@@ -536,12 +536,13 @@ proc pkg_load (pkg_dir; result Ref = null) {
             ver:              _ri["ver"],
             rel:              _ri["rel"],
             deps:             _ri["deps"],
-            mkdeps:           [],
+            mkdeps:           _ri["mkdeps"] if ("mkdeps" in _ri) else [],
             nostrip:          false,
             sources:          [],
             checksums:        [],
             checksums_aarch64: [],
             checksums_x86_64:  [],
+            sha256:           _ri["sha256"] if ("sha256" in _ri) else '',
         }
     } else {
         die "${pkg_dir##*/}" "No PKGBUILD.ysh or version file in $pkg_dir"
