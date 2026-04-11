@@ -9,6 +9,9 @@
 
 FROM kominka:core AS rootfs
 
+# Always use the latest pm.ysh — the version in kominka:core may lag.
+COPY pm.ysh /usr/bin/pm
+
 COPY --from=packages / /packages
 
 ARG REPO_URL=
