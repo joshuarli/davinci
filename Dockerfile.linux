@@ -11,7 +11,6 @@ FROM kominka:core
 ARG REPO_URL=
 
 RUN KOMINKA_REPO=${REPO_URL} \
-    KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
     KOMINKA_PATH=/packages \
     KOMINKA_COMPRESS=gz \
     KOMINKA_COLOR=0 \

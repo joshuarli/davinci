@@ -13,7 +13,6 @@ COPY --from=packages / /packages
 
 ARG REPO_URL=
 ENV KOMINKA_REPO=${REPO_URL} \
-    KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
     KOMINKA_PATH=/packages \
     KOMINKA_COMPRESS=gz \
     KOMINKA_COLOR=0 \
@@ -55,7 +54,6 @@ RUN mkdir -p /etc/profile.d && \
         'export KOMINKA_COMPRESS=gz' \
         'export KOMINKA_SU=/usr/bin/su' \
         'export KOMINKA_REPO=' \
-        'export KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev' \
         'export KOMINKA_GET=/usr/bin/curl' \
         > /etc/profile.d/kominka.sh
 

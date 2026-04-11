@@ -11,7 +11,7 @@
 
 FROM busybox:latest AS bootstrap
 
-ARG R2_BASE=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev
+ARG R2_BASE=https://pub-15b3a4c25627476493c0e1a68993f4d8.r2.dev
 ARG REPO_URL=
 
 # Detect architecture.
@@ -36,11 +36,8 @@ RUN busybox find /packages -name build -exec busybox chmod +x {} + && \
 RUN busybox mkdir -p /kominka-root/var/db/kominka/installed \
                      /kominka-root/var/db/kominka/choices
 
-# Install core. KOMINKA_REPO (passed via --build-arg REPO_URL) pulls packages
-# from the repo server. KOMINKA_BIN_MIRROR is a fallback for packages not yet
-# on the server (old R2 public bucket, read-only).
+# Install core from the repo server.
 RUN KOMINKA_REPO=${REPO_URL} \
-    KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
     KOMINKA_PATH=/packages \
     KOMINKA_ROOT=/kominka-root \
     KOMINKA_COMPRESS=gz \

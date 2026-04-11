@@ -70,7 +70,7 @@ class TestCoreImage(unittest.TestCase):
             "-e", "KOMINKA_PATH=/packages",
             "-e", "KOMINKA_FORCE=1",
             "-e", "KOMINKA_INSECURE=1",
-            "-e", "KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev",
+            "-e", "KOMINKA_REPO=http://localhost:3000",
             "kominka:core", "pm", "i", "e2fsprogs",
             timeout=30,
         )

@@ -48,7 +48,6 @@ jobs:
           ARG PKG
           COPY --from=packages / /packages
           ENV KOMINKA_PATH=/packages \
-              KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
               KOMINKA_COMPRESS=gz \
               KOMINKA_COLOR=0 \
               KOMINKA_PROMPT=0 \

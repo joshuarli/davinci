@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     rm -rf /var/lib/apt/lists/*
 
 # Install ysh (static musl binary — runs on any Linux).
-ARG R2_BASE=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev
+ARG R2_BASE=https://pub-15b3a4c25627476493c0e1a68993f4d8.r2.dev
 RUN case "$(uname -m)" in \
         x86_64)  ARCH=x86_64-linux-gnu ;; \
         aarch64) ARCH=aarch64-linux-gnu ;; \
