@@ -10,8 +10,11 @@ FROM kominka:core
 
 ARG REPO_URL=
 
+# pm u fetches the package index from the repo server before installing.
+# Without this, pm i can't find packages that only exist in the remote index
+# (not in a local PKGBUILD directory).
 RUN KOMINKA_REPO=${REPO_URL} \
-    KOMINKA_PATH=/packages \
+    KOMINKA_PATH=/nonexistent \
     KOMINKA_COMPRESS=gz \
     KOMINKA_COLOR=0 \
     KOMINKA_PROMPT=0 \
@@ -19,7 +22,7 @@ RUN KOMINKA_REPO=${REPO_URL} \
     KOMINKA_INSECURE=1 \
     LOGNAME=root \
     HOME=/root \
-    pm i linux
+    sh -c 'pm u; pm i linux'
 
 CMD cp /usr/share/kominka/Image /out/Image && \
     cp /usr/share/kominka/kernel.config /out/kernel-config 2>/dev/null; \
