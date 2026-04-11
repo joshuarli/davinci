@@ -36,7 +36,7 @@ ysh is statically linked against musl. Everything else dynamically links against
 |---------|------|
 | baselayout | FHS dirs, /etc configs, /bin→/usr/bin symlinks |
 | glibc | C library |
-| busybox | init, sh, getty, mdev, udhcpc, ~300 applets |
+| busybox | init, sh, getty, mdev, udhcpc, ~170 applets |
 | baseinit | rc.boot, rc.shutdown, rc.lib |
 | runit | Service supervision (runsvdir/runsv/sv) |
 | boringssl | TLS library (libssl.so, libcrypto.so) |
@@ -52,21 +52,24 @@ ysh is statically linked against musl. Everything else dynamically links against
 Dockerfile (FROM busybox:latest → FROM scratch)
   └── kominka:core   ← pm i core
 
-Dockerfile.linux (FROM debian, kernel source)
-  └── Image (ARM64) or bzImage (x86_64)
+Dockerfile.linux (FROM kominka:core)
+  └── pm i linux → /out/Image
 
 Dockerfile.iso (FROM kominka:core)
-  └── pm i sudo-rs build-essential
-  └── kernel + install.sh
+  └── pm i linux sudo-rs build-essential liveiso
   └── build_iso.sh → kominka-installer.img
 ```
+
+All packages come from the repo server at `~/d/repo`. Kernel and headers are
+the `linux` package; built once via `make rebuild-linux-debian`, then served
+like any other package.
 
 ## Bootstrap
 
 ```
 busybox:latest
-  └── busybox wget → ysh (static musl, runs on any Linux)
-  └── ysh pm.ysh i core → downloads packages from R2
+  └── busybox wget → ysh (static musl binary, from new R2 bucket)
+  └── ysh pm.ysh i core → downloads packages from repo server
 FROM scratch (copy /kominka-root → /)
 ```
 
@@ -85,36 +88,44 @@ virtiofs mounts the host `packages/` (symlink to `~/d/repo/packages`) as `/packa
 
 ## Package Manager
 
-`pm.ysh` — ~2300 line YSH script. Key behaviors:
+`pm.ysh` — ~2700 line YSH script. Key behaviors:
 
-- `pm i pkg` — install binary from R2, auto-resolve runtime deps
+- `pm i pkg` — install binary from repo server, auto-resolve runtime deps
 - `pm b pkg` — build from source, resolve build+runtime deps
+- `pm p pkg` — upload built tarball to repo server
 - Make deps skipped during `pm i`; also skipped during `pm b` when parent is already installed
 - Each package operation receives the loaded package record as an explicit typed parameter (`p Dict`) — no shared mutable globals for package state
 - Parallel downloads with live progress
 
 ## Repository
 
-Package definitions and repository server live in a separate repo at
-`~/d/repo`. The server is a Rust HTTP service backed by R2 via S3 APIs,
-serving a per-arch package index and content-addressed tarballs.
+Package definitions and repository server live in `~/d/repo`. The server is a
+Rust HTTP service (~400 lines, tiny_http + ureq, no async) backed by Cloudflare
+R2 via S3 APIs. It serves a per-arch JSON package index and tarballs.
 
-Tarball naming uses `sha256(PKGBUILD.ysh)` as the storage key:
 ```
-{arch}/{pkg}/{hash}.tar.gz
+{arch}/{pkg}/{ver}-{rel}.tar.gz   R2 storage layout
+{arch}/packages.json              package index
 ```
 
 `pm i` fetches the remote package index and resolves deps without needing a
 local git checkout of package definitions. `pm p` uploads built tarballs to
-the server.
+the server. See `~/d/repo/AGENTS.md` for server architecture details.
 
 ## ARM64 Compatibility
 
-R2 binaries must target `armv8-a+lse+crypto` (not the native host CPU) to work in Apple Virtualization.framework guests, which don't expose SVE, PAC, or BTI. The `rebuild-world.yml` CI workflow rebuilds affected packages using Ubuntu GCC with explicit `-march=armv8-a+lse+crypto`. zig cc targets a conservative baseline by default.
+Packages must work in Apple Virtualization.framework guests (used by vfkit on
+Apple Silicon). This CPU does NOT expose SVE, PAC, or BTI. zig cc defaults to
+a conservative `armv8-a` baseline — safe for any ARM64 VM.
+
+For packages needing gcc (glibc, git, strace), use `make rebuild-<pkg>-debian`
+which builds with Debian GCC and explicit `-march=armv8-a+lse+crypto`.
 
 ## Self-Hosting
 
-Packages are built in `kominka:core`. All build tools (zig, samurai, cmake, etc.) are installed from R2 via `pm i build-essential`. Compiled-in paths are correct because the build environment IS the target (`KOMINKA_ROOT=/` effectively).
+Packages are built in `kominka:core`. All build tools (zig, samurai, cmake, etc.)
+are installed from the repo server via `pm i build-essential`. Compiled-in paths
+are correct because the build environment IS the target (`KOMINKA_ROOT=/` effectively).
 
 ## Filesystem
 
@@ -122,7 +133,7 @@ Packages are built in `kominka:core`. All build tools (zig, samurai, cmake, etc.
 /bin → /usr/bin          Merged-usr layout
 /lib → /usr/lib
 /sbin → /usr/bin
-/usr/bin/busybox         + ~300 symlinks
+/usr/bin/busybox         + ~170 symlinks
 /usr/bin/pm              Package manager
 /usr/local/bin/ysh       Static musl binary
 /var/db/kominka/         Package database

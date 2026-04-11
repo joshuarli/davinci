@@ -28,7 +28,6 @@ tests/
 packages/ → ~/d/repo/packages  # Package definitions (symlink)
 .github/workflows/
   build.yml                 # Build any package (amd64 + arm64, workflow_dispatch)
-  build.yml                 # Build any package (amd64 + arm64, workflow_dispatch)
 ```
 
 ## Package Definitions
@@ -104,7 +103,7 @@ R2 packages must work in Apple Virtualization.framework guests (used by vfkit on
 
 - **zig cc** defaults to a conservative `armv8-a` baseline — safe for any ARM64 VM
 - **GCC** on Graviton3 CI runners may emit SVE/newer instructions without explicit flags
-- `rebuild-world.yml` rebuilds affected packages using GCC with `-march=armv8-a+lse+crypto`
+- `make rebuild-<pkg>-debian` builds with Debian GCC and `-march=armv8-a+lse+crypto` for packages that need it
 - zig does NOT accept `-march=armv8-a` (GCC arch string format); it uses `-mcpu=<name>`
 
 ## Common Pitfalls

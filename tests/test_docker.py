@@ -1,6 +1,8 @@
 """Docker integration tests for Kominka images.
 
 Slower than test_pm_cheap.py — run with: python3 -m pytest tests/test_docker.py -v
+
+Requires: kominka:core image already built (make core) and repo server running.
 """
 
 import os
@@ -8,7 +10,8 @@ import subprocess
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-REPO = os.path.join(ROOT, "tests", "fixtures", "repo")
+PACKAGES_DIR = os.path.join(ROOT, "packages")
+KOMINKA_REPO = os.environ.get("KOMINKA_REPO", "http://localhost:3000")
 
 
 def docker(*args, timeout=300):
@@ -31,10 +34,6 @@ def docker_check(*args, timeout=300):
 class TestCoreImage(unittest.TestCase):
     """Test kominka:core — the base image."""
 
-    @classmethod
-    def setUpClass(cls):
-        docker_check("build", "-t", "kominka:core", ".", timeout=120)
-
     def test_pm_list(self):
         r = docker_check("run", "--rm", "kominka:core", "pm", "l")
         self.assertIn("glibc", r.stdout)
@@ -51,8 +50,7 @@ class TestCoreImage(unittest.TestCase):
     def test_busybox_applets(self):
         r = docker_check("run", "--rm", "kominka:core",
                           "busybox", "--list")
-        for applet in ["gzip", "tar", "sh", "sed", "awk", "fdisk",
-                        "losetup", "cpio", "wget"]:
+        for applet in ["gzip", "tar", "sh", "sed", "awk", "fdisk", "wget"]:
             self.assertIn(applet, r.stdout, f"missing applet: {applet}")
 
     def test_https_works(self):
@@ -63,14 +61,14 @@ class TestCoreImage(unittest.TestCase):
         self.assertEqual(r.returncode, 0)
 
     def test_pm_install_package(self):
-        """pm can install an additional package from R2."""
+        """pm can install an additional package from the repo server."""
         r = docker_check(
             "run", "--rm",
-            "-v", f"{REPO}:/packages",
+            "-v", f"{PACKAGES_DIR}:/packages",
             "-e", "KOMINKA_PATH=/packages",
             "-e", "KOMINKA_FORCE=1",
             "-e", "KOMINKA_INSECURE=1",
-            "-e", "KOMINKA_REPO=http://localhost:3000",
+            "-e", f"KOMINKA_REPO={KOMINKA_REPO}",
             "kominka:core", "pm", "i", "e2fsprogs",
             timeout=30,
         )
