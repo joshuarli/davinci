@@ -1,21 +1,5 @@
 # TODO
 
-come up with a real repository model then rebuild+reupload everything
-
-
-## Packaging
-
-- dropbear (SSH server/client) — PKGBUILD done, CI build pending for R2
-- tailscale — PKGBUILD done, CI build pending for R2; first boot: `tailscale up` to join tailnet, then SSH via tailscale IP to dropbear
-- zstd (compression)
-- git: R2 binary not yet uploaded (links against boringssl, needs careful dep handling)
-
-## Infrastructure
-
-- Replace R2 wrangler uploads with direct R2 API (remove wrangler dep)
-- Content-addressed binary cache (see REPOSITORY.md)
-- Atomic installs: stage to a temp path, rename into place — prevents half-installed packages on crash
-
 ## System
 
 - `hwclock --hctosys` in rc.boot for hardware clock sync

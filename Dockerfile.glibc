@@ -1,11 +1,17 @@
-# Build glibc using Debian GCC (required — zig cc/clang can't build glibc).
-# Run via: make rebuild-glibc
+# Build environment using Debian GCC.
+# Required for packages that can't be built with zig cc/clang:
+# glibc (alias attribute semantics), git (lld incompatibilities), etc.
+#
+# Usage via Makefile:
+#   make rebuild-glibc-debian
+#   make rebuild-git-debian
 
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential curl ca-certificates tar gzip bzip2 xz-utils \
-    make patch python3 gawk bison texinfo m4 && \
+    make patch python3 gawk bison texinfo m4 libelf-dev \
+    gettext libexpat1-dev libssl-dev && \
     rm -rf /var/lib/apt/lists/*
 
 # Install ysh (static musl binary — runs on any Linux).
