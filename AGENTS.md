@@ -28,7 +28,7 @@ tests/
 packages/ → ~/d/repo/packages  # Package definitions (symlink)
 .github/workflows/
   build.yml                 # Build any package (amd64 + arm64, workflow_dispatch)
-  rebuild-world.yml         # Rebuild packages with conservative march flags
+  build.yml                 # Build any package (amd64 + arm64, workflow_dispatch)
 ```
 
 ## Package Definitions
@@ -71,8 +71,9 @@ proc build(dest) {
 ## Package Manager Quick Reference
 
 ```sh
-pm i <pkg>          # install binary from R2 mirror (skips make deps)
+pm i <pkg>          # install binary from repo server (skips make deps)
 pm b <pkg>          # build from source (resolves make+runtime deps)
+pm p <pkg>          # upload built tarball to repo server
 pm r <pkg>          # remove
 pm l                # list installed
 pm c <pkg>          # generate checksums
@@ -81,22 +82,21 @@ pm s <pkg>          # search
 pm U                # upgrade all packages
 ```
 
-Key env vars: `KOMINKA_ROOT`, `KOMINKA_PATH`, `KOMINKA_BIN_MIRROR`, `KOMINKA_MIRROR`, `KOMINKA_COMPRESS=gz`, `KOMINKA_FORCE=1`.
+Key env vars: `KOMINKA_ROOT`, `KOMINKA_PATH`, `KOMINKA_REPO`, `KOMINKA_TOKEN`, `KOMINKA_COMPRESS=gz`, `KOMINKA_FORCE=1`.
 
-## Building Packages in CI
+The repo server (`~/d/repo`) stores tarballs in Cloudflare R2 and serves the package index. `pm p` POSTs tarballs to the server's `/api/upload` endpoint — no wrangler or direct R2 access needed.
 
-`build.yml` builds a single package for both arches using `kominka:core` as the base:
+## Building Packages
 
-1. Builds `kominka:core` (cached by content hash of Dockerfile + pm.ysh + PKGBUILDs)
-2. Runs `pm i build-essential` inside to get build tools from R2
-3. Runs `pm b <package>` — pm auto-resolves and builds deps if needed
-4. Uploads the target package's tarball as a GitHub artifact
-
-After downloading artifacts, upload to R2:
+Build and upload a package:
 ```sh
-wrangler r2 object put "kominka-sources/{arch}/{pkg}/{ver}-{rel}.tar.gz" \
-    --file=<tarball> --content-type=application/octet-stream --remote
+make rebuild-<pkg>          # build in kominka:core (zig cc), upload
+make rebuild-<pkg>-debian   # build with Debian GCC (for glibc, git, etc.)
 ```
+
+Both targets source credentials from `~/d/repo/.env` automatically.
+
+`build.yml` (GitHub Actions) builds a single package for both arches using `kominka:core` as the base — useful for CI but local `make rebuild-*` is preferred for iteration.
 
 ## ARM64 Compatibility
 

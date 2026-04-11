@@ -1,6 +1,7 @@
 ## Quick Start
 
-Prerequisites: Docker, [vfkit](https://github.com/crc-org/vfkit) (`brew install vfkit`).
+Prerequisites: Docker, [vfkit](https://github.com/crc-org/vfkit) (`brew install vfkit`),
+repo server running (`cd ~/d/repo/server && cargo run`).
 
 ```sh
 make boot   # builds everything, boots VM — autologins as josh
@@ -16,6 +17,11 @@ make boot   # builds everything, boots VM — autologins as josh
 | `make boot` | Boot in vfkit (virtiofs-mounts `packages/` as `/packages`) |
 | `make boot-installer` | Boot installer with virtual target disk |
 | `make test` | Run all tests |
+| `make rebuild-<pkg>` | Build + upload a package (zig cc, uses kominka:core) |
+| `make rebuild-<pkg>-debian` | Build + upload a package (Debian GCC, for glibc/git/etc.) |
+
+`make core` reads `KOMINKA_REPO` from `~/d/repo/.env` and builds with `--network=host`
+so the Docker build can reach the local repo server at `localhost:3000`.
 
 ## Running Tests
 
@@ -25,33 +31,19 @@ python3 -m pytest tests/test_pm_cheap.py -v
 
 ## Building Packages
 
-Use `build.yml` (workflow_dispatch, builds for both arches):
-
-1. Actions → Build package → enter package name
-2. Download artifacts, upload to R2:
-
 ```sh
-for arch_dir in pkg-NAME-amd64 pkg-NAME-arm64; do
-    case $arch_dir in *amd64) arch=x86_64-linux-gnu ;; *arm64) arch=aarch64-linux-gnu ;; esac
-    for f in "$arch_dir"/*.tar.gz; do
-        base=$(basename "$f"); pkg=${base%%@*}; verrel=${base#*@}; verrel=${verrel%.tar.gz}
-        wrangler r2 object put "kominka-sources/${arch}/${pkg}/${verrel}.tar.gz" \
-            --file="$f" --content-type=application/octet-stream --remote
-    done
-done
+# Start the repo server first
+cd ~/d/repo/server && source ~/d/repo/.env && cargo run
+
+# Build and upload a package (sources credentials from ~/d/repo/.env)
+make rebuild-curl
+make rebuild-glibc-debian   # packages needing gcc use the -debian variant
+
+# Check what's in the index
+curl -sf http://localhost:3000/ | less
 ```
 
-Or build locally:
-
-```sh
-docker build -t kominka:core .
-docker run --rm \
-  -v "$PWD/packages:/packages:ro" \
-  -e KOMINKA_PATH=/packages \
-  -e KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
-  -e KOMINKA_COMPRESS=gz -e KOMINKA_FORCE=1 \
-  kominka:core sh -c 'pm i build-essential && pm b <pkg>'
-```
+For CI, `build.yml` (workflow_dispatch) builds for both arches automatically.
 
 ## Vision
 
