@@ -26,7 +26,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/kominka-core.tar.gz
-          key: kominka-core-${{ matrix.arch }}-${{ hashFiles('Dockerfile', 'pm.ysh', 'tests/fixtures/repo/**/PKGBUILD.ysh') }}
+          key: kominka-core-${{ matrix.arch }}-${{ hashFiles('Dockerfile', 'pm.ysh', 'packages/**/PKGBUILD.ysh') }}
 
       - name: Build kominka:core
         if: steps.cache.outputs.cache-hit != 'true'
@@ -42,10 +42,11 @@ jobs:
         run: |
           docker build -t builder \
             --build-arg PKG="${{ inputs.package }}" \
+            --build-context packages=packages \
             -f - . <<'DEOF'
           FROM kominka:core
           ARG PKG
-          COPY tests/fixtures/repo /packages
+          COPY --from=packages / /packages
           ENV KOMINKA_PATH=/packages \
               KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
               KOMINKA_COMPRESS=gz \

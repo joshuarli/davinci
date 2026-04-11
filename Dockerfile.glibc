@@ -1,0 +1,29 @@
+# Build glibc using Debian GCC (required — zig cc/clang can't build glibc).
+# Run via: make rebuild-glibc
+
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential curl ca-certificates tar gzip bzip2 xz-utils \
+    make patch python3 gawk bison texinfo m4 && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install ysh (static musl binary — runs on any Linux).
+ARG R2_BASE=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev
+RUN case "$(uname -m)" in \
+        x86_64)  ARCH=x86_64-linux-gnu ;; \
+        aarch64) ARCH=aarch64-linux-gnu ;; \
+    esac && \
+    curl -fsSLo- "$R2_BASE/$ARCH/ysh/0.37.0-2.tar.gz" | \
+        tar xzf - -C / ./usr/local/bin/ && \
+    chmod +x /usr/local/bin/ysh
+
+COPY pm.ysh /usr/bin/pm
+RUN chmod +x /usr/bin/pm
+
+COPY --from=packages / /packages
+RUN find /packages -name build -exec chmod +x {} + && \
+    find /packages -name post-install -exec chmod +x {} +
+
+RUN mkdir -p /kominka-root/var/db/kominka/installed \
+             /kominka-root/var/db/kominka/choices

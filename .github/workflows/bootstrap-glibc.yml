@@ -18,7 +18,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build glibc
         run: |
-          docker build -f - -t glibc-builder . <<'DEOF'
+          docker build -f - --build-context packages=packages -t glibc-builder . <<'DEOF'
           FROM debian:bookworm-slim
           RUN apt-get update && apt-get install -y --no-install-recommends \
               build-essential curl ca-certificates tar gzip bzip2 xz-utils \
@@ -28,7 +28,7 @@ jobs:
                   https://oils.pub/download/oils-for-unix-0.37.0.tar.gz && \
               cd /tmp && tar xzf oils.tar.gz && cd oils-for-unix-* && \
               ./configure --without-readline && _build/oils.sh && ./install
-          COPY tests/fixtures/repo /packages
+          COPY --from=packages / /packages
           RUN find /packages -name build -exec chmod +x {} +
           RUN mkdir -p /kominka-root/var/db/kominka/installed \
                        /kominka-root/var/db/kominka/choices

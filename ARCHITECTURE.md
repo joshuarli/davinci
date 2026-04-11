@@ -81,7 +81,7 @@ Kernel (EFISTUB) → busybox init → /etc/inittab
 getty-hvc0 → autologin script (root) → su -l josh
 ```
 
-virtiofs mounts the host `tests/fixtures/repo` as `/packages` at autologin, so package definitions are live without rebuilding the image.
+virtiofs mounts the host `packages/` (symlink to `~/d/repo/packages`) as `/packages` at autologin, so package definitions are live without rebuilding the image.
 
 ## Package Manager
 
@@ -93,19 +93,20 @@ virtiofs mounts the host `tests/fixtures/repo` as `/packages` at autologin, so p
 - Each package operation receives the loaded package record as an explicit typed parameter (`p Dict`) — no shared mutable globals for package state
 - Parallel downloads with live progress
 
-## R2 Binary Mirror
+## Repository
 
-Packages stored at `{arch}/{pkg}/{ver}-{rel}.tar.gz`:
+Package definitions and repository server live in a separate repo at
+`~/d/repo`. The server is a Rust HTTP service backed by R2 via S3 APIs,
+serving a per-arch package index and content-addressed tarballs.
+
+Tarball naming uses `sha256(PKGBUILD.ysh)` as the storage key:
 ```
-aarch64-linux-gnu/curl/7.80.0-5.tar.gz
-x86_64-linux-gnu/boringssl/0.20260327.0-6.tar.gz
+{arch}/{pkg}/{hash}.tar.gz
 ```
 
-Upload via wrangler:
-```sh
-wrangler r2 object put "kominka-sources/{arch}/{pkg}/{ver}-{rel}.tar.gz" \
-    --file=<tarball> --content-type=application/octet-stream --remote
-```
+`pm i` fetches the remote package index and resolves deps without needing a
+local git checkout of package definitions. `pm p` uploads built tarballs to
+the server.
 
 ## ARM64 Compatibility
 

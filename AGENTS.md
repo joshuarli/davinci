@@ -25,7 +25,7 @@ kernel-x86_64.config        # x86_64 kernel config fragment
 Makefile                    # Build orchestration
 tests/
   test_pm_cheap.py          # 47 fast pm tests (no Docker)
-  fixtures/repo/            # Package definitions (PKGBUILD.ysh)
+packages/ → ~/d/repo/packages  # Package definitions (symlink)
 .github/workflows/
   build.yml                 # Build any package (amd64 + arm64, workflow_dispatch)
   rebuild-world.yml         # Rebuild packages with conservative march flags
@@ -33,7 +33,7 @@ tests/
 
 ## Package Definitions
 
-Every package is a single `PKGBUILD.ysh` file in `tests/fixtures/repo/<name>/`:
+Every package is a single `PKGBUILD.ysh` file in `packages/<name>/` (symlink to `~/d/repo/packages`):
 
 ```ysh
 #!/usr/local/bin/ysh

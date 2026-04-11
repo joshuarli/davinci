@@ -17,8 +17,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PM_YSH = ROOT / "pm.ysh"
-FIXTURES = Path(__file__).resolve().parent / "fixtures"
-REPO = FIXTURES / "repo"
+REPO = (ROOT / "packages").resolve()
 YSH = shutil.which("ysh") or "/usr/local/bin/ysh"
 HAS_YSH = os.path.isfile(YSH) and os.access(YSH, os.X_OK)
 

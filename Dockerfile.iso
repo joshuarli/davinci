@@ -14,7 +14,7 @@ FROM kominka-kernel AS kernel-image
 
 FROM kominka:core AS rootfs
 
-COPY tests/fixtures/repo /packages
+COPY --from=packages / /packages
 
 ENV KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
     KOMINKA_PATH=/packages \

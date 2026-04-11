@@ -13,7 +13,7 @@ make boot   # builds everything, boots VM — autologins as josh
 | `make core` | Build `kominka:core` Docker image (~57MB, FROM scratch) |
 | `make kernel` | Build kernel (ARM64 or x86_64) |
 | `make iso` | Build bootable installer image |
-| `make boot` | Boot in vfkit (virtiofs-mounts `tests/fixtures/repo` as `/packages`) |
+| `make boot` | Boot in vfkit (virtiofs-mounts `packages/` as `/packages`) |
 | `make boot-installer` | Boot installer with virtual target disk |
 | `make test` | Run all tests |
 
@@ -46,7 +46,7 @@ Or build locally:
 ```sh
 docker build -t kominka:core .
 docker run --rm \
-  -v "$PWD/tests/fixtures/repo:/packages:ro" \
+  -v "$PWD/packages:/packages:ro" \
   -e KOMINKA_PATH=/packages \
   -e KOMINKA_BIN_MIRROR=https://pub-ad5257645a73444c9056cf2aed244ac7.r2.dev \
   -e KOMINKA_COMPRESS=gz -e KOMINKA_FORCE=1 \

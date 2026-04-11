@@ -18,7 +18,6 @@ var KOMINKA_CHOICE = ''
 var KOMINKA_DEBUG = ''
 var KOMINKA_STRIP = ''
 var KOMINKA_INSECURE = ''
-var KOMINKA_BUCKET = ''
 var KOMINKA_HOOK = ''
 var KOMINKA_TMPDIR = ''
 var KOMINKA_KEEPLOG = ''
@@ -28,6 +27,8 @@ var KOMINKA_CHK = ''
 var KOMINKA_GET = ''
 var KOMINKA_MIRROR = ''
 var KOMINKA_BIN_MIRROR = ''
+var KOMINKA_REPO = ''
+var KOMINKA_TOKEN = ''
 var KOMINKA_ARCH = ''
 var _KOMINKA_LVL = 0
 var CC = ''
@@ -111,6 +112,10 @@ var explicit_build = {}
 var order = []
 var redro = []
 var repos_seen = {}
+
+# Remote package index (populated by index_load from cached packages.json).
+var _remote_index = {}
+var _remote_loaded = false
 
 proc log (name, msg='', prefix='->') {
     ### Log a message to stderr with optional coloring.
@@ -361,6 +366,94 @@ proc _sh256 (...files) {
     write -- $hash
 }
 
+proc _download (dest, url) {
+    ### Download a URL to a local file. Returns 1 on failure.
+    case (cmd_get) {
+        */curl {
+            if (KOMINKA_INSECURE === '1') {
+                try { $cmd_get -ksfLo $dest $url }
+            } else {
+                try { $cmd_get -sfLo $dest $url }
+            }
+        }
+        */wget {
+            try { $cmd_get --no-check-certificate -qO $dest $url }
+        }
+    }
+    if failed { rm -f $dest; return 1 }
+}
+
+proc index_load () {
+    ### Load the cached remote package index into _remote_index.
+    if (_remote_loaded) { return }
+    var idx_file = "${cac_dir}/packages.json"
+    if ! test -f $idx_file { return }
+    json read < $idx_file
+    setglobal _remote_index = _reply["packages"]
+    setglobal _remote_loaded = true
+}
+
+proc index_refresh () {
+    ### Download the remote package index.
+    if (KOMINKA_REPO === '') { return }
+    var idx_url = "${KOMINKA_REPO}/${sys_arch}/packages.json"
+    var idx_file = "${cac_dir}/packages.json"
+    log "Fetching package index"
+    try { _download $idx_file $idx_url }
+    if failed {
+        war "index" "Failed to fetch remote index"
+        return
+    }
+    setglobal _remote_loaded = false
+}
+
+proc auth_token_load (; result Ref) {
+    ### Load the bearer token for repository uploads.
+    # 1. KOMINKA_TOKEN env var (for CI).
+    if (KOMINKA_TOKEN !== '') {
+        call result->setValue(KOMINKA_TOKEN)
+        return
+    }
+    # 2. macOS Keychain.
+    var _t = ''
+    try { setvar _t = $(security find-generic-password -s kominka-repo -w 2>/dev/null) }
+    if (_t !== '') { call result->setValue(_t); return }
+    # 3. File fallback.
+    var _tf = "${HOME}/.config/kominka/token"
+    if test -f $_tf {
+        read -r _t < $_tf
+        call result->setValue(_t)
+        return
+    }
+    call result->setValue('')
+}
+
+proc auth_token_store (token) {
+    ### Store the bearer token for repository uploads.
+    # macOS Keychain.
+    try { security add-generic-password -U -s kominka-repo -a kominka -w $token 2>/dev/null }
+    if ! failed { return }
+    # File fallback.
+    var _dir = "${HOME}/.config/kominka"
+    mkdir -p $_dir
+    chmod 700 $_dir
+    write -- $token > "${_dir}/token"
+    chmod 600 "${_dir}/token"
+}
+
+proc pm_auth () {
+    ### Store a repository authentication token.
+    # V1: prompts for a token and stores it. V2 will add browser passkey flow.
+    if (KOMINKA_REPO === '') { die "KOMINKA_REPO not set" }
+
+    log "Enter your API token for ${KOMINKA_REPO}:"
+    read -r _token
+    if (_token === '') { die "Empty token" }
+
+    auth_token_store $_token
+    log "Token stored"
+}
+
 proc pkg_load (pkg_dir; result Ref = null) {
     ### Load a package from pkg_dir into a dict and return it via out-param.
     # Supports both PKGBUILD.ysh (repo packages) and version/depends files
@@ -429,6 +522,27 @@ proc pkg_load (pkg_dir; result Ref = null) {
             checksums_aarch64: [],
             checksums_x86_64:  [],
         }
+    } elif (pkg_dir => startsWith('remote:')) {
+        # Remote index entry — no filesystem, metadata from cached index.
+        var _rname = ${pkg_dir#remote:}
+        index_load
+        if (not (_rname in _remote_index)) {
+            die $_rname "Not in remote index"
+        }
+        var _ri = _remote_index[_rname]
+        setvar d = {
+            dir:              pkg_dir,
+            name:             _rname,
+            ver:              _ri["ver"],
+            rel:              _ri["rel"],
+            deps:             _ri["deps"],
+            mkdeps:           [],
+            nostrip:          false,
+            sources:          [],
+            checksums:        [],
+            checksums_aarch64: [],
+            checksums_x86_64:  [],
+        }
     } else {
         die "${pkg_dir##*/}" "No PKGBUILD.ysh or version file in $pkg_dir"
     }
@@ -473,6 +587,14 @@ proc _pkg_find (name, mode='', test_flag='', search_path='') {
     }
 
     if (len(results) === 0) {
+        # Remote index fallback (only for default package search).
+        if (test_flag === '' and mode === '' and KOMINKA_REPO !== '') {
+            index_load
+            if (name in _remote_index) {
+                setglobal repo_dir = "remote:${name}"
+                return 0
+            }
+        }
         return 1
     }
 
@@ -568,27 +690,50 @@ proc pkg_info (pkg) {
 }
 
 proc pkg_upload (pkg) {
-    ### Upload a built package tarball to R2.
-    # Layout: {arch}/{package}/{version}-{release}.tar.{compress}
+    ### Upload a built package tarball to the repository server.
     # Accepts either a package name (looks in bin cache) or a tarball path.
+    if (KOMINKA_REPO === '') { die "KOMINKA_REPO not set" }
+
+    var _token = ''
+    auth_token_load (&_token)
+    if (_token === '') { die "Not authenticated — set KOMINKA_TOKEN or run 'pm auth'" }
+
+    case (cmd_get) {
+        */curl { true }
+        * { die "Upload requires curl" }
+    }
+
     var _tarball = ''
     var _pkg = ''
+    var _p = null
 
     case (pkg) {
         *.tar.* {
-            # Direct tarball path: extract package name and version from filename.
             if ! test -f $pkg { die "File '$pkg' does not exist" }
             setvar _tarball = pkg
             var _base = ${pkg##*/}
             setvar _pkg = ${_base%%@*}
-            var _verrel = ${_base#*@}
-            setvar _verrel = ${_verrel%.tar.*}
+            pkg_find_and_load $_pkg (&_p)
         }
         * {
-            # Package name: find tarball in bin cache.
-            var _p = null
             pkg_find_and_load $pkg (&_p)
             setvar _pkg = pkg
+
+            # Metapackage: publish metadata only.
+            if (len(_p.sources) === 0) {
+                var _deps_json = _p.deps => join('","')
+                if (_deps_json !== '') { setvar _deps_json = "\"${_deps_json}\"" }
+                var _mkdeps_json = _p.mkdeps => join('","')
+                if (_mkdeps_json !== '') { setvar _mkdeps_json = "\"${_mkdeps_json}\"" }
+                $cmd_get -sf -X POST "${KOMINKA_REPO}/api/publish" \
+                    -H "Authorization: Bearer ${_token}" \
+                    -H "Content-Type: application/json" \
+                    -d "{\"arch\":\"${sys_arch}\",\"pkg\":\"${_pkg}\",\"ver\":\"$[_p.ver]\",\"rel\":\"$[_p.rel]\",\"deps\":[${_deps_json}],\"mkdeps\":[${_mkdeps_json}]}" \
+                    || die $_pkg "Publish failed"
+                log $_pkg "Published metapackage"
+                return
+            }
+
             setvar _tarball = "${bin_dir}/${pkg}@$[_p.ver]-$[_p.rel].tar.${KOMINKA_COMPRESS}"
             if ! test -f $_tarball {
                 for f in @[glob("${bin_dir}/${pkg}@$[_p.ver]-$[_p.rel].tar.*")] {
@@ -598,18 +743,23 @@ proc pkg_upload (pkg) {
             if ! test -f $_tarball {
                 die $pkg "No tarball found — build it first"
             }
-            setvar _verrel = "$[_p.ver]-$[_p.rel]"
         }
     }
 
-    var bucket = KOMINKA_BUCKET
-    if (bucket === '') { die "KOMINKA_BUCKET not set" }
+    var _deps_header = _p.deps => join(',')
+    var _mkdeps_header = _p.mkdeps => join(',')
 
-    var _ext = ${_tarball##*.tar.}
-    var key = "${sys_arch}/${_pkg}/${_verrel}.tar.${_ext}"
-
-    log $_pkg "Uploading ${_tarball##*/} -> ${key}"
-    wrangler r2 object put "${bucket}/${key}" --file=$_tarball --content-type=application/octet-stream --remote
+    log $_pkg "Uploading ${_tarball##*/}"
+    $cmd_get -sf -X POST "${KOMINKA_REPO}/api/upload" \
+        -H "Authorization: Bearer ${_token}" \
+        -H "X-Arch: ${sys_arch}" \
+        -H "X-Pkg: ${_pkg}" \
+        -H "X-Ver: $[_p.ver]" \
+        -H "X-Rel: $[_p.rel]" \
+        -H "X-Deps: ${_deps_header}" \
+        -H "X-Mkdeps: ${_mkdeps_header}" \
+        --data-binary "@${_tarball}" \
+        || die $_pkg "Upload failed"
     log $_pkg "Uploaded"
 }
 
@@ -620,25 +770,31 @@ proc pkg_cache (pkg) {
 
     setglobal tar_file = "${bin_dir}/${pkg}@$[p.ver]-$[p.rel].tar.${KOMINKA_COMPRESS}"
 
-    if test -f $tar_file {
-        return 0
-    }
+    if test -f $tar_file { return 0 }
 
-    # Try any compression.
     for f in @[glob("${bin_dir}/${pkg}@$[p.ver]-$[p.rel].tar.*")] {
         setglobal tar_file = f
         return 0
     }
 
-    # Metapackages have no tarball — skip the mirror entirely.
+    # Metapackages have no tarball.
     if (len(p.sources) === 0) { return 1 }
 
-    # Try remote binary mirror: {arch}/{package}/{version}-{release}.tar.gz
-    if (KOMINKA_BIN_MIRROR !== '') {
+    # Try repo server: {arch}/{pkg}/{ver}-{rel}.tar.gz
+    if (KOMINKA_REPO !== '') {
         var _remote_name = "$[p.ver]-$[p.rel].tar.${KOMINKA_COMPRESS}"
-        var _remote_url = "${KOMINKA_BIN_MIRROR}/${sys_arch}/${pkg}/${_remote_name}"
+        var _remote_url = "${KOMINKA_REPO}/${sys_arch}/${pkg}/${_remote_name}"
         setglobal tar_file = "${bin_dir}/${pkg}@$[p.ver]-$[p.rel].tar.${KOMINKA_COMPRESS}"
-        try { pkg_source_url $tar_file $_remote_url 'n' (p) }
+        try { _download $tar_file $_remote_url }
+        if ! failed { return 0 }
+    }
+
+    # Fallback: legacy binary mirror.
+    if (KOMINKA_BIN_MIRROR !== '') {
+        setvar _remote_name = "$[p.ver]-$[p.rel].tar.${KOMINKA_COMPRESS}"
+        setvar _remote_url = "${KOMINKA_BIN_MIRROR}/${sys_arch}/${pkg}/${_remote_name}"
+        setglobal tar_file = "${bin_dir}/${pkg}@$[p.ver]-$[p.rel].tar.${KOMINKA_COMPRESS}"
+        try { _download $tar_file $_remote_url }
         if ! failed { return 0 }
     }
 
@@ -1254,7 +1410,14 @@ proc pkg_build_all (...pkgs) {
     }
 
     # If an explicit package is also a dependency of another explicit,
-    # remove it from the explicit list.
+    # remove it from the explicit list (it will be built in dep order).
+    # Preserve original_explicit to distinguish "was requested" from "is a dep"
+    # — this prevents auto-installing explicitly-requested packages (like zlib)
+    # that get resolved into the implicit dep list.
+    var original_explicit = {}
+    for pkg in (explicit) {
+        setvar original_explicit[pkg] = true
+    }
     var explicit_filtered = []
     for pkg in (explicit) {
         if (not (pkg in deps_seen)) {
@@ -1337,7 +1500,7 @@ proc pkg_build_all (...pkgs) {
         pkg_etcsums (p)
         pkg_tar (p)
 
-        if (prefer_cache === '1' or not (pkg in explicit_seen)) {
+        if (prefer_cache === '1' or (not (pkg in explicit_seen) and not (pkg in original_explicit))) {
             log $pkg "Needed as a dependency or has an update, installing"
             forkwait {
                 setglobal ENV.KOMINKA_FORCE = '1'
@@ -1830,7 +1993,7 @@ proc pkg_install_all (...pkgs) {
         case (pkg) { *.tar.* { continue } }
         pkg_find_and_load $pkg (&p)
 
-        # Metapackages (no sources) don't have tarballs to download.
+        # Metapackages have no tarball to download.
         if (len(p.sources) === 0) { continue }
 
         var _name = "${pkg}@$[p.ver]-$[p.rel].tar.${KOMINKA_COMPRESS}"
@@ -1844,8 +2007,14 @@ proc pkg_install_all (...pkgs) {
         }
         if (_found) { continue }
 
-        if (KOMINKA_BIN_MIRROR !== '') {
-            var _url = "${KOMINKA_BIN_MIRROR}/${sys_arch}/${pkg}/$[p.ver]-$[p.rel].tar.${KOMINKA_COMPRESS}"
+        var _url = ''
+        if (KOMINKA_REPO !== '') {
+            setvar _url = "${KOMINKA_REPO}/${sys_arch}/${pkg}/$[p.ver]-$[p.rel].tar.${KOMINKA_COMPRESS}"
+            setvar urls[pkg] = _url
+            setvar dests[pkg] = _dest
+            call dl_names->append(pkg)
+        } elif (KOMINKA_BIN_MIRROR !== '') {
+            setvar _url = "${KOMINKA_BIN_MIRROR}/${sys_arch}/${pkg}/$[p.ver]-$[p.rel].tar.${KOMINKA_COMPRESS}"
             setvar urls[pkg] = _url
             setvar dests[pkg] = _dest
             call dl_names->append(pkg)
@@ -2010,6 +2179,7 @@ proc pkg_install (pkg) {
 }
 
 proc pkg_update () {
+    index_refresh
     log "Updating repositories"
 
     var kominka_paths = KOMINKA_PATH => split(':')
@@ -2290,7 +2460,8 @@ proc args (action='', ...pkgs) {
                         KOMINKA_CHOICE="${KOMINKA_CHOICE:-}" \
                         KOMINKA_COLOR="${KOMINKA_COLOR:-}" \
                         KOMINKA_TMPDIR="${KOMINKA_TMPDIR:-}" \
-                        KOMINKA_BIN_MIRROR="${KOMINKA_BIN_MIRROR:-}" \
+                        KOMINKA_REPO="${KOMINKA_REPO:-}" \
+                        KOMINKA_TOKEN="${KOMINKA_TOKEN:-}" \
                         KOMINKA_ARCH="${KOMINKA_ARCH:-}" \
                         KOMINKA_PID="$KOMINKA_PID" \
                         _KOMINKA_LVL="$_KOMINKA_LVL" \
@@ -2324,11 +2495,13 @@ proc args (action='', ...pkgs) {
         u | update       { pkg_update }
         p | upload       { for pkg in (pkgs) { pkg_upload $pkg } }
         U | upgrade      { pkg_upgrade }
+        auth             { pm_auth }
         v | version      { write -- '5.5.28' }
 
         h | help | '' {
             log 'pm [a|b|c|d|h|i|l|p|r|s|u|U|v] [pkg]...'
             log 'alternatives List and swap alternatives'
+            log 'auth         Authenticate with repository'
             log 'build        Build packages'
             log 'checksum     Generate checksums'
             log 'download     Download sources'
@@ -2338,7 +2511,7 @@ proc args (action='', ...pkgs) {
             log 'outdated     Show packages with newer versions available'
             log 'list         List installed packages'
             log 'remove       Remove packages'
-            log 'upload       Upload built packages to R2'
+            log 'upload       Upload packages to repository'
             log 'search       Search for packages'
             log 'update       Update the system and repositories'
             log 'upgrade      Update the system'
@@ -2414,7 +2587,6 @@ proc main (...argv) {
     setglobal KOMINKA_DEBUG     = ENV => get("KOMINKA_DEBUG", "")
     setglobal KOMINKA_STRIP     = ENV => get("KOMINKA_STRIP", "")
     setglobal KOMINKA_INSECURE  = ENV => get("KOMINKA_INSECURE", "")
-    setglobal KOMINKA_BUCKET    = ENV => get("KOMINKA_BUCKET", "")
     setglobal KOMINKA_HOOK      = ENV => get("KOMINKA_HOOK", "")
     setglobal KOMINKA_TMPDIR    = ENV => get("KOMINKA_TMPDIR", "")
     setglobal KOMINKA_KEEPLOG   = ENV => get("KOMINKA_KEEPLOG", "")
@@ -2424,6 +2596,8 @@ proc main (...argv) {
     setglobal KOMINKA_GET       = ENV => get("KOMINKA_GET", "")
     setglobal KOMINKA_MIRROR      = ENV => get("KOMINKA_MIRROR", "")
     setglobal KOMINKA_BIN_MIRROR  = ENV => get("KOMINKA_BIN_MIRROR", "")
+    setglobal KOMINKA_REPO        = ENV => get("KOMINKA_REPO", "")
+    setglobal KOMINKA_TOKEN       = ENV => get("KOMINKA_TOKEN", "")
     setglobal KOMINKA_ARCH        = ENV => get("KOMINKA_ARCH", "")
     var _lvl_str = ENV => get("_KOMINKA_LVL", "0") => trim()
     if (_lvl_str === '') { setvar _lvl_str = "0" }
@@ -2488,7 +2662,7 @@ proc main (...argv) {
         root:       KOMINKA_ROOT,
         path:       KOMINKA_PATH,
         mirror:     KOMINKA_MIRROR,
-        bin_mirror: KOMINKA_BIN_MIRROR,
+        repo:       KOMINKA_REPO,
         compress:   KOMINKA_COMPRESS,
         arch:       sys_arch,
         force:      KOMINKA_FORCE,
@@ -2496,7 +2670,6 @@ proc main (...argv) {
         strip:      KOMINKA_STRIP,
         insecure:   KOMINKA_INSECURE,
         color:      KOMINKA_COLOR,
-        bucket:     KOMINKA_BUCKET,
         hook:       KOMINKA_HOOK,
         get:        cmd_get,
         sha:        cmd_sha,
