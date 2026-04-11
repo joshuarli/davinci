@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl xz-utils ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-ARG KERNEL_VERSION=6.19.11
+ARG KERNEL_VERSION=6.19.12
 ARG KERNEL_URL=https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${KERNEL_VERSION}.tar.xz
 
 RUN curl -fLo /tmp/linux.tar.xz "$KERNEL_URL" && \
@@ -27,8 +27,8 @@ WORKDIR /linux
 RUN make tinyconfig
 
 # Select kernel config based on architecture.
-COPY kernel.config /tmp/kernel.config
-COPY kernel-x86_64.config /tmp/kernel-x86_64.config
+COPY packages/linux/files/kernel.config /tmp/kernel.config
+COPY packages/linux/files/kernel-x86_64.config /tmp/kernel-x86_64.config
 RUN case "$(uname -m)" in \
         x86_64) cp /tmp/kernel-x86_64.config /tmp/active.config ;; \
         *)      cp /tmp/kernel.config /tmp/active.config ;; \
