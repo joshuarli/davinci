@@ -14,7 +14,13 @@
 
 ## Before first real-hardware ISO (Dell XPS 13 9343, x86_64)
 
-### 1. Outstanding package builds (server has stale versions)
+### 1. ✅ Outstanding package builds — DONE
+
+All packages at correct versions for both aarch64 and x86_64:
+busybox/8, ysh/3, linux/3, wpa_supplicant/8, wifi/2, libnl/1,
+sudo-rs/2, iwlwifi-firmware/1.
+
+### DONE (was "1. Outstanding package builds"):
 
 These packages have been updated locally but not yet rebuilt and uploaded:
 
