@@ -37,9 +37,6 @@ RUN pm i build-essential
 RUN ln -sf /usr/bin/busybox-suid /usr/bin/su && \
     busybox sed -i 's/^root:[^:]*:/root::/' /etc/shadow
 
-# Installer script.
-COPY install.ysh /usr/bin/pm-install
-RUN chmod +x /usr/bin/pm-install
 
 # Create user josh with wheel group and sudo access.
 RUN busybox adduser -D -s /bin/sh -u 1000 josh && \

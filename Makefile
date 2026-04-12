@@ -72,7 +72,7 @@ iso-amd64: core-amd64
 $(KERNEL): Dockerfile.linux packages/linux/PKGBUILD.ysh
 	$(MAKE) kernel
 
-$(INSTALLER_IMG): Dockerfile.iso build_iso.ysh install.ysh Dockerfile pm.ysh
+$(INSTALLER_IMG): Dockerfile.iso build_iso.ysh packages/liveiso/files/install.ysh Dockerfile pm.ysh
 	$(MAKE) iso
 
 boot: $(KERNEL) $(INSTALLER_IMG)
