@@ -23,7 +23,12 @@ trap cleanup EXIT
 kernel_mb=$(( $(busybox stat -c%s /usr/share/kominka/Image) / 1048576 + 1 ))
 efi_mb=$(( kernel_mb + 4 ))
 [ "$efi_mb" -lt 34 ] && efi_mb=34
-rootfs_mb=$(busybox du -sm /bin /etc /lib /sbin /usr /var /root 2>/dev/null | busybox awk '{s+=$1} END{print s}')
+# Sum du output without awk (busybox awk is broken in current build).
+rootfs_mb=0
+for _d in /bin /etc /lib /sbin /usr /var /root; do
+    _n=$(busybox du -sm "$_d" 2>/dev/null | busybox cut -f1)
+    rootfs_mb=$(( rootfs_mb + ${_n:-0} ))
+done
 root_mb=$(( rootfs_mb * 120 / 100 + 4 + 2048 ))
 img_mb=$(( 1 + efi_mb + root_mb + 1 ))
 
