@@ -1,4 +1,4 @@
-#!/usr/bin/busybox sh
+#!/bin/sh
 # Kominka Linux installer.
 # Partitions a disk, formats filesystems, copies the live rootfs, and
 # builds a machine-specific kernel for the target hardware.
