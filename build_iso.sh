@@ -26,7 +26,7 @@ if (efi_mb < 34) { setvar efi_mb = 34 }
 
 # Sum rootfs size without awk (busybox awk had a CVE crash, keep robust).
 var rootfs_mb = 0
-for _d in (/bin /etc /lib /sbin /usr /var /root) {
+for _d in /bin /etc /lib /sbin /usr /var /root {
     var _n = $(busybox du -sm $_d 2>/dev/null | busybox cut -f1)
     setvar rootfs_mb = rootfs_mb + ${_n:-0}
 }
@@ -40,7 +40,8 @@ busybox rm -f $IMG
 busybox truncate -s "${img_mb}M" $IMG
 
 # MBR partition table: 1 = EFI (0xEF), 2 = Linux.
-var efi_end = efi_mb * 2048 + 2047
+var efi_end   = efi_mb * 2048 + 2047
+var efi_start2 = efi_end + 1
 
 busybox fdisk $IMG << FDISK || true
 o
@@ -54,7 +55,7 @@ ef
 n
 p
 2
-$(( efi_end + 1 ))
+$efi_start2
 
 w
 FDISK
@@ -84,7 +85,7 @@ busybox mkdir -p "${MNT}/boot"
 busybox mount $LOOP_EFI "${MNT}/boot"
 
 echo "==> Installing rootfs"
-for _d in (bin etc home lib lib64 packages root sbin usr var) {
+for _d in bin etc home lib lib64 packages root sbin usr var {
     if test -e "/$_d" { busybox cp -a "/$_d" "${MNT}/" }
 }
 busybox mkdir -p "${MNT}/dev" "${MNT}/proc" "${MNT}/sys" "${MNT}/run" "${MNT}/tmp" "${MNT}/home"

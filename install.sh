@@ -31,8 +31,8 @@ proc setup_network() {
     }
     if (wlan === '') { return }
 
-    printf "Wireless interface %s detected. Connect to WiFi now? [y/N]\n" $wlan
-    printf "(needed for machine-specific kernel download)\n"
+    echo "Wireless interface $wlan detected. Connect to WiFi now? [y/N]"
+    echo "(needed for machine-specific kernel download)"
     var ans; read --line (&ans)
     if (ans === 'y' or ans === 'Y') { wifi-setup }
 }
@@ -52,12 +52,13 @@ proc detect_machine() {
 
     echo ""
     echo "==> Machine detection"
-    if (match !== '' and test -f "${machines_dir}/${match}.config") {
+    var ans = ''
+    if test -n $match && test -f "${machines_dir}/${match}.config" {
         echo "    Detected: $dmi"
         echo ""
         printf "    Build kernel for '%s'? [Y/n/list] " $match
-        var ans; read --line (&ans)
-        case $ans {
+        read --line (&ans)
+        case (ans) {
             n|N          { setglobal MACHINE_PROFILE = '' }
             l|L|list     { select_machine }
             *            { setglobal MACHINE_PROFILE = match
@@ -67,8 +68,8 @@ proc detect_machine() {
         echo "    Machine not in profile list (DMI: ${dmi:-unknown})"
         echo ""
         printf "    Build a machine-specific kernel? [y/N/list] "
-        var ans; read --line (&ans)
-        case $ans {
+        read --line (&ans)
+        case (ans) {
             y|Y | l|L|list { select_machine }
             *               { setglobal MACHINE_PROFILE = '' }
         }
@@ -90,7 +91,7 @@ proc select_machine() {
     var cfgs = @[glob("${machines_dir}/*.config")]
     for cfg in (cfgs) {
         var name = $(basename $cfg .config)
-        printf "      %2d) %s\n" $i $name
+        printf '      %2d) %s\n' $i $name
         setvar i = i + 1
     }
     echo ""
@@ -122,7 +123,7 @@ proc install_kernel() {
 
     # Baseline pre-built kernel.
     var efi_name
-    case $ARCH {
+    case (ARCH) {
         x86_64  { setvar efi_name = 'BOOTX64.EFI' }
         aarch64 { setvar efi_name = 'BOOTAA64.EFI' }
         *       { setvar efi_name = 'BOOTX64.EFI' }
@@ -154,7 +155,9 @@ proc build_kernel_x86_64() {
     }
 
     # Verify checksum if sha256sum is available.
-    var actual = $(sha256sum $tarball 2>/dev/null | cut -d' ' -f1 || true)
+    # SHA256 hashes are exactly 64 hex chars; slice to avoid quoted-space issue.
+    var _sum  = $(sha256sum $tarball 2>/dev/null || true)
+    var actual = _sum[0:64]
     if (actual !== '' and actual !== KERNEL_SHA) {
         echo "    Checksum mismatch — falling back to baseline kernel."
         cp /usr/share/kominka/Image "${MNT}/boot/EFI/BOOT/BOOTX64.EFI"
@@ -197,14 +200,14 @@ proc build_kernel_x86_64() {
 proc list_disks() {
     for dev in @[glob('/sys/block/*')] {
         var name = $(basename $dev)
-        case $name {
+        case (name) {
             loop*|ram*|dm-* { continue }
         }
         var size = $(cat "${dev}/size" 2>/dev/null || echo 0)
         var size_mb = int(size) // 2048
         if (size_mb <= 0) { continue }
         var model = $(cat "${dev}/device/model" 2>/dev/null | sed 's/ *$//' || true)
-        printf "  /dev/%-10s %6d MB  %s\n" $name $size_mb $model
+        printf '  /dev/%-10s %6d MB  %s\n' $name $size_mb $model
     }
 }
 
@@ -235,7 +238,7 @@ echo ""
 echo "  Partition layout (MBR):"
 echo "    ${DISK}1   256M   EFI System (FAT32)   /boot"
 echo "    ${DISK}2     8G   Linux swap"
-printf "    ${DISK}3  %4dM   Linux (ext4)          /\n" $root_mb
+echo "    ${DISK}3  ${root_mb}M   Linux (ext4)          /"
 echo ""
 printf "Continue? [y/N] "
 var ans; read --line (&ans)
@@ -274,7 +277,7 @@ FDISK
 sleep 1
 
 var P
-case $DISK {
+case (DISK) {
     *nvme*|*mmcblk* { setvar P = "${DISK}p" }
     *               { setvar P = DISK }
 }
@@ -291,7 +294,7 @@ mkdir -p "${MNT}/boot"
 mount "${P}1" "${MNT}/boot"
 
 echo "==> Copying rootfs"
-for dir in (usr etc var root) {
+for dir in usr etc var root {
     if test -d "/$dir" { cp -a "/$dir" "${MNT}/" }
 }
 mkdir -p "${MNT}/dev" "${MNT}/proc" "${MNT}/sys" "${MNT}/tmp" "${MNT}/mnt"
@@ -324,8 +327,8 @@ if (NEW_USER !== '') {
         >> "${MNT}/etc/passwd"
     echo "${NEW_USER}:!:14871::::::" >> "${MNT}/etc/shadow"
 
-    if grep -q "^wheel:.*:$" "${MNT}/etc/group" {
-        sed -i "s/^wheel:\\(.*\\):$/wheel:\\1:${NEW_USER}/" "${MNT}/etc/group"
+    if grep -q '^wheel:.*:$' "${MNT}/etc/group" {
+        sed -i "s/^wheel:\\(.*\\):\$/wheel:\\1:${NEW_USER}/" "${MNT}/etc/group"
     } else {
         sed -i "s/^wheel:\\(.*\\)/wheel:\\1,${NEW_USER}/" "${MNT}/etc/group"
     }
