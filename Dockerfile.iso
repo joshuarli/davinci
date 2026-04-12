@@ -38,7 +38,7 @@ RUN ln -sf /usr/bin/busybox-suid /usr/bin/su && \
     busybox sed -i 's/^root:[^:]*:/root::/' /etc/shadow
 
 # Installer script.
-COPY install.sh /usr/bin/pm-install
+COPY install.ysh /usr/bin/pm-install
 RUN chmod +x /usr/bin/pm-install
 
 # Create user josh with wheel group and sudo access.
@@ -76,6 +76,6 @@ RUN mkdir -p /var/service && \
 
 RUN echo "kominka-installer" > /etc/hostname
 
-COPY build_iso.sh /build_iso.sh
+COPY build_iso.ysh /build_iso.ysh
 
-CMD sh /build_iso.sh
+CMD /build_iso.ysh
