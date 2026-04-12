@@ -179,6 +179,29 @@ else
 fi
 
 echo ""
+echo "==> WiFi setup"
+WLAN=""
+for _d in /sys/class/net/*/wireless; do
+    [ -d "$_d" ] && WLAN=$(/usr/bin/busybox basename $(/usr/bin/busybox dirname "$_d")) && break
+done
+
+if [ -n "$WLAN" ]; then
+    /usr/bin/busybox printf "Wireless interface %s detected. Configure WiFi? [y/N] " "$WLAN"
+    read -r _ans
+    case "$_ans" in
+        y|Y)
+            # wifi-setup writes /etc/wifi.conf and /etc/wpa_supplicant.conf
+            # directly into the target via --target.  It also enables the
+            # wifi runit service by creating the symlink in /var/service.
+            wifi-setup --target "$MNT"
+            # Enable wifi service on the installed system.
+            /usr/bin/busybox mkdir -p "$MNT/var/service"
+            /usr/bin/busybox ln -sf /etc/sv/wifi "$MNT/var/service/wifi"
+            ;;
+    esac
+fi
+
+echo ""
 echo "==> Unmounting"
 /usr/bin/busybox umount "$MNT/boot"
 /usr/bin/busybox umount "$MNT"
