@@ -54,7 +54,9 @@ detect_machine() {
     [ -n "$DMI" ] || return 0
 
     # Look up DMI name in the index.
-    MATCH=$($BB grep -F "^${DMI}=" "$MACHINES_DIR/index" 2>/dev/null | $BB cut -d= -f2 || true)
+    # Use awk for exact field matching — grep -F makes ^ literal, not an anchor.
+    MATCH=$($BB awk -F= -v name="$DMI" '$1 == name { print $2 }' \
+        "$MACHINES_DIR/index" 2>/dev/null || true)
 
     echo ""
     echo "==> Machine detection"
@@ -163,9 +165,9 @@ build_kernel_x86_64() {
         return 0
     fi
 
-    # Verify checksum.
-    ACTUAL=$($BB sha256sum "$TARBALL" | $BB cut -d' ' -f1)
-    if [ "$ACTUAL" != "$KERNEL_SHA256" ]; then
+    # Verify checksum (|| true: if sha256sum isn't built into busybox, skip check).
+    ACTUAL=$($BB sha256sum "$TARBALL" 2>/dev/null | $BB cut -d' ' -f1 || true)
+    if [ -n "$ACTUAL" ] && [ "$ACTUAL" != "$KERNEL_SHA256" ]; then
         echo "    Checksum mismatch — falling back to baseline kernel."
         $BB cp /usr/share/kominka/Image "$MNT/boot/EFI/BOOT/BOOTX64.EFI"
         $BB rm -rf "$BUILD_DIR"
@@ -173,16 +175,19 @@ build_kernel_x86_64() {
     fi
 
     echo "    Extracting..."
-    $BB tar xJf "$TARBALL" -C "$BUILD_DIR" --strip-components=1 \
-        --one-top-level="linux-${KERNEL_VER}" 2>/dev/null
+    # Plain extract — busybox tar doesn't support --one-top-level.
+    # The tarball contains linux-6.x.y/ at the top level.
+    $BB tar xJf "$TARBALL" -C "$BUILD_DIR"
     SRC="$BUILD_DIR/linux-${KERNEL_VER}"
 
     # Merge base x86_64 config with machine profile.
+    # Avoid merge_config.sh — it requires bash which isn't on the live system.
+    # Appending to .config works identically: later entries win, olddefconfig
+    # then resolves any conflicts and fills in defaults for new symbols.
     echo "    Configuring..."
     $BB cp /usr/share/kominka/kernel.config "$SRC/.config"
-    "$SRC/scripts/kconfig/merge_config.sh" -m "$SRC/.config" "$PROFILE_CFG" \
-        2>/dev/null
-    make -C "$SRC" ARCH=x86_64 olddefconfig 2>/dev/null
+    $BB grep -v '^#' "$PROFILE_CFG" | $BB grep -v '^$' >> "$SRC/.config"
+    make -C "$SRC" ARCH=x86_64 olddefconfig 2>&1 | $BB grep -v '^#' || true
 
     # Build.
     NPROC=$(nproc 2>/dev/null || echo 4)
