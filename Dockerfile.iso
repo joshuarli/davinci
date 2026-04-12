@@ -61,11 +61,11 @@ RUN printf 'ca_certificate=/etc/ssl/certs/ca-certificates.crt\n' > /etc/wgetrc
 
 # Auto-login josh on the serial console. Mount host package repo via
 # virtiofs (tag "packages") if provided; falls back to baked /packages.
-RUN printf '#!/bin/busybox sh\nmount -t virtiofs packages /packages 2>/dev/null || true\nexec su -l josh\n' \
+RUN printf '#!/usr/local/bin/ysh\nmount -t virtiofs packages /packages 2>/dev/null || true\nexec su -l josh\n' \
         > /usr/local/bin/autologin && \
     chmod +x /usr/local/bin/autologin && \
     mkdir -p /etc/sv/getty-hvc0 && \
-    printf '#!/bin/busybox sh\nexec getty 115200 hvc0 -n -l /usr/local/bin/autologin\n' \
+    printf '#!/usr/local/bin/ysh\nexec getty 115200 hvc0 -n -l /usr/local/bin/autologin\n' \
         > /etc/sv/getty-hvc0/run && \
     chmod +x /etc/sv/getty-hvc0/run
 

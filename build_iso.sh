@@ -1,46 +1,48 @@
-#!/bin/sh
+#!/usr/local/bin/ysh
 # Build a bootable Kominka Linux installer disk image.
 # Runs inside Docker with --privileged (needs losetup).
-# All tools from Kominka packages (busybox, e2fsprogs, dosfstools).
 #
 # Output: /out/kominka-installer.img (MBR: EFI + ext4 root)
-set -eu
 
-OUT=/out
-IMG="$OUT/kominka-installer.img"
-MNT=/mnt
+var OUT = '/out'
+var IMG = "${OUT}/kominka-installer.img"
+var MNT = '/mnt'
+var LOOP_EFI = ''
+var LOOP_ROOT = ''
 
-cleanup() {
-    set +e
-    busybox umount "$MNT/boot" 2>/dev/null
-    busybox umount "$MNT" 2>/dev/null
-    [ -n "${LOOP_EFI:-}" ]  && busybox losetup -d "$LOOP_EFI"  2>/dev/null
-    [ -n "${LOOP_ROOT:-}" ] && busybox losetup -d "$LOOP_ROOT" 2>/dev/null
+proc cleanup() {
+    busybox umount "${MNT}/boot" 2>/dev/null || true
+    busybox umount $MNT 2>/dev/null || true
+    if (LOOP_EFI !== '') { busybox losetup -d $LOOP_EFI 2>/dev/null || true }
+    if (LOOP_ROOT !== '') { busybox losetup -d $LOOP_ROOT 2>/dev/null || true }
 }
 trap cleanup EXIT
 
 # Size partitions to fit contents.
-kernel_mb=$(( $(busybox stat -c%s /usr/share/kominka/Image) / 1048576 + 1 ))
-efi_mb=$(( kernel_mb + 4 ))
-[ "$efi_mb" -lt 34 ] && efi_mb=34
-# Sum du output without awk (busybox awk is broken in current build).
-rootfs_mb=0
-for _d in /bin /etc /lib /sbin /usr /var /root; do
-    _n=$(busybox du -sm "$_d" 2>/dev/null | busybox cut -f1)
-    rootfs_mb=$(( rootfs_mb + ${_n:-0} ))
-done
-root_mb=$(( rootfs_mb * 120 / 100 + 4 + 2048 ))
-img_mb=$(( 1 + efi_mb + root_mb + 1 ))
+var kernel_mb = $[$(busybox stat -c%s /usr/share/kominka/Image) // 1048576 + 1]
+
+var efi_mb = kernel_mb + 4
+if (efi_mb < 34) { setvar efi_mb = 34 }
+
+# Sum rootfs size without awk (busybox awk had a CVE crash, keep robust).
+var rootfs_mb = 0
+for _d in (/bin /etc /lib /sbin /usr /var /root) {
+    var _n = $(busybox du -sm $_d 2>/dev/null | busybox cut -f1)
+    setvar rootfs_mb = rootfs_mb + ${_n:-0}
+}
+
+var root_mb = rootfs_mb * 120 // 100 + 4 + 2048
+var img_mb  = 1 + efi_mb + root_mb + 1
 
 echo "==> Sizing: EFI=${efi_mb}M  root=${root_mb}M (${rootfs_mb}M content)  total=${img_mb}M"
 
-busybox rm -f "$IMG"
-busybox truncate -s "${img_mb}M" "$IMG"
+busybox rm -f $IMG
+busybox truncate -s "${img_mb}M" $IMG
 
-# MBR partition table: partition 1 = EFI (type 0xEF), partition 2 = Linux.
-efi_end=$(( efi_mb * 2048 + 2047 ))
-# busybox fdisk warns about ioctl on regular files — harmless.
-busybox fdisk "$IMG" <<FDISK || true
+# MBR partition table: 1 = EFI (0xEF), 2 = Linux.
+var efi_end = efi_mb * 2048 + 2047
+
+busybox fdisk $IMG << FDISK || true
 o
 n
 p
@@ -57,52 +59,48 @@ $(( efi_end + 1 ))
 w
 FDISK
 
-# Partition offsets — we know the layout because we just created it.
-P1_START=2048
-P1_END=$efi_end
-P2_START=$(( efi_end + 1 ))
-P2_END=$(( img_mb * 2048 - 1 ))
+var P1_START = 2048
+var P1_END   = efi_end
+var P2_START = efi_end + 1
+var P2_END   = img_mb * 2048 - 1
 
-efi_off=$((P1_START * 512))
-efi_size=$(( (P1_END - P1_START + 1) * 512 ))
-root_off=$((P2_START * 512))
-root_size=$(( (P2_END - P2_START + 1) * 512 ))
+var efi_off   = P1_START * 512
+var efi_size  = (P1_END - P1_START + 1) * 512
+var root_off  = P2_START * 512
 
-# busybox losetup: -f finds free device, -o sets offset.
-LOOP_EFI=$(busybox losetup -f) && busybox losetup -o "$efi_off" "$LOOP_EFI" "$IMG"
-LOOP_ROOT=$(busybox losetup -f) && busybox losetup -o "$root_off" "$LOOP_ROOT" "$IMG"
+setglobal LOOP_EFI  = $(busybox losetup -f)
+busybox losetup -o $efi_off  $LOOP_EFI  $IMG
+setglobal LOOP_ROOT = $(busybox losetup -f)
+busybox losetup -o $root_off $LOOP_ROOT $IMG
 
 echo "==> Formatting partitions"
-# Pass explicit size since busybox losetup has no --sizelimit.
-efi_blocks=$(( efi_size / 1024 ))
-root_blocks=$(( root_size / 4096 ))
-mkfs.vfat -F32 -n KOMINKA_EFI -S 512 -s 1 "$LOOP_EFI" "$efi_blocks"
-mkfs.ext4 -q -m 0 -L KOMINKA_ROOT -b 4096 "$LOOP_ROOT" "$root_blocks"
+var efi_blocks = efi_size // 1024
+mkfs.vfat -F32 -n KOMINKA_EFI -S 512 -s 1 $LOOP_EFI $efi_blocks
+mkfs.ext4 -q -m 0 -L KOMINKA_ROOT -b 4096 $LOOP_ROOT
 
 echo "==> Mounting"
-busybox mount "$LOOP_ROOT" "$MNT"
-busybox mkdir -p "$MNT/boot"
-busybox mount "$LOOP_EFI" "$MNT/boot"
+busybox mount $LOOP_ROOT $MNT
+busybox mkdir -p "${MNT}/boot"
+busybox mount $LOOP_EFI "${MNT}/boot"
 
 echo "==> Installing rootfs"
-for d in bin etc home lib lib64 packages root sbin usr var; do
-    [ -e "/$d" ] && busybox cp -a "/$d" "$MNT/"
-done
-busybox mkdir -p "$MNT/dev" "$MNT/proc" "$MNT/sys" "$MNT/run" "$MNT/tmp" "$MNT/home"
+for _d in (bin etc home lib lib64 packages root sbin usr var) {
+    if test -e "/$_d" { busybox cp -a "/$_d" "${MNT}/" }
+}
+busybox mkdir -p "${MNT}/dev" "${MNT}/proc" "${MNT}/sys" "${MNT}/run" "${MNT}/tmp" "${MNT}/home"
 
 echo "==> Installing kernel to EFI partition"
-busybox mkdir -p "$MNT/boot/EFI/BOOT"
-busybox cp /usr/share/kominka/Image "$MNT/boot/EFI/BOOT/BOOTAA64.EFI"
+busybox mkdir -p "${MNT}/boot/EFI/BOOT"
+busybox cp /usr/share/kominka/Image "${MNT}/boot/EFI/BOOT/BOOTAA64.EFI"
 
-# vfkit requires --initrd even when the kernel doesn't need one.
 echo "==> Creating empty initramfs"
-echo | busybox cpio -o -H newc 2>/dev/null | busybox gzip > "$OUT/initramfs.img"
+echo | busybox cpio -o -H newc 2>/dev/null | busybox gzip > "${OUT}/initramfs.img"
 
 echo "==> Unmounting"
-busybox umount "$MNT/boot"
-busybox umount "$MNT"
+busybox umount "${MNT}/boot"
+busybox umount $MNT
 
 echo "==> Done"
-echo "  kominka-installer.img  $(busybox du -h "$IMG" | busybox cut -f1)"
+busybox du -sh $IMG
 echo ""
-echo "  To flash:  dd if=kominka-installer.img of=/dev/sdX bs=4M status=progress"
+echo "  To flash:  dd if=$IMG of=/dev/sdX bs=4M status=progress"
