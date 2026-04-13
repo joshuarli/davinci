@@ -36,7 +36,7 @@ class TestCoreImage(unittest.TestCase):
 
     def test_pm_list(self):
         r = docker_check("run", "--rm", "kominka:core", "pm", "l")
-        self.assertIn("glibc", r.stdout)
+        self.assertIn("musl", r.stdout)
         self.assertIn("busybox", r.stdout)
         self.assertIn("ysh", r.stdout)
         self.assertIn("curl", r.stdout)

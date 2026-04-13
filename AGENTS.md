@@ -90,7 +90,7 @@ The repo server (`~/d/repo`) stores tarballs in Cloudflare R2 and serves the pac
 Build and upload a package:
 ```sh
 make rebuild-<pkg>          # build in kominka:core (zig cc), upload
-make rebuild-<pkg>-debian   # build with Debian GCC (for glibc, git, etc.)
+make rebuild-<pkg>          # build in kominka:core (zig cc → musl), upload
 ```
 
 Both targets source credentials from `~/d/repo/.env` automatically.
@@ -110,7 +110,7 @@ R2 packages must work in Apple Virtualization.framework guests (used by vfkit on
 
 **zig cc march format**: zig cc doesn't accept GCC-style `-march=armv8-a+lse+crypto`. It uses CPU names (`-mcpu=cortex_a55`) not architecture strings. Don't set explicit march for zig builds — its default is already conservative.
 
-**glibc clobbering**: Running `pm i` inside a non-Kominka environment (e.g. Ubuntu Docker) will attempt to install Kominka's glibc, overwriting the host's libc and breaking all system utilities. Always use `kominka:core` as the build base, or carefully pre-register system packages.
+**musl vs system libc**: Always use `kominka:core` as the build base. Running `pm i` inside a non-Kominka environment may install musl and overwrite the host's libc. Pre-register system packages when using a foreign builder.
 
 **Metapackage R2 lookups**: pm skips the R2 mirror for metapackages (empty `sources`). No 404s for virtual packages.
 

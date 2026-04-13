@@ -2,7 +2,7 @@
 
 ## Overview
 
-Kominka is a minimal, self-hosting Linux distribution. Supports aarch64 and x86_64. Custom kernel, busybox userspace, glibc, zig as the system compiler. Builds inside Docker on macOS — no cross-compilation.
+Kominka is a minimal, self-hosting Linux distribution. Supports aarch64 and x86_64. Custom kernel, busybox userspace, musl libc, zig as the system compiler. Builds inside Docker on macOS — no cross-compilation.
 
 **Always reach for the most minimal software.** Fewer deps = shorter bootstrap, smaller images, less attack surface.
 
@@ -28,14 +28,14 @@ Zig replaces gcc + binutils + ld — one binary, zero bootstrap chain:
 | `strip` | Custom 70-line C ELF stripper |
 | `objcopy` | `zig objcopy` |
 
-ysh is statically linked against musl. Everything else dynamically links against glibc.
+All binaries are compiled with `zig cc -target ARCH-linux-musl` and dynamically link against musl libc.
 
 ## Core Packages
 
 | Package | Role |
 |---------|------|
 | baselayout | FHS dirs, /etc configs, /bin→/usr/bin symlinks |
-| glibc | C library |
+| musl | C library (with mimalloc as default allocator) |
 | busybox | init, sh, getty, mdev, udhcpc, ~170 applets |
 | baseinit | rc.boot, rc.shutdown, rc.lib |
 | runit | Service supervision (runsvdir/runsv/sv) |
@@ -118,8 +118,7 @@ Packages must work in Apple Virtualization.framework guests (used by vfkit on
 Apple Silicon). This CPU does NOT expose SVE, PAC, or BTI. zig cc defaults to
 a conservative `armv8-a` baseline — safe for any ARM64 VM.
 
-For packages needing gcc (glibc, git, strace), use `make rebuild-<pkg>-debian`
-which builds with Debian GCC and explicit `-march=armv8-a+lse+crypto`.
+All packages are built with zig cc targeting musl. No gcc or Debian toolchain needed.
 
 ## Self-Hosting
 
@@ -179,7 +178,7 @@ wpa_supplicant is built **without OpenSSL** for PSK-only operation. The PSK
 path uses PBKDF2-SHA1 (passphrase → PMK) and HMAC-SHA256 (PTK derivation),
 both provided by wpa_supplicant's internal crypto. The kernel handles CCMP
 encryption after the supplicant installs the session keys. Result: one binary,
-deps = glibc + libnl only.
+deps = musl + libnl only.
 
 **Config files** (root-readable only):
 

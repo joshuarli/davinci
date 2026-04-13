@@ -157,37 +157,6 @@ DOCKER_RUN := docker run --rm \
 
 DOCKER_RUN_AMD64 := $(DOCKER_RUN) $(AMD64) -e KOMINKA_ARCH=x86_64-linux-gnu
 
-# Pre-register Debian system tools so pm doesn't try to rebuild them.
-# KOMINKA_REPO is set (host.docker.internal:3000) so other mkdeps are
-# fetched from the server rather than pre-registered.
-DEBIAN_SYSREG := bash -ec '\
-	DB=/kominka-root/var/db/kominka/installed; \
-	for tool in make bison m4 flex bc perl cmake ninja python3 glibc; do \
-		mkdir -p "$$DB/$$tool"; \
-		printf "system 1\n" > "$$DB/$$tool/version"; \
-		printf "#!/bin/sh\n:\n" > "$$DB/$$tool/build"; \
-		chmod +x "$$DB/$$tool/build"; \
-		touch "$$DB/$$tool/manifest"; \
-	done; \
-	pm b "$(PKG)" && pm p "$(PKG)" || true'
-
-# Build with Debian GCC — for packages that need gcc (glibc, git, strace...).
-# Usage: make rebuild-git-debian
-rebuild-%-debian:
-	@test -f $(REPO_ENV) || { echo "error: $(REPO_ENV) not found"; exit 1; }
-	docker build --build-context packages=$(PACKAGES_DIR) --build-context pm=$(PM_DIR) \
-		-t kominka-debian-builder -f Dockerfile.glibc .
-	$(DOCKER_RUN) -e KOMINKA_ROOT=/kominka-root -e PKG=$* \
-		kominka-debian-builder $(DEBIAN_SYSREG)
-
-# Same but targeting x86_64. Usage: make rebuild-git-debian-amd64
-rebuild-%-debian-amd64:
-	@test -f $(REPO_ENV) || { echo "error: $(REPO_ENV) not found"; exit 1; }
-	docker build $(AMD64) --build-context packages=$(PACKAGES_DIR) --build-context pm=$(PM_DIR) \
-		-t kominka-debian-builder-amd64 -f Dockerfile.glibc .
-	$(DOCKER_RUN_AMD64) -e KOMINKA_ROOT=/kominka-root -e PKG=$* \
-		kominka-debian-builder-amd64 $(DEBIAN_SYSREG)
-
 # Build with zig cc in kominka:core. Usage: make rebuild-curl
 rebuild-%:
 	@test -f $(REPO_ENV) || { echo "error: $(REPO_ENV) not found"; exit 1; }

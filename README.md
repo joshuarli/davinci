@@ -18,7 +18,6 @@ make boot   # builds everything, boots VM — autologins as josh
 | `make boot-installer` | Boot installer with virtual target disk |
 | `make test` | Run all tests |
 | `make rebuild-<pkg>` | Build + upload a package (zig cc, uses kominka:core) |
-| `make rebuild-<pkg>-debian` | Build + upload a package (Debian GCC, for glibc/git/etc.) |
 
 `make core` reads `KOMINKA_REPO` from `~/d/repo/.env` and builds with `--network=host`
 so the Docker build can reach the local repo server at `localhost:3000`.
@@ -37,7 +36,6 @@ cd ~/d/repo/server && source ~/d/repo/.env && cargo run
 
 # Build and upload a package (sources credentials from ~/d/repo/.env)
 make rebuild-curl
-make rebuild-glibc-debian   # packages needing gcc use the -debian variant
 
 # Check what's in the index
 curl -sf http://localhost:3000/ | less
