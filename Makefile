@@ -22,6 +22,9 @@ REPO_URL := $(shell grep '^KOMINKA_REPO=' $(REPO_ENV) 2>/dev/null | cut -d= -f2-
 
 AMD64 := --platform linux/amd64
 
+KARCH      := $(shell uname -m | sed 's/x86_64/x86_64-linux-gnu/;s/aarch64/aarch64-linux-gnu/')
+KARCH_AMD64 := x86_64-linux-gnu
+
 .PHONY: core kernel iso boot boot-installer stop test clean \
         core-amd64 kernel-amd64 iso-amd64 boot-amd64 boot-installer-amd64
 
@@ -29,12 +32,14 @@ core:
 	docker build --build-context packages=$(PACKAGES_DIR) --build-context pm=$(PM_DIR) \
 		--network=host \
 		--build-arg REPO_URL=$(REPO_URL) \
+		--build-arg KARCH=$(KARCH) \
 		-t kominka:core .
 
 core-amd64:
 	docker build $(AMD64) --build-context packages=$(PACKAGES_DIR) --build-context pm=$(PM_DIR) \
 		--network=host \
 		--build-arg REPO_URL=$(REPO_URL) \
+		--build-arg KARCH=$(KARCH_AMD64) \
 		-t kominka:core-amd64 .
 
 kernel:
@@ -53,10 +58,13 @@ kernel-amd64:
 		-e OUT_KERNEL=$(KERNEL_AMD64) -e OUT_INITRAMFS=$(INITRAMFS_AMD64) \
 		$(KERNEL_IMAGE)-amd64
 
+R2 := https://pub-15b3a4c25627476493c0e1a68993f4d8.r2.dev
+
 iso: core
 	docker build --build-context packages=$(PACKAGES_DIR) --build-context pm=$(PM_DIR) \
 		--network=host \
 		--build-arg REPO_URL=$(REPO_URL) \
+		--build-arg R2_PUBLIC_URL=$(R2) \
 		-t $(INSTALLER_IMAGE) -f Dockerfile.iso .
 	docker run --rm --privileged -v "$(CURDIR)":/out $(INSTALLER_IMAGE)
 
@@ -72,7 +80,7 @@ iso-amd64: core-amd64
 $(KERNEL): Dockerfile.linux packages/linux/PKGBUILD.ysh
 	$(MAKE) kernel
 
-$(INSTALLER_IMG): Dockerfile.iso build_iso.ysh packages/liveiso/files/install.ysh Dockerfile pm.ysh
+$(INSTALLER_IMG): Dockerfile.iso build_iso.ysh packages/liveiso/files/install.ysh Dockerfile
 	$(MAKE) iso
 
 boot: $(KERNEL) $(INSTALLER_IMG)
