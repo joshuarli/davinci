@@ -8,12 +8,12 @@ Kominka is a minimal, self-hosting Linux distribution. Supports aarch64 and x86_
 
 ## Images
 
-| Image | Size | Contents |
-|-------|------|----------|
-| `kominka:core` | ~57MB | Core packages — minimal bootable system |
-| `kominka-installer.img` | ~161MB | Bootable installer (MBR: EFI + ext4) |
+| Image | Contents |
+|-------|----------|
+| `kominka:core` | Core packages — minimal bootable system |
+| `kominka-installer.img` | Bootable installer (MBR: EFI + ext4) |
 
-FROM scratch. Only external dependency: `busybox:latest` (4MB static musl) for the initial wget+tar bootstrap.
+FROM scratch. Only external dependency: `busybox:latest` (static musl) for the initial wget+tar bootstrap.
 
 ## Compiler Toolchain
 
@@ -25,7 +25,6 @@ Zig replaces gcc + binutils + ld — one binary, zero bootstrap chain:
 | `ld` | `zig ld.lld` |
 | `ar`, `ranlib` | `zig ar` / `zig ranlib` |
 | `nm` | Custom 50-line C ELF parser |
-| `strip` | Custom 70-line C ELF stripper |
 | `objcopy` | `zig objcopy` |
 
 All binaries are compiled with `zig cc -target ARCH-linux-musl` and dynamically link against musl libc.
@@ -35,16 +34,17 @@ All binaries are compiled with `zig cc -target ARCH-linux-musl` and dynamically 
 | Package | Role |
 |---------|------|
 | baselayout | FHS dirs, /etc configs, /bin→/usr/bin symlinks |
-| musl | C library (with mimalloc as default allocator) |
+| musl | C library |
+| mimalloc | System-wide allocator preloaded via ld.so.preload |
 | busybox | init, sh, getty, mdev, udhcpc, ~170 applets |
-| baseinit | rc.boot, rc.shutdown, rc.lib |
+| baseinit | rc.boot, rc.shutdown, rc.lib (YSH) |
 | runit | Service supervision (runsvdir/runsv/sv) |
-| boringssl | TLS library (libssl.so, libcrypto.so) |
+| boringssl | TLS library |
 | curl | HTTP client + libcurl.so |
 | ca-certificates | Root CAs |
 | ysh | Shell (static musl binary, runs pm) |
 
-`sudo-rs` is installed in the ISO layer (not core) with `NOPASSWD` for the `wheel` group. Authentication uses busybox `su` (no PAM) with an empty root password.
+`sudo-rs` is installed in the ISO layer (not core) with `NOPASSWD` for the `wheel` group.
 
 ## Build Pipeline
 
@@ -60,17 +60,20 @@ Dockerfile.iso (FROM kominka:core)
   └── build_iso.sh → kominka-installer.img
 ```
 
-All packages come from the repo server at `~/d/repo`. Kernel and headers are
-the `linux` package; built once via `make rebuild-linux-debian`, then served
-like any other package.
+All packages come from `~/d/repo`. Kernel and headers are the `linux` package.
 
 ## Bootstrap
 
+The fetch stage (Docker Hub busybox, working TLS) downloads all core packages as tarballs named `pkg@ver-rel.tar.gz` into `/cache`. These pre-seed pm's binary cache so `pm i core` installs everything from disk without HTTPS calls. This bypasses a zig cc x86_64 boringssl SIGSEGV that prevents our curl from making HTTPS connections in OrbStack/QEMU.
+
 ```
-busybox:latest
-  └── busybox wget → ysh (static musl binary, from new R2 bucket)
-  └── ysh pm.ysh i core → downloads packages from repo server
-FROM scratch (copy /kominka-root → /)
+busybox:latest (fetch stage)
+  └── wget all core tarballs → /cache
+
+FROM scratch (bootstrap stage)
+  └── COPY /cache → /root/.cache/kominka/bin/
+  └── pm i core → installs from cache, no downloads
+  └── COPY → /kominka-root → final FROM scratch
 ```
 
 ## Boot Flow
@@ -88,43 +91,20 @@ virtiofs mounts the host `packages/` (symlink to `~/d/repo/packages`) as `/packa
 
 ## Package Manager
 
-`pm.ysh` — ~2700 line YSH script. Key behaviors:
+See `~/d/pm/README.md`. Key behaviors:
 
 - `pm i pkg` — install binary from repo server, auto-resolve runtime deps
 - `pm b pkg` — build from source, resolve build+runtime deps
 - `pm p pkg` — upload built tarball to repo server
-- Make deps skipped during `pm i`; also skipped during `pm b` when parent is already installed
-- Each package operation receives the loaded package record as an explicit typed parameter (`p Dict`) — no shared mutable globals for package state
+- `pm t pkg` — show dependency tree
 - Parallel downloads with live progress
-
-## Repository
-
-Package definitions and repository server live in `~/d/repo`. The server is a
-Rust HTTP service (~400 lines, tiny_http + ureq, no async) backed by Cloudflare
-R2 via S3 APIs. It serves a per-arch JSON package index and tarballs.
-
-```
-{arch}/{pkg}/{ver}-{rel}.tar.gz   R2 storage layout
-{arch}/packages.json              package index
-```
-
-`pm i` fetches the remote package index and resolves deps without needing a
-local git checkout of package definitions. `pm p` uploads built tarballs to
-the server. See `~/d/repo/AGENTS.md` for server architecture details.
-
-## ARM64 Compatibility
-
-Packages must work in Apple Virtualization.framework guests (used by vfkit on
-Apple Silicon). This CPU does NOT expose SVE, PAC, or BTI. zig cc defaults to
-a conservative `armv8-a` baseline — safe for any ARM64 VM.
-
-All packages are built with zig cc targeting musl. No gcc or Debian toolchain needed.
+- Make deps skipped when parent has a pre-built binary in the repo
 
 ## Self-Hosting
 
-Packages are built in `kominka:core`. All build tools (zig, samurai, cmake, etc.)
-are installed from the repo server via `pm i build-essential`. Compiled-in paths
-are correct because the build environment IS the target (`KOMINKA_ROOT=/` effectively).
+Packages are built in `kominka:core`. All build tools (zig, samurai, cmake, etc.) are installed from the repo server via `pm i build-essential`. Compiled-in paths are correct because the build environment IS the target (`KOMINKA_ROOT=/` effectively).
+
+arm64 self-hosting via `build-package.yml` is fully working. x86_64 uses `bootstrap-build-package.yml` (Alpine environment) due to a zig cc boringssl SIGSEGV affecting our x86_64 curl. See `~/d/repo/ZIG-CC.md` and `~/d/repo/TODO.md`.
 
 ## Filesystem
 
