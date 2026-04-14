@@ -15,9 +15,9 @@ FROM busybox:latest AS pkg-fetch
 ARG REPO_URL=https://kominka.17166969.xyz
 RUN ARCH=$(uname -m | sed 's/x86_64/x86_64-linux-gnu/;s/aarch64/aarch64-linux-gnu/') && \
     mkdir -p /cache && \
-    wget --no-check-certificate -qO "/cache/linux@6.19.12-3.tar.gz" \
-        "${REPO_URL}/${ARCH}/linux/6.19.12-3.tar.gz" && \
-    echo "linux: $(wc -c < /cache/linux@6.19.12-3.tar.gz) bytes"
+    wget --no-check-certificate -qO "/cache/linux@6.19.12-9.tar.gz" \
+        "${REPO_URL}/${ARCH}/linux/6.19.12-9.tar.gz" && \
+    echo "linux: $(wc -c < /cache/linux@6.19.12-9.tar.gz) bytes"
 
 FROM kominka:core AS rootfs
 
