@@ -13,7 +13,7 @@ COPY --from=packages / /packages
 
 ARG REPO_URL=https://kominka.17166969.xyz
 ARG R2_PUBLIC_URL=
-ENV KOMINKA_REPO=${REPO_URL} \
+ENV KOMINKA_REPO=${REPO_URL:-https://kominka.17166969.xyz} \
     R2_PUBLIC_URL=${R2_PUBLIC_URL} \
     KOMINKA_PATH=/packages \
     KOMINKA_COMPRESS=gz \
