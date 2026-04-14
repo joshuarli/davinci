@@ -19,6 +19,8 @@ REPO_ENV     := $(HOME)/d/repo/.env
 # Source REPO_URL from .env so docker build can reach the repo server.
 # The server runs on the host; --network=host makes localhost:3000 reachable.
 REPO_URL := $(shell grep '^KOMINKA_REPO=' $(REPO_ENV) 2>/dev/null | cut -d= -f2-)
+# Only pass --build-arg REPO_URL when non-empty; empty arg overrides ARG defaults.
+REPO_ARG  := $(if $(strip $(REPO_URL)),--build-arg REPO_URL=$(REPO_URL))
 
 AMD64 := --platform linux/amd64
 
@@ -31,28 +33,28 @@ KARCH_AMD64 := x86_64-linux-gnu
 core:
 	docker build --build-context packages=$(PACKAGES_DIR) --build-context pm=$(PM_DIR) \
 		--network=host \
-		--build-arg REPO_URL=$(REPO_URL) \
+		$(REPO_ARG) \
 		--build-arg KARCH=$(KARCH) \
 		-t kominka:core .
 
 core-amd64:
 	docker build $(AMD64) --build-context packages=$(PACKAGES_DIR) --build-context pm=$(PM_DIR) \
 		--network=host \
-		--build-arg REPO_URL=$(REPO_URL) \
+		$(REPO_ARG) \
 		--build-arg KARCH=$(KARCH_AMD64) \
 		-t kominka:core-amd64 .
 
 kernel:
 	docker build --build-context packages=$(PACKAGES_DIR) --build-context pm=$(PM_DIR) \
 		--network=host \
-		--build-arg REPO_URL=$(REPO_URL) \
+		$(REPO_ARG) \
 		-t $(KERNEL_IMAGE) -f Dockerfile.linux .
 	docker run --rm -v "$(CURDIR)":/out $(KERNEL_IMAGE)
 
 kernel-amd64:
 	docker build $(AMD64) --build-context packages=$(PACKAGES_DIR) --build-context pm=$(PM_DIR) \
 		--network=host \
-		--build-arg REPO_URL=$(REPO_URL) \
+		$(REPO_ARG) \
 		-t $(KERNEL_IMAGE)-amd64 -f Dockerfile.linux .
 	docker run $(AMD64) --rm -v "$(CURDIR)":/out \
 		-e OUT_KERNEL=$(KERNEL_AMD64) -e OUT_INITRAMFS=$(INITRAMFS_AMD64) \
@@ -63,7 +65,7 @@ R2 := https://pub-15b3a4c25627476493c0e1a68993f4d8.r2.dev
 iso: core
 	docker build --build-context packages=$(PACKAGES_DIR) --build-context pm=$(PM_DIR) \
 		--network=host \
-		--build-arg REPO_URL=$(REPO_URL) \
+		$(REPO_ARG) \
 		--build-arg R2_PUBLIC_URL=$(R2) \
 		-t $(INSTALLER_IMAGE) -f Dockerfile.iso .
 	docker run --rm --privileged -v "$(CURDIR)":/out $(INSTALLER_IMAGE)
@@ -71,7 +73,7 @@ iso: core
 iso-amd64: core-amd64
 	docker build $(AMD64) --build-context packages=$(PACKAGES_DIR) --build-context pm=$(PM_DIR) \
 		--network=host \
-		--build-arg REPO_URL=$(REPO_URL) \
+		$(REPO_ARG) \
 		-t $(INSTALLER_IMAGE)-amd64 -f Dockerfile.iso .
 	docker run $(AMD64) --rm --privileged -v "$(CURDIR)":/out \
 		-e OUT_IMG=$(INSTALLER_IMG_AMD64) \
