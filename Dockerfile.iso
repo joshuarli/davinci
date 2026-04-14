@@ -7,9 +7,22 @@
 #   make iso   (or docker build ... -f Dockerfile.iso .)
 #   docker run --rm --privileged -v "$(pwd)":/out kominka-iso
 
+# Docker Hub busybox has working HTTPS wget; use it to pre-fetch packages.
+# Our boringssl shared library crashes with SIGILL/SIGSEGV in some environments
+# (OrbStack, QEMU) making pm's curl-based downloads fail. Pre-seeding pm's
+# binary cache bypasses this — pm finds tarballs locally and skips downloads.
+FROM busybox:latest AS pkg-fetch
+ARG REPO_URL=https://kominka.17166969.xyz
+RUN ARCH=$(uname -m | sed 's/x86_64/x86_64-linux-gnu/;s/aarch64/aarch64-linux-gnu/') && \
+    mkdir -p /cache && \
+    wget --no-check-certificate -qO "/cache/linux@6.19.12-3.tar.gz" \
+        "${REPO_URL}/${ARCH}/linux/6.19.12-3.tar.gz" && \
+    echo "linux: $(wc -c < /cache/linux@6.19.12-3.tar.gz) bytes"
+
 FROM kominka:core AS rootfs
 
 COPY --from=packages / /packages
+COPY --from=pkg-fetch /cache /root/.cache/kominka/bin/
 
 ARG REPO_URL=https://kominka.17166969.xyz
 ARG R2_PUBLIC_URL=
@@ -24,7 +37,7 @@ ENV KOMINKA_REPO=${REPO_URL} \
     LOGNAME=root \
     HOME=/root
 
-# Kernel.
+# Kernel — installed from pre-seeded pm cache (no curl needed).
 RUN pm i linux
 
 # Filesystem tools, sudo, and build tools for the live environment.
