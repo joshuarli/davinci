@@ -78,14 +78,51 @@ FROM scratch (bootstrap stage)
 
 ## Boot Flow
 
-```
-Kernel (EFISTUB) → busybox init → /etc/inittab
-  ├── sysinit:  rc.boot (mount, fsck, mdev, network)
-  ├── respawn:  runsvdir (mdev, syslogd, getty-hvc0, udhcpc, ntpd)
-  └── shutdown: rc.shutdown
+**busybox init is PID 1** — not runit. Runit is used only as a service supervisor, not as an init replacement.
 
-getty-hvc0 → autologin script (root) → su -l josh
 ```
+Kernel (EFISTUB, no initramfs, no switch_root)
+  └── PID 1: /sbin/init  (busybox init, reads /etc/inittab)
+```
+
+Busybox init reads `/etc/inittab` on startup. The inittab has four types of entries:
+
+```
+::sysinit:/usr/lib/init/rc.boot        # run once before anything else
+::restart:/sbin/init                   # re-exec on SIGHUP
+::shutdown:/usr/lib/init/rc.shutdown   # run on shutdown/reboot
+::respawn:runsvdir -P /var/service ... # restart if it dies
+tty1::respawn:/bin/getty 38400 tty1   # virtual terminal
+```
+
+**sysinit phase** — busybox init runs `rc.boot` (a YSH script) synchronously and waits for it to finish:
+1. Mount `/proc`, `/sys`, `/run`, `/dev`, `/dev/pts`, `/dev/shm`
+2. Load `/etc/rc.conf`
+3. Start device manager (`mdev -s` + `fork { mdev -df }`)
+4. Remount rootfs read-only, then fsck, then remount read-write
+5. Mount all local filesystems (`mount -a`)
+6. Enable swap
+7. Seed `/dev/urandom`
+8. Set hostname from `/etc/hostname`
+9. Apply sysctl settings
+10. Kill device manager (services will restart it)
+11. Run `/etc/rc.d/*.boot` hooks
+
+**respawn phase** — after `rc.boot` exits, busybox init starts the `respawn` entries in parallel:
+- `runsvdir -P /var/service` — runit service supervisor. Scans `/var/service/` for symlinks to service directories (`/etc/sv/{name}/`), starts a `runsv` process per service, monitors and restarts them.
+- `/bin/getty 38400 tty1` — virtual terminal getty as fallback
+
+**runit services** (managed by runsvdir) include `mdev`, `syslogd`, `getty-hvc0`, `udhcpc`, `ntpd`. Each service is a directory with a `run` script (YSH). The `run` script is exec'd by `runsv` in a tight loop — if it exits, `runsv` waits 1s and restarts it.
+
+**getty-hvc0** service (`/etc/sv/getty-hvc0/run`):
+```sh
+exec getty 115200 hvc0 -n -l /usr/local/bin/autologin
+```
+`-n` skips login prompt. `-l /usr/local/bin/autologin` replaces the login program with an autologin script that optionally mounts the virtiofs packages share, then runs `su -l josh`.
+
+**No switch_root / initramfs**: The kernel boots directly into the installed filesystem. There is no initial RAM disk and no pivot_root.
+
+**Shutdown**: busybox init sends `SIGTERM` to all processes (via `killall5 -15`), waits, then runs `rc.shutdown` which stops runit services, kills remaining processes, unmounts filesystems, and remounts rootfs read-only. Busybox init handles the final `reboot(2)` syscall.
 
 virtiofs mounts the host `packages/` (symlink to `~/d/repo/packages`) as `/packages` at autologin, so package definitions are live without rebuilding the image.
 
