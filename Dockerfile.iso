@@ -58,7 +58,6 @@ RUN pm i linux
 # Filesystem tools, sudo, and build tools for the live environment.
 RUN pm i liveiso
 RUN pm i sudo-rs
-RUN pm i build-essential
 
 # pm.ysh escalates via 'su' when KOMINKA_SU=su (see as_user proc).
 # Restore the busybox-suid su symlink (sudo-rs overwrites it with its own
