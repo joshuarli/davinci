@@ -46,7 +46,9 @@ var efi_start2 = efi_end + 1
 # Use printf to pipe fdisk commands — heredocs don't interact reliably with
 # busybox fdisk in YSH. The trailing \n is the empty "accept default last sector"
 # response for partition 2's end sector prompt.
-printf 'o\nn\np\n1\n2048\n%s\nt\nef\nn\np\n2\n%s\n\nw\n'     "$efi_end" "$efi_start2" | busybox fdisk $IMG || true
+try {
+    printf 'o\nn\np\n1\n2048\n%s\nt\nef\nn\np\n2\n%s\n\nw\n'         "$efi_end" "$efi_start2" | busybox fdisk $IMG
+}
 
 # Verify fdisk wrote a valid MBR signature (0x55 0xAA at bytes 510-511).
 var _sig = $(busybox dd if=$IMG bs=1 skip=510 count=2 2>/dev/null | busybox od -An -tx1 | busybox tr -d ' \n')
