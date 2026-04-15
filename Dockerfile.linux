@@ -13,11 +13,12 @@ RUN ARCH=$(uname -m | sed 's/x86_64/x86_64-linux-gnu/;s/aarch64/aarch64-linux-gn
 
 FROM kominka:core
 
+COPY --from=packages / /packages
 COPY --from=pkg-fetch /cache /root/.cache/kominka/bin/
 
 ARG REPO_URL=https://kominka.17166969.xyz
 RUN KOMINKA_REPO=${REPO_URL} \
-    KOMINKA_PATH=/nonexistent \
+    KOMINKA_PATH=/packages \
     KOMINKA_COMPRESS=gz \
     KOMINKA_COLOR=0 \
     KOMINKA_PROMPT=0 \
