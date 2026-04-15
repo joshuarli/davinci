@@ -43,18 +43,21 @@ busybox truncate -s "${img_mb}M" $IMG
 var efi_end   = efi_mb * 2048 + 2047
 var efi_start2 = efi_end + 1
 
-# Use printf to pipe fdisk commands — heredocs don't interact reliably with
-# busybox fdisk in YSH. The trailing \n is the empty "accept default last sector"
-# response for partition 2's end sector prompt.
-try {
-    printf 'o\nn\np\n1\n2048\n%s\nt\nef\nn\np\n2\n%s\n\nw\n'         "$efi_end" "$efi_start2" | busybox fdisk $IMG
-}
+# Write MBR partition table using Perl — busybox fdisk crashes (SIGSEGV,
+# exit 139) when receiving piped input. Perl is a liveiso dependency.
+var _p1_size = efi_end - 2048 + 1
+var _p2_size = img_mb * 2048 - efi_start2
 
-# Verify fdisk wrote a valid MBR signature (0x55 0xAA at bytes 510-511).
-var _sig = $(busybox dd if=$IMG bs=1 skip=510 count=2 2>/dev/null | busybox od -An -tx1 | busybox tr -d ' \n')
-if (_sig !== '55aa') {
-    error "fdisk failed to write MBR (sig=${_sig}); cannot create bootable image"
-}
+perl - $IMG 2048 $_p1_size $efi_start2 $_p2_size << 'PERL'
+use strict;
+my ($img, $p1s, $p1z, $p2s, $p2z) = @ARGV;
+open(my $fh, "+<", $img) or die "open: $!\n";
+seek($fh, 446, 0);
+print $fh pack("C8VV", 0, 0, 0, 0, 0xEF, 0, 0, 0, $p1s, $p1z);
+print $fh pack("C8VV", 0, 0, 0, 0, 0x83, 0, 0, 0, $p2s, $p2z);
+seek($fh, 510, 0);
+print $fh "\x55\xAA";
+PERL
 
 var P1_START = 2048
 var P1_END   = efi_end
