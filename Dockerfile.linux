@@ -1,28 +1,31 @@
 # Fetch the pre-built Kominka Linux kernel from the repo server.
 #
-# The kernel is built and uploaded once via: make rebuild-linux-debian
-# After that, this Dockerfile simply installs the package and extracts the image.
-#
 # Usage:
 #   make kernel   (or docker build -t kominka-kernel -f Dockerfile.linux .)
 
+FROM busybox:latest AS pkg-fetch
+ARG REPO_URL=https://kominka.17166969.xyz
+RUN ARCH=$(uname -m | sed 's/x86_64/x86_64-linux-gnu/;s/aarch64/aarch64-linux-gnu/') && \
+    mkdir -p /cache && \
+    wget --no-check-certificate -qO "/cache/linux@6.19.12-9.tar.gz" \
+        "${REPO_URL}/${ARCH}/linux/6.19.12-9.tar.gz" && \
+    echo "linux: $(wc -c < /cache/linux@6.19.12-9.tar.gz) bytes"
+
 FROM kominka:core
 
-ARG REPO_URL=
+COPY --from=pkg-fetch /cache /root/.cache/kominka/bin/
 
-# pm u fetches the package index from the repo server before installing.
-# Without this, pm i can't find packages that only exist in the remote index
-# (not in a local PKGBUILD directory).
+ARG REPO_URL=https://kominka.17166969.xyz
 RUN KOMINKA_REPO=${REPO_URL} \
     KOMINKA_PATH=/nonexistent \
     KOMINKA_COMPRESS=gz \
     KOMINKA_COLOR=0 \
     KOMINKA_PROMPT=0 \
     KOMINKA_FORCE=1 \
-    KOMINKA_INSECURE=1 \
+    KOMINKA_GET=/usr/bin/curl \
     LOGNAME=root \
     HOME=/root \
-    sh -c 'pm u; pm i linux'
+    pm i linux
 
 CMD cp /usr/share/kominka/Image /out/Image && \
     cp /usr/share/kominka/kernel.config /out/kernel-config 2>/dev/null; \
