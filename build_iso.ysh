@@ -16,7 +16,7 @@ proc cleanup() {
     if (LOOP_EFI !== '') { busybox losetup -d $LOOP_EFI 2>/dev/null || true }
     if (LOOP_ROOT !== '') { busybox losetup -d $LOOP_ROOT 2>/dev/null || true }
 }
-trap --add EXIT cleanup
+trap --add EXIT { cleanup }
 
 # Size partitions to fit contents.
 var kernel_mb = $[$(busybox stat -c%s /usr/share/kominka/Image) // 1048576 + 1]
