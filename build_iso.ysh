@@ -43,21 +43,32 @@ busybox truncate -s "${img_mb}M" $IMG
 var efi_end   = efi_mb * 2048 + 2047
 var efi_start2 = efi_end + 1
 
-# Write MBR partition table using Perl — busybox fdisk crashes (SIGSEGV,
-# exit 139) when receiving piped input. Perl is a liveiso dependency.
+# Write MBR partition table using YSH + busybox printf/dd.
+# busybox fdisk crashes (SIGSEGV) and perl is not in the live environment.
 var _p1_size = efi_end - 2048 + 1
 var _p2_size = img_mb * 2048 - efi_start2
 
-perl - $IMG 2048 $_p1_size $efi_start2 $_p2_size << 'PERL'
-use strict;
-my ($img, $p1s, $p1z, $p2s, $p2z) = @ARGV;
-open(my $fh, "+<", $img) or die "open: $!\n";
-seek($fh, 446, 0);
-print $fh pack("C8VV", 0, 0, 0, 0, 0xEF, 0, 0, 0, $p1s, $p1z);
-print $fh pack("C8VV", 0, 0, 0, 0, 0x83, 0, 0, 0, $p2s, $p2z);
-seek($fh, 510, 0);
-print $fh "\x55\xAA";
-PERL
+proc _byte(n) {
+    # Write one binary byte: convert n to octal and use printf escape.
+    printf "\\$(printf '%03o' $n)"
+}
+proc _le32(n) {
+    # Write 4 bytes little-endian.
+    _byte $[n & 0xFF]
+    _byte $[(n >> 8) & 0xFF]
+    _byte $[(n >> 16) & 0xFF]
+    _byte $[(n >> 24) & 0xFF]
+}
+
+# Partition entries at MBR offset 446 (16 bytes each).
+# Layout: status(1) CHS_start(3) type(1) CHS_end(3) lba_start(4) lba_size(4)
+# CHS = 0 — modern firmware uses LBA only.
+{ printf '\x00\x00\x00\x00\xef\x00\x00\x00'; _le32 2048; _le32 $_p1_size } \
+    | busybox dd of=$IMG bs=1 seek=446 conv=notrunc 2>/dev/null
+{ printf '\x00\x00\x00\x00\x83\x00\x00\x00'; _le32 $efi_start2; _le32 $_p2_size } \
+    | busybox dd of=$IMG bs=1 seek=462 conv=notrunc 2>/dev/null
+printf '\x55\xaa' \
+    | busybox dd of=$IMG bs=1 seek=510 conv=notrunc 2>/dev/null
 
 var P1_START = 2048
 var P1_END   = efi_end
